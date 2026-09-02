@@ -27,6 +27,7 @@ public sealed partial class MainWindow : Window
     private GlobalHotkey? _hotkey;
     private string? _autocorrectPath;
     private bool _shortcutEditorOpen;
+    private bool _togglePending;
     private bool _started;
     private bool _closed;
 
@@ -76,6 +77,8 @@ public sealed partial class MainWindow : Window
 
     private async Task ToggleAsync()
     {
+        if (_togglePending) return;
+        _togglePending = true;
         try
         {
             await StartAsync();
@@ -83,6 +86,7 @@ public sealed partial class MainWindow : Window
         }
         catch (Exception error)
         {
+            _togglePending = false;
             ShowError("听写服务不可用", error.Message);
             _overlay.Hide();
         }
@@ -105,7 +109,10 @@ public sealed partial class MainWindow : Window
     {
         DispatcherQueue.TryEnqueue(() =>
         {
-            if (!_closed) ShowError("听写服务已停止", "重新打开应用即可恢复。");
+            _started = false;
+            _togglePending = false;
+            _overlay.Hide();
+            if (!_closed) ShowError("听写服务已停止", "再次按快捷键可重新启动。");
         });
     }
 
@@ -117,17 +124,24 @@ public sealed partial class MainWindow : Window
                 _autocorrectPath = message.AutocorrectPath;
                 break;
             case "recording":
+                _togglePending = false;
                 _overlay.Show();
                 break;
             case "transcribing":
+                _togglePending = false;
                 _overlay.Hide();
                 break;
             case "transcript":
+                _togglePending = false;
                 _ = PasteTranscriptAsync(message.Text);
+                break;
+            case "busy":
+                _togglePending = false;
                 break;
             case "empty":
             case "error":
             case "stopped":
+                _togglePending = false;
                 _overlay.Hide();
                 break;
         }

@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 
 const SAMPLE_RATE = 16_000;
 const FRAME_LENGTH = 512;
+const STARTUP_GUARD_MS = 250;
 const CHINESE_OUTPUTS = new Set(["simplified", "traditional-taiwan", "traditional-hong-kong"]);
 
 function isRecord(value) {
@@ -205,6 +206,8 @@ class DictationDaemon {
     if (this.state === "idle") {
       try {
         await this.startRecording();
+        // ponytail: fixed 250ms guard; replace with a recorder-ready signal if immediate stop matters.
+        await new Promise((resolve) => setTimeout(resolve, STARTUP_GUARD_MS));
       } catch (error) {
         this.state = "idle";
         emit("error", { message: errorMessage(error) });

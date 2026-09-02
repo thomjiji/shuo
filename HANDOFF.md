@@ -38,7 +38,7 @@ Get-CimInstance Win32_Process -Filter "Name = 'WindowsDictation.exe' OR Name = '
 - 使用 WinUI 3 和 Windows App SDK `2.4.0` 的原生桌面 app；运行时不使用 PowerShell。
 - `Ctrl+Alt+\` 全局热键，使用 `RegisterHotKey` 的 `Ctrl + Alt + MOD_NOREPEAT + VK_OEM_5`。
 - 按第一次热键开始录音，第二次停止录音、调用本地模型，最终将文本复制并发送 `Ctrl+V` 到原前台 app。
-- 不抢焦点的 WinUI 底部居中 indicator：录音时显示“正在录音”，批量转写时显示“正在转写”，粘贴后短暂显示“已粘贴”。
+- 不抢焦点的 WinUI 底部居中 indicator：录音和批量转写期间仅显示旋转进度环，完成或失败即隐藏。
 - app 使用自己的 `%LOCALAPPDATA%\WindowsDictation\settings.json`。首次启动时仅导入一次旧 Pi 配置，之后不再读取 Pi 配置。
 - worker 复用本地 Qwen3-ASR 0.6B Q8 GGUF、系统默认麦克风、OpenCC 和现有 autocorrect 可执行文件。
 - 发布目录会复制 worker 和它的 `node_modules`；模型不复制，仍由设置中的本地路径引用。

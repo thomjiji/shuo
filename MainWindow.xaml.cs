@@ -8,6 +8,9 @@ namespace WindowsDictation;
 
 public sealed partial class MainWindow : Window
 {
+    private const int MinimumWindowWidth = 640;
+    private const int MinimumWindowHeight = 480;
+
     private readonly DaemonClient _daemon = new();
     private readonly OverlayWindow _overlay = new();
     private GlobalHotkey? _hotkey;
@@ -22,6 +25,15 @@ public sealed partial class MainWindow : Window
         SetTitleBar(AppTitleBar);
         AppWindow.SetIcon("Assets/AppIcon.ico");
         AppWindow.Resize(new SizeInt32(680, 520));
+        AppWindow.Changed += (_, args) =>
+        {
+            if (!args.DidSizeChange) return;
+            var size = AppWindow.Size;
+            if (size.Width < MinimumWindowWidth || size.Height < MinimumWindowHeight)
+            {
+                AppWindow.Resize(new SizeInt32(Math.Max(size.Width, MinimumWindowWidth), Math.Max(size.Height, MinimumWindowHeight)));
+            }
+        };
 
         _daemon.MessageReceived += OnDaemonMessage;
         _daemon.ErrorReceived += OnDaemonError;
@@ -54,7 +66,7 @@ public sealed partial class MainWindow : Window
         {
             _started = false;
             SetStatus("无法启动", error.Message, InfoBarSeverity.Error);
-            _overlay.ShowNotice("无法启动", error.Message);
+            _overlay.Hide();
         }
     }
 
@@ -68,7 +80,7 @@ public sealed partial class MainWindow : Window
         catch (Exception error)
         {
             SetStatus("听写服务不可用", error.Message, InfoBarSeverity.Error);
-            _overlay.ShowNotice("听写服务不可用", error.Message);
+            _overlay.Hide();
         }
     }
 
@@ -103,12 +115,12 @@ public sealed partial class MainWindow : Window
             case "recording":
                 SetStatus("正在录音", "再次按快捷键即可停止并开始转写。", InfoBarSeverity.Informational);
                 ToggleButton.Content = "停止并转写";
-                _overlay.ShowRecording();
+                _overlay.ShowActivity();
                 break;
             case "transcribing":
                 SetStatus("正在转写", "本地模型正在整理录音。", InfoBarSeverity.Informational);
                 ToggleButton.Content = "正在转写";
-                _overlay.ShowTranscribing();
+                _overlay.ShowActivity();
                 break;
             case "transcript":
                 _ = PasteTranscriptAsync(message.Text);
@@ -116,7 +128,7 @@ public sealed partial class MainWindow : Window
             case "empty":
                 SetStatus("没有听到语音", "请再试一次。", InfoBarSeverity.Warning);
                 ToggleButton.Content = "开始录音";
-                _overlay.ShowNotice("没有听到语音", "请再试一次。");
+                _overlay.Hide();
                 break;
             case "busy":
                 SetStatus("正在忙", "请等待当前转写完成。", InfoBarSeverity.Warning);
@@ -124,7 +136,7 @@ public sealed partial class MainWindow : Window
             case "error":
                 SetStatus("听写失败", message.Error ?? "未知错误。", InfoBarSeverity.Error);
                 ToggleButton.Content = "开始录音";
-                _overlay.ShowNotice("听写失败", message.Error ?? "未知错误。");
+                _overlay.Hide();
                 break;
             case "stopped":
                 SetStatus("已停止", "听写服务已关闭。", InfoBarSeverity.Warning);
@@ -140,13 +152,13 @@ public sealed partial class MainWindow : Window
             await TranscriptPaster.PasteAsync(text, _autocorrectPath);
             SetStatus("已粘贴", "文字已送到当前输入框。", InfoBarSeverity.Success);
             ToggleButton.Content = "开始录音";
-            _overlay.ShowPasted();
+            _overlay.Hide();
         }
         catch (Exception error)
         {
             SetStatus("粘贴失败", error.Message, InfoBarSeverity.Error);
             ToggleButton.Content = "开始录音";
-            _overlay.ShowNotice("粘贴失败", error.Message);
+            _overlay.Hide();
         }
     }
 

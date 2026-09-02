@@ -138,7 +138,9 @@ internal static class NativeMethods
             KeyboardInput(VkV, KeyeventfKeyup),
             KeyboardInput(VkControl, KeyeventfKeyup),
         };
-        SendInput((uint)inputs.Length, inputs, Marshal.SizeOf<Input>());
+        var inputSize = Marshal.SizeOf<Input>();
+        if (inputSize != (IntPtr.Size == 8 ? 40 : 28)) throw new InvalidOperationException("Unexpected native INPUT layout.");
+        if (SendInput((uint)inputs.Length, inputs, inputSize) != (uint)inputs.Length) throw new InvalidOperationException("Windows rejected the paste shortcut.");
     }
 
     private static Input KeyboardInput(ushort virtualKey, uint flags) => new()
@@ -180,6 +182,8 @@ internal static class NativeMethods
     {
         [FieldOffset(0)]
         internal KeyboardInputData Keyboard;
+        [FieldOffset(0)]
+        internal MouseInputData Mouse;
     }
 
     [StructLayout(LayoutKind.Sequential)]
@@ -187,6 +191,17 @@ internal static class NativeMethods
     {
         internal ushort VirtualKey;
         internal ushort ScanCode;
+        internal uint Flags;
+        internal uint Time;
+        internal IntPtr ExtraInfo;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct MouseInputData
+    {
+        internal int X;
+        internal int Y;
+        internal uint MouseData;
         internal uint Flags;
         internal uint Time;
         internal IntPtr ExtraInfo;

@@ -5,7 +5,8 @@ Windows Dictation 是一个原生 WinUI 3 本地听写应用。它用 `Ctrl+Alt+
 ## 当前能力
 
 - WinUI 3 + Windows App SDK 原生应用入口，不依赖 PowerShell 或 Pi 进程。
-- 底部居中的无焦点 indicator，显示“正在录音”“正在转写”和“已粘贴”。
+- 底部居中的无焦点 indicator，只在录音和转写期间显示旋转进度环。
+- 主窗口最小尺寸为 640 x 480，避免控件在缩小时重叠。
 - 首次运行时从已有 Pi Transcribe 配置导入麦克风、模型路径、语言和可选的 autocorrect 路径；之后只读取自己的配置。
 - 当前使用 `transcribe-cpp` 的 GGUF 批量转写后端。Qwen3-ASR 0.6B 的这条路径不支持实时文本流。
 
@@ -39,7 +40,7 @@ dotnet publish --configuration Release --runtime win-x64 --self-contained false 
 
 1. 启动应用并等待状态变为“准备好了”。
 2. 在任意普通权限应用中按一次 `Ctrl+Alt+\` 开始录音。
-3. 再按一次停止录音。indicator 会显示转写状态。
+3. 再按一次停止录音。indicator 会显示旋转进度环。
 4. 最终文本会自动粘贴到原来的前台输入框。
 
 普通权限应用不能向管理员权限目标发送粘贴快捷键。

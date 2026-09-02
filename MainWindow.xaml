@@ -35,45 +35,131 @@
                     BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
                     BorderThickness="1"
                     CornerRadius="8">
-                    <Grid ColumnSpacing="16">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="Auto" />
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="Auto" />
-                            <ColumnDefinition Width="Auto" />
-                        </Grid.ColumnDefinitions>
+                    <StackPanel>
+                        <Grid ColumnSpacing="16">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
 
-                        <FontIcon
-                            VerticalAlignment="Center"
-                            FontFamily="Segoe MDL2 Assets"
-                            FontSize="24"
-                            Glyph="&#xE720;" />
+                            <FontIcon
+                                VerticalAlignment="Center"
+                                FontFamily="Segoe MDL2 Assets"
+                                FontSize="24"
+                                Glyph="&#xE720;" />
 
-                        <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
-                            <TextBlock FontSize="16" FontWeight="SemiBold" Text="录音触发快捷键" />
-                            <TextBlock
-                                FontSize="12"
-                                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                Text="开始或停止听写。" />
-                        </StackPanel>
+                            <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
+                                <TextBlock FontSize="16" FontWeight="SemiBold" Text="录音触发快捷键" />
+                                <TextBlock
+                                    FontSize="12"
+                                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                    Text="开始或停止听写。" />
+                            </StackPanel>
 
-                        <StackPanel
-                            x:Name="HotkeyPreview"
-                            Grid.Column="2"
-                            VerticalAlignment="Center"
-                            Orientation="Horizontal"
-                            Spacing="6" />
+                            <StackPanel
+                                x:Name="HotkeyPreview"
+                                Grid.Column="2"
+                                VerticalAlignment="Center"
+                                Orientation="Horizontal"
+                                Spacing="6" />
 
-                        <Button
-                            x:Name="EditShortcutButton"
-                            Grid.Column="3"
-                            Margin="6,0,0,0"
-                            Padding="8"
-                            automation:AutomationProperties.Name="编辑录音触发快捷键"
-                            Click="EditShortcutButton_Click">
-                            <FontIcon FontFamily="Segoe MDL2 Assets" FontSize="14" Glyph="&#xE70F;" />
-                        </Button>
-                    </Grid>
+                            <Button
+                                x:Name="EditShortcutButton"
+                                Grid.Column="3"
+                                Margin="6,0,0,0"
+                                Padding="8"
+                                automation:AutomationProperties.Name="编辑录音触发快捷键"
+                                Click="EditShortcutButton_Click">
+                                <FontIcon FontFamily="Segoe MDL2 Assets" FontSize="14" Glyph="&#xE70F;" />
+                            </Button>
+                        </Grid>
+
+                        <Border
+                            x:Name="ShortcutEditorPanel"
+                            Margin="0,14,0,0"
+                            Padding="0,14,0,0"
+                            BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                            BorderThickness="0,1,0,0"
+                            Visibility="Collapsed">
+                            <StackPanel Spacing="10">
+                                <TextBlock
+                                    FontSize="12"
+                                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                    Text="按下新的组合键，或选择重置、清除。" />
+
+                                <Button
+                                    x:Name="ShortcutCaptureSurface"
+                                    MinHeight="48"
+                                    HorizontalAlignment="Stretch"
+                                    HorizontalContentAlignment="Center"
+                                    VerticalContentAlignment="Center"
+                                    automation:AutomationProperties.Name="快捷键捕获区域"
+                                    KeyDown="ShortcutCaptureSurface_KeyDown">
+                                    <Grid>
+                                        <TextBlock
+                                            x:Name="ShortcutEditorPlaceholder"
+                                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                            Text="按下新的快捷键" />
+                                        <StackPanel
+                                            x:Name="ShortcutEditorKeys"
+                                            HorizontalAlignment="Center"
+                                            VerticalAlignment="Center"
+                                            Orientation="Horizontal"
+                                            Spacing="6" />
+                                    </Grid>
+                                </Button>
+
+                                <Grid ColumnSpacing="12">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Orientation="Horizontal" Spacing="8">
+                                        <Button
+                                            Padding="8,4"
+                                            automation:AutomationProperties.Name="重置快捷键"
+                                            Click="ResetShortcutButton_Click">
+                                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                                <FontIcon FontFamily="Segoe MDL2 Assets" FontSize="12" Glyph="&#xE72C;" />
+                                                <TextBlock FontSize="12" Text="重置" />
+                                            </StackPanel>
+                                        </Button>
+                                        <Button
+                                            Padding="8,4"
+                                            automation:AutomationProperties.Name="清除快捷键"
+                                            Click="ClearShortcutButton_Click">
+                                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                                <FontIcon FontFamily="Segoe MDL2 Assets" FontSize="12" Glyph="&#xE711;" />
+                                                <TextBlock FontSize="12" Text="清除" />
+                                            </StackPanel>
+                                        </Button>
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+                                        <Button
+                                            x:Name="SaveShortcutButton"
+                                            MinWidth="80"
+                                            MinHeight="32"
+                                            Click="SaveShortcutButton_Click"
+                                            Content="保存"
+                                            Style="{StaticResource AccentButtonStyle}" />
+                                        <Button
+                                            MinWidth="80"
+                                            MinHeight="32"
+                                            Click="CancelShortcutButton_Click"
+                                            Content="取消" />
+                                    </StackPanel>
+                                </Grid>
+
+                                <TextBlock
+                                    x:Name="ShortcutEditorValidation"
+                                    FontSize="12"
+                                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                    TextWrapping="Wrap" />
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
                 </Border>
 
                 <InfoBar
@@ -82,105 +168,6 @@
                     IsOpen="False"
                     Severity="Error" />
             </StackPanel>
-        </Grid>
-
-        <Grid
-            x:Name="ShortcutEditorOverlay"
-            Grid.Row="1"
-            Background="#99000000"
-            Visibility="Collapsed">
-            <Border
-                MinWidth="460"
-                MaxWidth="600"
-                HorizontalAlignment="Center"
-                VerticalAlignment="Center"
-                Margin="24"
-                Background="{ThemeResource LayerFillColorDefaultBrush}"
-                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                BorderThickness="1"
-                CornerRadius="12">
-                <StackPanel>
-
-                    <StackPanel Padding="28" Spacing="14">
-                        <TextBlock FontSize="22" FontWeight="SemiBold" Text="录音触发快捷键" />
-                        <TextBlock
-                            FontSize="14"
-                            Text="快捷键应以 Windows 键、Ctrl、Alt 或 Shift 开头。"
-                            TextWrapping="Wrap" />
-
-                        <Button
-                            x:Name="ShortcutCaptureSurface"
-                            MinHeight="80"
-                            HorizontalAlignment="Stretch"
-                            HorizontalContentAlignment="Center"
-                            VerticalContentAlignment="Center"
-                            automation:AutomationProperties.Name="快捷键捕获区域"
-                            KeyDown="ShortcutCaptureSurface_KeyDown">
-                            <Grid>
-                                <TextBlock
-                                    x:Name="ShortcutEditorPlaceholder"
-                                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                    Text="按下新的快捷键" />
-                                <StackPanel
-                                    x:Name="ShortcutEditorKeys"
-                                    HorizontalAlignment="Center"
-                                    VerticalAlignment="Center"
-                                    Orientation="Horizontal"
-                                    Spacing="12" />
-                            </Grid>
-                        </Button>
-
-                        <StackPanel HorizontalAlignment="Center" Orientation="Horizontal" Spacing="20">
-                            <Button
-                                Padding="8,4"
-                                automation:AutomationProperties.Name="重置快捷键"
-                                Click="ResetShortcutButton_Click">
-                                <StackPanel Orientation="Horizontal" Spacing="6">
-                                    <FontIcon FontFamily="Segoe MDL2 Assets" FontSize="12" Glyph="&#xE72C;" />
-                                    <TextBlock FontSize="12" Text="重置" />
-                                </StackPanel>
-                            </Button>
-                            <Button
-                                Padding="8,4"
-                                automation:AutomationProperties.Name="清除快捷键"
-                                Click="ClearShortcutButton_Click">
-                                <StackPanel Orientation="Horizontal" Spacing="6">
-                                    <FontIcon FontFamily="Segoe MDL2 Assets" FontSize="12" Glyph="&#xE711;" />
-                                    <TextBlock FontSize="12" Text="清除" />
-                                </StackPanel>
-                            </Button>
-                        </StackPanel>
-
-                        <TextBlock
-                            x:Name="ShortcutEditorValidation"
-                            FontSize="12"
-                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                            TextWrapping="Wrap" />
-                    </StackPanel>
-
-                    <Border
-                        Padding="20,14"
-                        Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                        BorderThickness="0,1,0,0"
-                        CornerRadius="0,0,12,12">
-                        <StackPanel HorizontalAlignment="Right" Orientation="Horizontal" Spacing="8">
-                            <Button
-                                x:Name="SaveShortcutButton"
-                                MinWidth="88"
-                                MinHeight="36"
-                                Click="SaveShortcutButton_Click"
-                                Content="保存"
-                                Style="{StaticResource AccentButtonStyle}" />
-                            <Button
-                                MinWidth="88"
-                                MinHeight="36"
-                                Click="CancelShortcutButton_Click"
-                                Content="取消" />
-                        </StackPanel>
-                    </Border>
-                </StackPanel>
-            </Border>
         </Grid>
     </Grid>
 </Window>

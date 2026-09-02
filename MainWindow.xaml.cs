@@ -156,7 +156,9 @@ public sealed partial class MainWindow : Window
         _hotkey?.Dispose();
         _hotkey = null;
         RenderShortcutEditor();
-        ShortcutEditorOverlay.Visibility = Visibility.Visible;
+        ShortcutEditorPanel.Visibility = Visibility.Visible;
+        EditShortcutButton.Visibility = Visibility.Collapsed;
+        HotkeyPreview.Visibility = Visibility.Collapsed;
         FocusShortcutCapture();
     }
 
@@ -216,13 +218,15 @@ public sealed partial class MainWindow : Window
     private void CloseShortcutEditor(bool saved)
     {
         if (!saved) RestoreHotkey();
-        ShortcutEditorOverlay.Visibility = Visibility.Collapsed;
+        ShortcutEditorPanel.Visibility = Visibility.Collapsed;
+        EditShortcutButton.Visibility = Visibility.Visible;
+        HotkeyPreview.Visibility = Visibility.Visible;
         _shortcutEditorOpen = false;
     }
 
     private void RenderShortcutEditor()
     {
-        SetKeyChips(ShortcutEditorKeys, _draftHotkey, true);
+        SetKeyChips(ShortcutEditorKeys, _draftHotkey);
         ShortcutEditorPlaceholder.Visibility = _draftHotkey is null ? Visibility.Visible : Visibility.Collapsed;
         ShortcutEditorPlaceholder.Text = _draftHotkey is null ? "未设置" : "按下新的快捷键";
         SetShortcutEditorValidation(
@@ -305,29 +309,29 @@ public sealed partial class MainWindow : Window
             return;
         }
 
-        SetKeyChips(HotkeyPreview, binding, false);
+        SetKeyChips(HotkeyPreview, binding);
     }
 
-    private static void SetKeyChips(StackPanel target, HotkeyBinding? binding, bool large)
+    private static void SetKeyChips(StackPanel target, HotkeyBinding? binding)
     {
         target.Children.Clear();
         if (binding is not { } hotkey) return;
 
         foreach (var label in hotkey.KeyLabels)
         {
-            target.Children.Add(CreateKeyChip(label, large));
+            target.Children.Add(CreateKeyChip(label));
         }
     }
 
-    private static Border CreateKeyChip(string label, bool large)
+    private static Border CreateKeyChip(string label)
     {
         return new Border
         {
-            MinWidth = large ? 58 : 32,
-            Height = large ? 52 : 32,
-            Padding = large ? new Thickness(10, 6, 10, 6) : new Thickness(6, 3, 6, 3),
+            MinWidth = 32,
+            Height = 32,
+            Padding = new Thickness(6, 3, 6, 3),
             Background = ShortcutKeyBrush,
-            CornerRadius = new CornerRadius(large ? 8 : 5),
+            CornerRadius = new CornerRadius(5),
             Child = new TextBlock
             {
                 Text = label,
@@ -335,7 +339,7 @@ public sealed partial class MainWindow : Window
                 VerticalAlignment = VerticalAlignment.Center,
                 Foreground = ShortcutKeyForeground,
                 FontFamily = new FontFamily(label is "⊞" or "⇧" ? "Segoe UI Symbol" : "Segoe UI"),
-                FontSize = large ? 18 : 12,
+                FontSize = 12,
                 FontWeight = FontWeights.SemiBold,
             },
         };

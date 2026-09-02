@@ -13,6 +13,7 @@ public sealed partial class MainWindow : Window
 
     private readonly DaemonClient _daemon = new();
     private readonly OverlayWindow _overlay = new();
+    private readonly WindowSizeConstraints _sizeConstraints;
     private GlobalHotkey? _hotkey;
     private string? _autocorrectPath;
     private bool _started;
@@ -25,15 +26,8 @@ public sealed partial class MainWindow : Window
         SetTitleBar(AppTitleBar);
         AppWindow.SetIcon("Assets/AppIcon.ico");
         AppWindow.Resize(new SizeInt32(MinimumWindowWidth, MinimumWindowHeight));
-        AppWindow.Changed += (_, args) =>
-        {
-            if (!args.DidSizeChange) return;
-            var size = AppWindow.Size;
-            if (size.Width < MinimumWindowWidth || size.Height < MinimumWindowHeight)
-            {
-                AppWindow.Resize(new SizeInt32(Math.Max(size.Width, MinimumWindowWidth), Math.Max(size.Height, MinimumWindowHeight)));
-            }
-        };
+        var window = WindowNative.GetWindowHandle(this);
+        _sizeConstraints = new WindowSizeConstraints(window, MinimumWindowWidth, MinimumWindowHeight);
 
         _daemon.MessageReceived += OnDaemonMessage;
         _daemon.ErrorReceived += OnDaemonError;
@@ -42,7 +36,7 @@ public sealed partial class MainWindow : Window
 
         try
         {
-            _hotkey = new GlobalHotkey(WindowNative.GetWindowHandle(this));
+            _hotkey = new GlobalHotkey(window);
             _hotkey.Pressed += (_, _) => _ = ToggleAsync();
         }
         catch (Exception error)
@@ -188,6 +182,7 @@ public sealed partial class MainWindow : Window
         if (_closed) return;
         _closed = true;
         _hotkey?.Dispose();
+        _sizeConstraints.Dispose();
         _overlay.Close();
         await _daemon.DisposeAsync();
         Application.Current.Exit();

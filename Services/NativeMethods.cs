@@ -10,6 +10,7 @@ internal static class NativeMethods
     internal const uint ModNoRepeat = 0x4000;
     internal const uint VkOem5 = 0xDC;
     internal const uint WmHotkey = 0x0312;
+    internal const uint WmGetMinMaxInfo = 0x0024;
     internal const int HotkeyId = 1;
     internal const int SwHide = 0;
     internal const int SwShownoactivate = 4;

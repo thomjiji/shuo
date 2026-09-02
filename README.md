@@ -2,6 +2,8 @@
 
 Windows Dictation 是一个原生 WinUI 3 本地听写应用。它用 `Ctrl+Alt+\` 开始和停止录音，使用本地模型转写，然后把结果粘贴到当前前台输入框。
 
+在另一台 Windows PC 上运行，请参阅[安装指南](docs/setup.md)。
+
 ## 当前能力
 
 - WinUI 3 + Windows App SDK 原生应用入口，不依赖 PowerShell 或 Pi 进程。

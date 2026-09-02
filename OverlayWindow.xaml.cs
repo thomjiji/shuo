@@ -8,7 +8,7 @@ namespace WindowsDictation;
 
 public sealed partial class OverlayWindow : Window
 {
-    private const int OverlaySize = 48;
+    private const int OverlaySize = 64;
 
     private readonly IntPtr _handle;
 

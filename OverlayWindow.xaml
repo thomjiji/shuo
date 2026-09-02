@@ -7,6 +7,8 @@
         <ProgressRing
             Width="28"
             Height="28"
+            HorizontalAlignment="Center"
+            VerticalAlignment="Center"
             IsActive="True" />
     </Grid>
 </Window>

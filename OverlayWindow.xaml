@@ -5,25 +5,27 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
     <Grid Background="Transparent">
         <Border
-            Padding="12,7"
             Background="#E91D1D1F"
             BorderBrush="#33FFFFFF"
             BorderThickness="1"
-            CornerRadius="18">
-            <StackPanel HorizontalAlignment="Center" Orientation="Horizontal" Spacing="8">
-                <Ellipse
-                    x:Name="StatusDot"
-                    Width="8"
-                    Height="8"
-                    VerticalAlignment="Center"
-                    Fill="#FFEF4444" />
-                <TextBlock
-                    x:Name="StatusText"
-                    FontSize="13"
-                    FontWeight="SemiBold"
-                    Foreground="White"
-                    Text="录音中" />
-            </StackPanel>
-        </Border>
+            CornerRadius="18" />
+        <StackPanel
+            HorizontalAlignment="Center"
+            VerticalAlignment="Center"
+            Orientation="Horizontal"
+            Spacing="8">
+            <Ellipse
+                x:Name="StatusDot"
+                Width="8"
+                Height="8"
+                VerticalAlignment="Center"
+                Fill="#FFEF4444" />
+            <TextBlock
+                x:Name="StatusText"
+                FontSize="13"
+                FontWeight="SemiBold"
+                Foreground="White"
+                Text="录音中" />
+        </StackPanel>
     </Grid>
 </Window>

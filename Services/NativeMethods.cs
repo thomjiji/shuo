@@ -19,12 +19,17 @@ internal static class NativeMethods
     internal const int SwShownoactivate = 4;
     internal static readonly IntPtr HwndTopmost = new(-1);
 
+    private const int GwlStyle = -16;
     private const int GwlExstyle = -20;
+    private const long WsCaption = 0x00C00000L;
+    private const long WsThickFrame = 0x00040000L;
     private const long WsExNoactivate = 0x08000000L;
     private const long WsExToolwindow = 0x00000080L;
     private const uint SwpNosize = 0x0001;
     private const uint SwpNomove = 0x0002;
+    private const uint SwpNozorder = 0x0004;
     private const uint SwpNoactivate = 0x0010;
+    private const uint SwpFramechanged = 0x0020;
     private const uint SwpShowwindow = 0x0040;
     private const uint MonitorDefaulttonull = 0;
 
@@ -99,8 +104,18 @@ internal static class NativeMethods
 
     internal static void MakeNoActivateToolWindow(IntPtr window)
     {
-        var style = GetWindowLongPtr(window, GwlExstyle).ToInt64();
-        SetWindowLongPtr(window, GwlExstyle, new IntPtr(style | WsExNoactivate | WsExToolwindow));
+        var exStyle = GetWindowLongPtr(window, GwlExstyle).ToInt64();
+        SetWindowLongPtr(window, GwlExstyle, new IntPtr(exStyle | WsExNoactivate | WsExToolwindow));
+        var style = GetWindowLongPtr(window, GwlStyle).ToInt64();
+        SetWindowLongPtr(window, GwlStyle, new IntPtr(style & ~(WsCaption | WsThickFrame)));
+        SetWindowPos(
+            window,
+            IntPtr.Zero,
+            0,
+            0,
+            0,
+            0,
+            SwpNomove | SwpNosize | SwpNozorder | SwpNoactivate | SwpFramechanged);
     }
 
     internal static RectInt32 GetForegroundWorkArea()

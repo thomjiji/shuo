@@ -3,29 +3,10 @@
     x:Class="WindowsDictation.OverlayWindow"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
-    <Grid Background="Transparent">
-        <Border
-            Background="#E91D1D1F"
-            BorderBrush="#33FFFFFF"
-            BorderThickness="1"
-            CornerRadius="18" />
-        <StackPanel
-            HorizontalAlignment="Center"
-            VerticalAlignment="Center"
-            Orientation="Horizontal"
-            Spacing="8">
-            <Ellipse
-                x:Name="StatusDot"
-                Width="8"
-                Height="8"
-                VerticalAlignment="Center"
-                Fill="#FFEF4444" />
-            <TextBlock
-                x:Name="StatusText"
-                FontSize="13"
-                FontWeight="SemiBold"
-                Foreground="White"
-                Text="录音中" />
-        </StackPanel>
+    <Grid Background="{ThemeResource CardBackgroundFillColorDefaultBrush}">
+        <ProgressRing
+            Width="28"
+            Height="28"
+            IsActive="True" />
     </Grid>
 </Window>

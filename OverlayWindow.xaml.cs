@@ -1,8 +1,6 @@
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
-using Microsoft.UI.Xaml.Media;
 using Windows.Graphics;
-using Windows.UI;
 using WindowsDictation.Services;
 using WinRT.Interop;
 
@@ -10,8 +8,7 @@ namespace WindowsDictation;
 
 public sealed partial class OverlayWindow : Window
 {
-    private const int OverlayWidth = 120;
-    private const int OverlayHeight = 40;
+    private const int OverlaySize = 48;
 
     private readonly IntPtr _handle;
 
@@ -19,7 +16,6 @@ public sealed partial class OverlayWindow : Window
     {
         InitializeComponent();
         _handle = WindowNative.GetWindowHandle(this);
-        NativeMethods.MakeNoActivateToolWindow(_handle);
 
         if (AppWindow.Presenter is OverlappedPresenter presenter)
         {
@@ -30,27 +26,21 @@ public sealed partial class OverlayWindow : Window
             presenter.SetBorderAndTitleBar(false, false);
         }
 
+        NativeMethods.MakeNoActivateToolWindow(_handle);
         Hide();
     }
 
-    internal void ShowRecording() => ShowStatus("录音中", Color.FromArgb(255, 239, 68, 68));
-
-    internal void ShowTranscribing() => ShowStatus("正在转写", Color.FromArgb(255, 96, 165, 250));
-
-    internal void Hide() => NativeMethods.ShowWindow(_handle, NativeMethods.SwHide);
-
-    private void ShowStatus(string text, Color color)
+    internal void Show()
     {
-        StatusText.Text = text;
-        StatusDot.Fill = new SolidColorBrush(color);
-
         var workArea = NativeMethods.GetForegroundWorkArea();
         var bounds = new RectInt32(
-            workArea.X + (workArea.Width - OverlayWidth) / 2,
-            workArea.Y + workArea.Height - OverlayHeight - 20,
-            OverlayWidth,
-            OverlayHeight);
+            workArea.X + (workArea.Width - OverlaySize) / 2,
+            workArea.Y + workArea.Height - OverlaySize - 20,
+            OverlaySize,
+            OverlaySize);
         AppWindow.MoveAndResize(bounds);
         NativeMethods.ShowNoActivateTopmost(_handle, bounds);
     }
+
+    internal void Hide() => NativeMethods.ShowWindow(_handle, NativeMethods.SwHide);
 }

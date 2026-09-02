@@ -52,10 +52,10 @@ windows-dictation/
 ├── MainWindow.xaml(.cs)          # Mica 主窗口、状态、按钮、热键协调
 ├── OverlayWindow.xaml(.cs)       # 无焦点、置顶、底部居中 indicator
 ├── Services/
-│   ├── NativeMethods.cs           # user32/comctl32 P/Invoke、粘贴、显示位置
+│   ├── NativeMethods.cs           # user32/comctl32 P/Invoke、显示位置
 │   ├── GlobalHotkey.cs            # WinUI HWND 子类化和 RegisterHotKey
 │   ├── DaemonClient.cs            # Node 子进程和 JSONL stdin/stdout 协议
-│   └── TranscriptPaster.cs        # autocorrect、Clipboard、SendInput Ctrl+V
+│   └── TranscriptPaster.cs        # autocorrect、Clipboard、SendKeys Ctrl+V
 ├── worker/dictation-daemon.mjs    # 录音、transcribe-cpp、OpenCC、设置迁移
 ├── test/worker.test.mjs           # worker 设置迁移和 PCM 单元测试
 ├── settings.example.json          # 独立配置样例
@@ -66,7 +66,7 @@ windows-dictation/
 
 ```text
 前台 app
-  ↑ SendInput Ctrl+V
+  ↑ SendKeys Ctrl+V
 WinUI host
   ├── RegisterHotKey Ctrl+Alt+\
   ├── OverlayWindow

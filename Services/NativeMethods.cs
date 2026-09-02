@@ -23,10 +23,6 @@ internal static class NativeMethods
     private const uint SwpNoactivate = 0x0010;
     private const uint SwpShowwindow = 0x0040;
     private const uint MonitorDefaulttonull = 0;
-    private const uint InputKeyboard = 1;
-    private const uint KeyeventfKeyup = 0x0002;
-    private const ushort VkControl = 0x11;
-    private const ushort VkV = 0x56;
 
     internal delegate IntPtr SubclassProc(
         IntPtr window,
@@ -93,9 +89,6 @@ internal static class NativeMethods
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool GetMonitorInfo(IntPtr monitor, ref MonitorInfo monitorInfo);
 
-    [DllImport("user32.dll", SetLastError = true)]
-    private static extern uint SendInput(uint inputCount, Input[] inputs, int inputSize);
-
     internal static void MakeNoActivateToolWindow(IntPtr window)
     {
         var style = GetWindowLongPtr(window, GwlExstyle).ToInt64();
@@ -129,29 +122,6 @@ internal static class NativeMethods
         ShowWindow(window, SwShownoactivate);
     }
 
-    internal static void SendPasteShortcut()
-    {
-        var inputs = new[]
-        {
-            KeyboardInput(VkControl, 0),
-            KeyboardInput(VkV, 0),
-            KeyboardInput(VkV, KeyeventfKeyup),
-            KeyboardInput(VkControl, KeyeventfKeyup),
-        };
-        var inputSize = Marshal.SizeOf<Input>();
-        if (inputSize != (IntPtr.Size == 8 ? 40 : 28)) throw new InvalidOperationException("Unexpected native INPUT layout.");
-        if (SendInput((uint)inputs.Length, inputs, inputSize) != (uint)inputs.Length) throw new InvalidOperationException("Windows rejected the paste shortcut.");
-    }
-
-    private static Input KeyboardInput(ushort virtualKey, uint flags) => new()
-    {
-        Type = InputKeyboard,
-        Data = new InputUnion
-        {
-            Keyboard = new KeyboardInputData { VirtualKey = virtualKey, Flags = flags },
-        },
-    };
-
     [StructLayout(LayoutKind.Sequential)]
     private struct MonitorInfo
     {
@@ -170,40 +140,4 @@ internal static class NativeMethods
         internal int Bottom;
     }
 
-    [StructLayout(LayoutKind.Sequential)]
-    private struct Input
-    {
-        internal uint Type;
-        internal InputUnion Data;
-    }
-
-    [StructLayout(LayoutKind.Explicit)]
-    private struct InputUnion
-    {
-        [FieldOffset(0)]
-        internal KeyboardInputData Keyboard;
-        [FieldOffset(0)]
-        internal MouseInputData Mouse;
-    }
-
-    [StructLayout(LayoutKind.Sequential)]
-    private struct KeyboardInputData
-    {
-        internal ushort VirtualKey;
-        internal ushort ScanCode;
-        internal uint Flags;
-        internal uint Time;
-        internal IntPtr ExtraInfo;
-    }
-
-    [StructLayout(LayoutKind.Sequential)]
-    private struct MouseInputData
-    {
-        internal int X;
-        internal int Y;
-        internal uint MouseData;
-        internal uint Flags;
-        internal uint Time;
-        internal IntPtr ExtraInfo;
-    }
 }

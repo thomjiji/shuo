@@ -14,7 +14,7 @@ internal static partial class TranscriptPaster
         var package = new DataPackage();
         package.SetText(formatted);
         Clipboard.SetContent(package);
-        NativeMethods.SendPasteShortcut();
+        System.Windows.Forms.SendKeys.SendWait("^v");
     }
 
     private static async Task<string> FormatAsync(string text, string? autocorrectPath)

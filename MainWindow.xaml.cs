@@ -26,8 +26,7 @@ public sealed partial class MainWindow : Window
     private HotkeyBinding? _draftHotkey;
     private GlobalHotkey? _hotkey;
     private string? _autocorrectPath;
-    private bool _shortcutDialogOpen;
-    private bool _shortcutSaved;
+    private bool _shortcutEditorOpen;
     private bool _started;
     private bool _closed;
 
@@ -149,36 +148,16 @@ public sealed partial class MainWindow : Window
         }
     }
 
-    private async void EditShortcutButton_Click(object sender, RoutedEventArgs eventArgs)
+    private void EditShortcutButton_Click(object sender, RoutedEventArgs eventArgs)
     {
-        if (_shortcutDialogOpen) return;
-        _shortcutDialogOpen = true;
-        _shortcutSaved = false;
+        if (_shortcutEditorOpen) return;
+        _shortcutEditorOpen = true;
         _draftHotkey = _hotkeyBinding;
         _hotkey?.Dispose();
         _hotkey = null;
-        RenderShortcutDialog();
-
-        try
-        {
-            if (Content is not FrameworkElement root) throw new InvalidOperationException("The settings window is not ready.");
-            ShortcutDialog.XamlRoot = root.XamlRoot;
-            await ShortcutDialog.ShowAsync();
-        }
-        catch (Exception error)
-        {
-            ShowError("无法编辑快捷键", error.Message);
-        }
-        finally
-        {
-            if (!_shortcutSaved) RestoreHotkey();
-            _shortcutDialogOpen = false;
-        }
-    }
-
-    private void ShortcutDialog_Opened(ContentDialog sender, ContentDialogOpenedEventArgs eventArgs)
-    {
-        DispatcherQueue.TryEnqueue(() => { ShortcutCaptureSurface.Focus(FocusState.Programmatic); });
+        RenderShortcutEditor();
+        ShortcutEditorOverlay.Visibility = Visibility.Visible;
+        FocusShortcutCapture();
     }
 
     private void ShortcutCaptureSurface_KeyDown(object sender, KeyRoutedEventArgs eventArgs)
@@ -187,7 +166,7 @@ public sealed partial class MainWindow : Window
 
         if (eventArgs.Key == VirtualKey.Escape)
         {
-            ShortcutDialog.Hide();
+            CloseShortcutEditor(false);
             return;
         }
 
@@ -197,56 +176,71 @@ public sealed partial class MainWindow : Window
         var binding = new HotkeyBinding(CurrentModifiers(), virtualKey);
         if (!binding.IsValid)
         {
-            SetShortcutDialogValidation("请按住 Windows、Ctrl、Alt 或 Shift，再按另一个按键。", false);
+            SetShortcutEditorValidation("请按住 Windows、Ctrl、Alt 或 Shift，再按另一个按键。", false);
             return;
         }
 
         _draftHotkey = binding;
-        RenderShortcutDialog();
+        RenderShortcutEditor();
     }
 
     private void ResetShortcutButton_Click(object sender, RoutedEventArgs eventArgs)
     {
         _draftHotkey = HotkeyBinding.Default;
-        RenderShortcutDialog();
+        RenderShortcutEditor();
+        FocusShortcutCapture();
     }
 
     private void ClearShortcutButton_Click(object sender, RoutedEventArgs eventArgs)
     {
         _draftHotkey = null;
-        RenderShortcutDialog();
+        RenderShortcutEditor();
+        FocusShortcutCapture();
     }
 
-    private void ShortcutDialog_PrimaryButtonClick(ContentDialog sender, ContentDialogButtonClickEventArgs eventArgs)
+    private void SaveShortcutButton_Click(object sender, RoutedEventArgs eventArgs)
     {
         try
         {
             ApplyHotkey(_draftHotkey);
-            _shortcutSaved = true;
+            CloseShortcutEditor(true);
         }
         catch (Exception error)
         {
-            eventArgs.Cancel = true;
-            SetShortcutDialogValidation($"无法使用此快捷键：{error.Message}", true);
+            SetShortcutEditorValidation($"无法使用此快捷键：{error.Message}", true);
         }
     }
 
-    private void RenderShortcutDialog()
+    private void CancelShortcutButton_Click(object sender, RoutedEventArgs eventArgs) => CloseShortcutEditor(false);
+
+    private void CloseShortcutEditor(bool saved)
     {
-        SetKeyChips(ShortcutDialogKeys, _draftHotkey, true);
-        ShortcutCapturePlaceholder.Visibility = _draftHotkey is null ? Visibility.Visible : Visibility.Collapsed;
-        ShortcutCapturePlaceholder.Text = _draftHotkey is null ? "未设置" : "按下新的快捷键";
-        SetShortcutDialogValidation(
+        if (!saved) RestoreHotkey();
+        ShortcutEditorOverlay.Visibility = Visibility.Collapsed;
+        _shortcutEditorOpen = false;
+    }
+
+    private void RenderShortcutEditor()
+    {
+        SetKeyChips(ShortcutEditorKeys, _draftHotkey, true);
+        ShortcutEditorPlaceholder.Visibility = _draftHotkey is null ? Visibility.Visible : Visibility.Collapsed;
+        ShortcutEditorPlaceholder.Text = _draftHotkey is null ? "未设置" : "按下新的快捷键";
+        SetShortcutEditorValidation(
             _draftHotkey is null
                 ? "清除后将无法通过全局快捷键开始听写。"
                 : "按下新的组合键后，点击保存应用。",
             true);
     }
 
-    private void SetShortcutDialogValidation(string text, bool canSave)
+    private void SetShortcutEditorValidation(string text, bool canSave)
     {
-        ShortcutDialogValidation.Text = text;
-        ShortcutDialog.IsPrimaryButtonEnabled = canSave;
+        ShortcutEditorValidation.Text = text;
+        SaveShortcutButton.IsEnabled = canSave;
+    }
+
+    private void FocusShortcutCapture()
+    {
+        DispatcherQueue.TryEnqueue(() => { ShortcutCaptureSurface.Focus(FocusState.Programmatic); });
     }
 
     private void ApplyHotkey(HotkeyBinding? binding)
@@ -329,11 +323,11 @@ public sealed partial class MainWindow : Window
     {
         return new Border
         {
-            MinWidth = large ? 70 : 36,
-            Height = large ? 64 : 36,
-            Padding = large ? new Thickness(14, 8, 14, 8) : new Thickness(8, 4, 8, 4),
+            MinWidth = large ? 58 : 32,
+            Height = large ? 52 : 32,
+            Padding = large ? new Thickness(10, 6, 10, 6) : new Thickness(6, 3, 6, 3),
             Background = ShortcutKeyBrush,
-            CornerRadius = new CornerRadius(large ? 10 : 6),
+            CornerRadius = new CornerRadius(large ? 8 : 5),
             Child = new TextBlock
             {
                 Text = label,
@@ -341,7 +335,7 @@ public sealed partial class MainWindow : Window
                 VerticalAlignment = VerticalAlignment.Center,
                 Foreground = ShortcutKeyForeground,
                 FontFamily = new FontFamily(label is "⊞" or "⇧" ? "Segoe UI Symbol" : "Segoe UI"),
-                FontSize = large ? 22 : 14,
+                FontSize = large ? 18 : 12,
                 FontWeight = FontWeights.SemiBold,
             },
         };

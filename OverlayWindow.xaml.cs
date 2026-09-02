@@ -1,3 +1,4 @@
+using Microsoft.UI.Dispatching;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Windows.Graphics;
@@ -11,10 +12,18 @@ public sealed partial class OverlayWindow : Window
     private const int OverlaySize = 64;
 
     private readonly IntPtr _handle;
-
+    private readonly DispatcherQueueTimer _pulseTimer;
+    private bool _pulseDimmed;
     public OverlayWindow()
     {
         InitializeComponent();
+        _pulseTimer = DispatcherQueue.CreateTimer();
+        _pulseTimer.Interval = TimeSpan.FromMilliseconds(450);
+        _pulseTimer.Tick += (_, _) =>
+        {
+            _pulseDimmed = !_pulseDimmed;
+            ActivityIcon.Opacity = _pulseDimmed ? 0.45 : 1;
+        };
         _handle = WindowNative.GetWindowHandle(this);
         NativeMethods.MakeNoActivateToolWindow(_handle);
 
@@ -32,6 +41,9 @@ public sealed partial class OverlayWindow : Window
 
     internal void ShowActivity()
     {
+        _pulseDimmed = false;
+        ActivityIcon.Opacity = 1;
+        _pulseTimer.Start();
         var workArea = NativeMethods.GetForegroundWorkArea();
         var bounds = new RectInt32(
             workArea.X + (workArea.Width - OverlaySize) / 2,
@@ -42,5 +54,10 @@ public sealed partial class OverlayWindow : Window
         NativeMethods.ShowNoActivateTopmost(_handle, bounds);
     }
 
-    internal void Hide() => NativeMethods.ShowWindow(_handle, NativeMethods.SwHide);
+    internal void Hide()
+    {
+        _pulseTimer.Stop();
+        ActivityIcon.Opacity = 1;
+        NativeMethods.ShowWindow(_handle, NativeMethods.SwHide);
+    }
 }

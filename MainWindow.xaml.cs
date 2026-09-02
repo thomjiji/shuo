@@ -8,8 +8,8 @@ namespace WindowsDictation;
 
 public sealed partial class MainWindow : Window
 {
-    private const int MinimumWindowWidth = 640;
-    private const int MinimumWindowHeight = 480;
+    private const int MinimumWindowWidth = 920;
+    private const int MinimumWindowHeight = 990;
 
     private readonly DaemonClient _daemon = new();
     private readonly OverlayWindow _overlay = new();
@@ -24,7 +24,7 @@ public sealed partial class MainWindow : Window
         ExtendsContentIntoTitleBar = true;
         SetTitleBar(AppTitleBar);
         AppWindow.SetIcon("Assets/AppIcon.ico");
-        AppWindow.Resize(new SizeInt32(680, 520));
+        AppWindow.Resize(new SizeInt32(MinimumWindowWidth, MinimumWindowHeight));
         AppWindow.Changed += (_, args) =>
         {
             if (!args.DidSizeChange) return;

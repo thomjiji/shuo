@@ -25,9 +25,11 @@
             </TitleBar.IconSource>
         </TitleBar>
 
-        <ScrollViewer Grid.Row="1">
+        <Grid Grid.Row="1">
             <StackPanel
                 MaxWidth="680"
+                HorizontalAlignment="Center"
+                VerticalAlignment="Top"
                 Margin="0,0,0,32"
                 Padding="32"
                 Spacing="20">
@@ -133,6 +135,6 @@
                     TextWrapping="Wrap"
                     Text="录音和转写状态会出现在当前屏幕下方中央，不会抢走正在输入的窗口。" />
             </StackPanel>
-        </ScrollViewer>
+        </Grid>
     </Grid>
 </Window>

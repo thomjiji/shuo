@@ -9,7 +9,8 @@ namespace WindowsDictation;
 
 public sealed partial class OverlayWindow : Window
 {
-    private const int OverlaySize = 64;
+    private const int OverlayWidth = 232;
+    private const int OverlayHeight = 72;
 
     private readonly IntPtr _handle;
     private readonly DispatcherQueueTimer _pulseTimer;
@@ -18,11 +19,11 @@ public sealed partial class OverlayWindow : Window
     {
         InitializeComponent();
         _pulseTimer = DispatcherQueue.CreateTimer();
-        _pulseTimer.Interval = TimeSpan.FromMilliseconds(450);
+        _pulseTimer.Interval = TimeSpan.FromMilliseconds(650);
         _pulseTimer.Tick += (_, _) =>
         {
             _pulseDimmed = !_pulseDimmed;
-            ActivityIcon.Opacity = _pulseDimmed ? 0.45 : 1;
+            ActivityWaveform.Opacity = _pulseDimmed ? 0.72 : 1;
         };
         _handle = WindowNative.GetWindowHandle(this);
         NativeMethods.MakeNoActivateToolWindow(_handle);
@@ -42,14 +43,14 @@ public sealed partial class OverlayWindow : Window
     internal void ShowActivity()
     {
         _pulseDimmed = false;
-        ActivityIcon.Opacity = 1;
+        ActivityWaveform.Opacity = 1;
         _pulseTimer.Start();
         var workArea = NativeMethods.GetForegroundWorkArea();
         var bounds = new RectInt32(
-            workArea.X + (workArea.Width - OverlaySize) / 2,
-            workArea.Y + workArea.Height - OverlaySize - 28,
-            OverlaySize,
-            OverlaySize);
+            workArea.X + (workArea.Width - OverlayWidth) / 2,
+            workArea.Y + workArea.Height - OverlayHeight - 28,
+            OverlayWidth,
+            OverlayHeight);
         AppWindow.MoveAndResize(bounds);
         NativeMethods.ShowNoActivateTopmost(_handle, bounds);
     }
@@ -57,7 +58,7 @@ public sealed partial class OverlayWindow : Window
     internal void Hide()
     {
         _pulseTimer.Stop();
-        ActivityIcon.Opacity = 1;
+        ActivityWaveform.Opacity = 1;
         NativeMethods.ShowWindow(_handle, NativeMethods.SwHide);
     }
 }

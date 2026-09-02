@@ -54,7 +54,7 @@ notepad (Join-Path $settingsDir "settings.json")
 
 双击 `WindowsDictation.exe`。首次启动可能比后续启动慢，因为 app 会自动解压内置运行时。Windows 需要允许桌面应用访问默认麦克风。
 
-等待主窗口显示“准备好了”。在普通权限的文本输入框中按一次 `Ctrl+Alt+\` 开始录音，再按一次停止并转写。完成后文字会粘贴到原先的前台输入框。
+启动后，可点击“录音触发快捷键”右侧的铅笔图标修改快捷键；默认 `Ctrl+Alt+\`。在普通权限的文本输入框中按一次已设置的快捷键开始录音，再按一次停止并转写。完成后文字会粘贴到原先的前台输入框。
 
 ## 常见问题
 
@@ -68,4 +68,4 @@ notepad (Join-Path $settingsDir "settings.json")
 
 ## 更新
 
-在 app 中点击“退出”后，用新的 `WindowsDictation.exe` 覆盖旧文件即可。用户配置和模型位于 EXE 之外，不会被覆盖。
+关闭 app 后，用新的 `WindowsDictation.exe` 覆盖旧文件即可。用户配置和模型位于 EXE 之外，不会被覆盖。

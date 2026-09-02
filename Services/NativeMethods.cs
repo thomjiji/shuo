@@ -5,9 +5,12 @@ namespace WindowsDictation.Services;
 
 internal static class NativeMethods
 {
-    internal const uint ModAlt = 0x0001;
-    internal const uint ModControl = 0x0002;
     internal const uint ModNoRepeat = 0x4000;
+    internal const uint VkShift = 0x10;
+    internal const uint VkControl = 0x11;
+    internal const uint VkMenu = 0x12;
+    internal const uint VkLwin = 0x5B;
+    internal const uint VkRwin = 0x5C;
     internal const uint VkOem5 = 0xDC;
     internal const uint WmHotkey = 0x0312;
     internal const uint WmGetMinMaxInfo = 0x0024;
@@ -41,6 +44,10 @@ internal static class NativeMethods
     [return: MarshalAs(UnmanagedType.Bool)]
     internal static extern bool UnregisterHotKey(IntPtr window, int id);
 
+    [DllImport("user32.dll")]
+    private static extern short GetKeyState(int virtualKey);
+
+    internal static bool IsKeyDown(uint virtualKey) => (GetKeyState((int)virtualKey) & 0x8000) != 0;
     [DllImport("comctl32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     internal static extern bool SetWindowSubclass(

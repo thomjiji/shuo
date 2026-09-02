@@ -30,6 +30,13 @@ test("Windows Dictation owns its settings path", () => {
   );
 });
 
+test("worker ignores app-only hotkey preferences", () => {
+  for (const hotkey of [{ modifiers: 3, virtualKey: 0xDC }, null]) {
+    const parsed = parseSettings({ ...settings, hotkey });
+    assert.equal("hotkey" in parsed, false);
+  }
+});
+
 test("Windows Dictation imports pi-transcribe settings only once", () => {
   const directory = mkdtempSync(join(tmpdir(), "windows-dictation-"));
   const legacyPath = join(directory, "pi-transcribe.json");

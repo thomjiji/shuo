@@ -3,12 +3,8 @@
     x:Class="WindowsDictation.MainWindow"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-    xmlns:local="using:WindowsDictation"
     xmlns:automation="using:Microsoft.UI.Xaml.Automation"
-    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-    Title="Windows Dictation"
-    mc:Ignorable="d">
+    Title="Windows Dictation">
     <Window.SystemBackdrop>
         <MicaBackdrop />
     </Window.SystemBackdrop>
@@ -27,114 +23,125 @@
 
         <Grid Grid.Row="1">
             <StackPanel
-                MaxWidth="680"
-                HorizontalAlignment="Center"
-                VerticalAlignment="Top"
-                Margin="0,0,0,32"
-                Padding="32"
-                Spacing="20">
-                <StackPanel Spacing="6">
-                    <TextBlock
-                        FontSize="32"
-                        FontWeight="SemiBold"
-                        Text="Windows Dictation" />
-                    <TextBlock
-                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                        FontSize="16"
-                        Text="本地模型、全局热键、自动粘贴。" />
-                </StackPanel>
-
-                <InfoBar
-                    x:Name="StatusInfo"
-                    IsOpen="True"
-                    IsClosable="False"
-                    Severity="Informational"
-                    Title="正在启动"
-                    Message="正在连接本地听写服务。" />
+                MaxWidth="920"
+                HorizontalAlignment="Stretch"
+                Padding="32,40,32,32"
+                Spacing="18">
+                <TextBlock FontSize="20" FontWeight="SemiBold" Text="快捷方式" />
 
                 <Border
                     Padding="24"
                     Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
                     BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
                     BorderThickness="1"
-                    CornerRadius="16">
+                    CornerRadius="8">
                     <Grid ColumnSpacing="20">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="Auto" />
                             <ColumnDefinition Width="*" />
-                        </Grid.ColumnDefinitions>
-                        <Border
-                            Width="52"
-                            Height="52"
-                            Background="{ThemeResource AccentFillColorDefaultBrush}"
-                            CornerRadius="16">
-                            <FontIcon
-                                HorizontalAlignment="Center"
-                                VerticalAlignment="Center"
-                                FontSize="24"
-                                Foreground="{ThemeResource TextOnAccentFillColorPrimaryBrush}"
-                                Glyph="&#xE720;" />
-                        </Border>
-                        <StackPanel Grid.Column="1" Spacing="4">
-                            <TextBlock
-                                x:Name="StatusTitle"
-                                automation:AutomationProperties.AutomationId="StatusTitle"
-                                FontSize="20"
-                                FontWeight="SemiBold"
-                                Text="正在启动" />
-                            <TextBlock
-                                x:Name="StatusDetail"
-                                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                TextWrapping="Wrap"
-                                Text="正在加载本地听写服务。" />
-                        </StackPanel>
-                    </Grid>
-                </Border>
-
-                <Border
-                    Padding="20"
-                    Background="{ThemeResource LayerFillColorDefaultBrush}"
-                    CornerRadius="16">
-                    <Grid ColumnSpacing="16">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
-                        <StackPanel Spacing="4">
-                            <TextBlock FontWeight="SemiBold" Text="全局快捷键" />
+
+                        <FontIcon
+                            VerticalAlignment="Center"
+                            FontFamily="Segoe MDL2 Assets"
+                            FontSize="28"
+                            Glyph="&#xE720;" />
+
+                        <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
+                            <TextBlock FontSize="18" FontWeight="SemiBold" Text="录音触发快捷键" />
                             <TextBlock
                                 Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                Text="按一次开始录音，再按一次停止并转写。" />
+                                Text="开始或停止听写。" />
                         </StackPanel>
-                        <Border
-                            Grid.Column="1"
-                            Padding="12,7"
-                            BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                            BorderThickness="1"
-                            CornerRadius="8">
-                            <TextBlock
-                                FontFamily="Cascadia Mono"
-                                FontWeight="SemiBold"
-                                Text="Ctrl + Alt + \" />
-                        </Border>
+
+                        <StackPanel
+                            x:Name="HotkeyPreview"
+                            Grid.Column="2"
+                            VerticalAlignment="Center"
+                            Orientation="Horizontal"
+                            Spacing="8" />
+
+                        <Button
+                            x:Name="EditShortcutButton"
+                            Grid.Column="3"
+                            Margin="8,0,0,0"
+                            Padding="10"
+                            automation:AutomationProperties.Name="编辑录音触发快捷键"
+                            Click="EditShortcutButton_Click">
+                            <FontIcon FontFamily="Segoe MDL2 Assets" FontSize="16" Glyph="&#xE70F;" />
+                        </Button>
                     </Grid>
                 </Border>
 
-                <StackPanel Orientation="Horizontal" Spacing="12">
+                <InfoBar
+                    x:Name="ErrorInfo"
+                    IsClosable="True"
+                    IsOpen="False"
+                    Severity="Error" />
+            </StackPanel>
+        </Grid>
+
+        <ContentDialog
+            x:Name="ShortcutDialog"
+            Title="录音触发快捷键"
+            PrimaryButtonClick="ShortcutDialog_PrimaryButtonClick"
+            PrimaryButtonText="保存"
+            CloseButtonText="取消"
+            DefaultButton="Primary"
+            Opened="ShortcutDialog_Opened">
+            <StackPanel Width="620" Spacing="20">
+                <TextBlock
+                    FontSize="16"
+                    Text="快捷键应以 Windows 键、Ctrl、Alt 或 Shift 开头。"
+                    TextWrapping="Wrap" />
+
+                <Button
+                    x:Name="ShortcutCaptureSurface"
+                    automation:AutomationProperties.Name="快捷键捕获区域"
+                    MinHeight="110"
+                    HorizontalContentAlignment="Center"
+                    VerticalContentAlignment="Center"
+                    KeyDown="ShortcutCaptureSurface_KeyDown">
+                    <Grid>
+                        <TextBlock
+                            x:Name="ShortcutCapturePlaceholder"
+                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                            Text="按下新的快捷键" />
+                        <StackPanel
+                            x:Name="ShortcutDialogKeys"
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Center"
+                            Orientation="Horizontal"
+                            Spacing="14" />
+                    </Grid>
+                </Button>
+
+                <StackPanel HorizontalAlignment="Center" Orientation="Horizontal" Spacing="24">
                     <Button
-                        x:Name="ToggleButton"
-                        MinWidth="136"
-                        Click="ToggleButton_Click"
-                        Content="开始录音"
-                        Style="{StaticResource AccentButtonStyle}" />
-                    <Button Click="ExitButton_Click" Content="退出" />
+                        automation:AutomationProperties.Name="重置快捷键"
+                        Click="ResetShortcutButton_Click">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <FontIcon FontFamily="Segoe MDL2 Assets" FontSize="14" Glyph="&#xE72C;" />
+                            <TextBlock Text="重置" />
+                        </StackPanel>
+                    </Button>
+                    <Button
+                        automation:AutomationProperties.Name="清除快捷键"
+                        Click="ClearShortcutButton_Click">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <FontIcon FontFamily="Segoe MDL2 Assets" FontSize="14" Glyph="&#xE711;" />
+                            <TextBlock Text="清除" />
+                        </StackPanel>
+                    </Button>
                 </StackPanel>
 
                 <TextBlock
+                    x:Name="ShortcutDialogValidation"
                     Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                    TextWrapping="Wrap"
-                    Text="录音和转写状态会出现在当前屏幕下方中央，不会抢走正在输入的窗口。" />
+                    TextWrapping="Wrap" />
             </StackPanel>
-        </Grid>
+        </ContentDialog>
     </Grid>
 </Window>

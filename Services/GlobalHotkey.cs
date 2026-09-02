@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.Runtime.InteropServices;
 
 namespace WindowsDictation.Services;
 
@@ -9,8 +10,10 @@ internal sealed class GlobalHotkey : IDisposable
     private bool _registered;
     private bool _disposed;
 
-    internal GlobalHotkey(IntPtr window)
+    internal GlobalHotkey(IntPtr window, HotkeyBinding binding)
     {
+        if (!binding.IsValid) throw new ArgumentException("The hotkey is invalid.", nameof(binding));
+
         _window = window;
         _subclassProc = WindowProcedure;
         if (!NativeMethods.SetWindowSubclass(_window, _subclassProc, (UIntPtr)NativeMethods.HotkeyId, UIntPtr.Zero))
@@ -18,11 +21,15 @@ internal sealed class GlobalHotkey : IDisposable
             throw new Win32Exception("Could not monitor the application window for hotkeys.");
         }
 
-        var modifiers = NativeMethods.ModControl | NativeMethods.ModAlt | NativeMethods.ModNoRepeat;
-        if (!NativeMethods.RegisterHotKey(_window, NativeMethods.HotkeyId, modifiers, NativeMethods.VkOem5))
+        if (!NativeMethods.RegisterHotKey(
+                _window,
+                NativeMethods.HotkeyId,
+                binding.Modifiers | NativeMethods.ModNoRepeat,
+                binding.VirtualKey))
         {
+            var error = Marshal.GetLastWin32Error();
             NativeMethods.RemoveWindowSubclass(_window, _subclassProc, (UIntPtr)NativeMethods.HotkeyId);
-            throw new Win32Exception("Ctrl+Alt+\\ is already in use by another application.");
+            throw new Win32Exception(error, $"{binding.DisplayText} is unavailable.");
         }
 
         _registered = true;
@@ -55,6 +62,7 @@ internal sealed class GlobalHotkey : IDisposable
         {
             NativeMethods.UnregisterHotKey(_window, NativeMethods.HotkeyId);
         }
+
         NativeMethods.RemoveWindowSubclass(_window, _subclassProc, (UIntPtr)NativeMethods.HotkeyId);
     }
 }

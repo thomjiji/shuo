@@ -23,10 +23,13 @@ dotnet run
 
 ## 生成 .exe
 
-> 这会带上 Windows App SDK runtime；当前版本仍需要 .NET 10 Desktop Runtime 与 PATH 中的 Node.js。
+> `PortableBundle` 会生成一个 x64 self-contained EXE，内置 .NET runtime、Windows App SDK、Node runtime、worker 和依赖；GGUF 模型仍在外部。构建电脑需要 Node.js 22+，目标电脑不需要 .NET 或 Node.js。
 
 ```powershell
-dotnet publish --configuration Release --runtime win-x64 --self-contained false --output .\publish\win-x64
+npm ci
+$node = (Get-Command node.exe -ErrorAction Stop).Source
+Remove-Item -Recurse -Force .\publish\win-x64 -ErrorAction SilentlyContinue
+dotnet publish --configuration Release --runtime win-x64 --output .\publish\win-x64 -p:PortableBundle=true "-p:NodeRuntimePath=$node"
 .\publish\win-x64\WindowsDictation.exe
 ```
 
@@ -36,7 +39,7 @@ dotnet publish --configuration Release --runtime win-x64 --self-contained false 
 %LOCALAPPDATA%\WindowsDictation\settings.json
 ```
 
-如果没有旧配置，请复制 `settings.example.json` 到该路径，并填写模型和麦克风信息。可用 `WINDOWS_DICTATION_SETTINGS` 指向其他设置文件；可用 `WINDOWS_DICTATION_NODE` 指向 `node.exe`。
+如果没有旧配置，请按[安装指南](docs/setup.md#3-创建配置)创建该文件并填写模型和麦克风信息。可用 `WINDOWS_DICTATION_SETTINGS` 指向其他设置文件；`WINDOWS_DICTATION_NODE` 仅用于覆盖内置 Node。
 
 ## 使用
 
@@ -56,4 +59,4 @@ dotnet build --configuration Debug
 
 ## 设计边界
 
-本项目拥有自己的 WinUI app、Node worker 和配置文件。首次导入仅用于复用已下载模型，不需要 Pi 在运行。当前开发版仍需要 PATH 中的 Node.js；发布版会单独处理 Node runtime 与模型的打包策略。
+本项目拥有自己的 WinUI app、Node worker 和配置文件。首次导入仅用于复用已下载模型，不需要 Pi 在运行。开发版仍需要 PATH 中的 Node.js；便携发布会内置 x64 Node runtime 和 worker 依赖，模型仍由设置中的外部路径引用。

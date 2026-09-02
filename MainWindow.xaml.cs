@@ -58,8 +58,10 @@ public sealed partial class MainWindow : Window
         try
         {
             var workerPath = Path.Combine(AppContext.BaseDirectory, "worker", "dictation-daemon.mjs");
+            var bundledNode = Path.Combine(AppContext.BaseDirectory, "node.exe");
             var node = Environment.GetEnvironmentVariable("WINDOWS_DICTATION_NODE");
-            await _daemon.StartAsync(string.IsNullOrWhiteSpace(node) ? "node.exe" : node, workerPath);
+            if (string.IsNullOrWhiteSpace(node)) node = File.Exists(bundledNode) ? bundledNode : "node.exe";
+            await _daemon.StartAsync(node, workerPath);
             SetStatus("正在启动", "正在连接本地听写服务。", InfoBarSeverity.Informational);
         }
         catch (Exception error)

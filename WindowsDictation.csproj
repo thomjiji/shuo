@@ -15,7 +15,24 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
+  <PropertyGroup Condition="'$(PortableBundle)' == 'true'">
+    <SelfContained>true</SelfContained>
+    <PublishSingleFile>true</PublishSingleFile>
+    <IncludeAllContentForSelfExtract>true</IncludeAllContentForSelfExtract>
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+    <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
+    <PublishTrimmed>false</PublishTrimmed>
+    <PublishReadyToRun>false</PublishReadyToRun>
+    <CopyOutputSymbolsToPublishDirectory>false</CopyOutputSymbolsToPublishDirectory>
+    <DebugSymbols>false</DebugSymbols>
+    <DebugType>none</DebugType>
+    <EnableMsixTooling>true</EnableMsixTooling>
+    <BundleNodeRuntime>true</BundleNodeRuntime>
+  </PropertyGroup>
+
   <ItemGroup>
+    <None Remove="publish\**\*" />
+    <Content Remove="publish\**\*" />
     <Content Include="Assets\AppIcon.ico" />
     <None Update="worker\dictation-daemon.mjs">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
@@ -31,6 +48,14 @@
     </None>
   </ItemGroup>
 
+  <ItemGroup Condition="'$(BundleNodeRuntime)' == 'true' and '$(NodeRuntimePath)' != ''">
+    <None Include="$(NodeRuntimePath)">
+      <Link>node.exe</Link>
+      <TargetPath>node.exe</TargetPath>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </None>
+  </ItemGroup>
   <ItemGroup>
     <FrameworkReference Include="Microsoft.WindowsDesktop.App.WindowsForms" />
   </ItemGroup>
@@ -40,7 +65,32 @@
     <PackageReference Include="Microsoft.WindowsAppSDK" Version="2.4.0" />
   </ItemGroup>
 
-  <Target Name="CopyWinUiResources" AfterTargets="Publish">
+  <Target Name="RequireNodeRuntime" BeforeTargets="PrepareForPublish" Condition="'$(BundleNodeRuntime)' == 'true' and !Exists('$(NodeRuntimePath)')">
+    <Error Text="PortableBundle requires NodeRuntimePath to point to an x64 node.exe." />
+  </Target>
+
+  <Target Name="IncludeWinUiResourcesInSingleFile" BeforeTargets="_ComputeFilesToBundle" Condition="'$(PublishSingleFile)' == 'true'">
+    <ItemGroup>
+      <_WinUiResource Include="$(TargetDir)*.xbf" />
+      <ResolvedFileToPublish Include="@(_WinUiResource)">
+        <RelativePath>%(_WinUiResource.Filename)%(_WinUiResource.Extension)</RelativePath>
+        <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+      </ResolvedFileToPublish>
+      <ResolvedFileToPublish Include="$(TargetDir)$(AssemblyName).pri">
+        <RelativePath>$(AssemblyName).pri</RelativePath>
+        <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+      </ResolvedFileToPublish>
+    </ItemGroup>
+  </Target>
+
+  <Target Name="RemovePortableSymbols" AfterTargets="Publish" Condition="'$(PortableBundle)' == 'true'">
+    <ItemGroup>
+      <PortableSymbol Include="$(PublishDir)*.pdb" />
+    </ItemGroup>
+    <Delete Files="@(PortableSymbol)" />
+  </Target>
+
+  <Target Name="CopyWinUiResources" AfterTargets="Publish" Condition="'$(PublishSingleFile)' != 'true'">
     <ItemGroup>
       <WinUiResource Include="$(TargetDir)*.xbf" />
       <WinUiResource Include="$(TargetDir)$(AssemblyName).pri" />

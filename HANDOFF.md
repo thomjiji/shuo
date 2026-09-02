@@ -41,7 +41,7 @@ Get-CimInstance Win32_Process -Filter "Name = 'WindowsDictation.exe' OR Name = '
 - 不抢焦点的 WinUI 底部居中 indicator：录音和批量转写期间仅显示旋转进度环，完成或失败即隐藏。
 - app 使用自己的 `%LOCALAPPDATA%\WindowsDictation\settings.json`。首次启动时仅导入一次旧 Pi 配置，之后不再读取 Pi 配置。
 - worker 复用本地 Qwen3-ASR 0.6B Q8 GGUF、系统默认麦克风、OpenCC 和现有 autocorrect 可执行文件。
-- 发布目录会复制 worker 和它的 `node_modules`；模型不复制，仍由设置中的本地路径引用。
+- 便携发布会把 .NET runtime、Windows App SDK、Node runtime、worker 和 `node_modules` 压进一个 EXE；模型不复制，仍由设置中的本地路径引用。
 - 已从发布版 exe 直接启动，确认它拉起发布目录内的 worker，并通过 UI Automation 确认状态为“准备好了”。
 - 已发送合成 `Ctrl+Alt+\`，确认 app 状态变为“正在录音”；通过 app 的“退出”按钮确认 app、worker 和热键均被释放。
 
@@ -123,17 +123,20 @@ dotnet run
 
 ```powershell
 Set-Location "$HOME\git\windows-dictation"
-dotnet publish --configuration Release --runtime win-x64 --self-contained false --output .\publish\win-x64
+npm ci
+$node = (Get-Command node.exe -ErrorAction Stop).Source
+Remove-Item -Recurse -Force .\publish\win-x64 -ErrorAction SilentlyContinue
+dotnet publish --configuration Release --runtime win-x64 --output .\publish\win-x64 -p:PortableBundle=true "-p:NodeRuntimePath=$node"
 .\publish\win-x64\WindowsDictation.exe
 ```
 
-`WindowsAppSDKSelfContained=true` 会把 Windows App SDK runtime 复制到 app 旁边。当前发布仍需要目标机的 .NET 10 Desktop Runtime 和 PATH 中可用的 Node.js；Node runtime 尚未打包。
+`PortableBundle` 会启用 self-contained、single-file、全部内容自解压和单文件压缩，并把传入的 x64 `node.exe` 打进 EXE。当前输出只有一个约 160 MB 的 EXE，目标电脑不需要 .NET Desktop Runtime 或 Node.js；模型仍是外部文件。
 
-不要使用 `--self-contained true`。在本机它会导致发布版启动时 `Microsoft.UI.Xaml.dll` APPCRASH。当前可靠且已验证的命令是上面的 `--self-contained false`。
+`MainWindow` 会优先使用 `WINDOWS_DICTATION_NODE`，否则使用单文件解压出的 `node.exe`，最后才回退到 PATH。
 
-`WindowsDictation.csproj` 的 `CopyWinUiResources` target 会在 publish 后复制 app 的 `*.xbf` 和 `WindowsDictation.pri`。没有它们时，发布 exe 会在 `Microsoft.UI.Xaml.dll` 内崩溃；不要删除这个 target。
+`IncludeWinUiResourcesInSingleFile` 会将 app 的 `*.xbf` 和 `WindowsDictation.pri` 放进 bundle；普通多文件发布仍由 `CopyWinUiResources` 复制它们。没有这些资源时，WinUI 启动会失败，不要删除这些 targets。
 
-`node_modules` 以 `None` 项复制，而不是 `Content` 项。使用 `Content` 会触发无意义的 PRI 资源警告。
+`publish\**\*` 必须从默认项目项中排除，否则旧发布输出会被递归打进新的单文件 EXE。`node_modules` 仍以 `None` 项复制，而不是 `Content` 项。
 
 ## 验证清单
 
@@ -142,8 +145,12 @@ dotnet publish --configuration Release --runtime win-x64 --self-contained false 
 ```powershell
 npm test
 dotnet build --configuration Debug
-dotnet publish --configuration Release --runtime win-x64 --self-contained false --output .\publish\win-x64
+$node = (Get-Command node.exe -ErrorAction Stop).Source
+Remove-Item -Recurse -Force .\publish\win-x64 -ErrorAction SilentlyContinue
+dotnet publish --configuration Release --runtime win-x64 --output .\publish\win-x64 -p:PortableBundle=true "-p:NodeRuntimePath=$node"
 ```
+
+便携发布已在清空输出目录后验证：仅生成一个 159.5 MB 的 EXE；以不含 Node.js 的 PATH 启动时，app 与从 bundle 解压出的 Node worker 均正常存活。
 
 worker 协议冒烟测试：
 
@@ -174,7 +181,7 @@ Qwen 官方模型本身支持 streaming，但官方说明 streaming 目前只通
 
 - 选择并验证真正的流式 ASR backend。
 - 为 live text 扩展 worker/host 协议和 indicator UI。
-- 打包自己的 Node runtime；当前只复制 `node_modules`，仍依赖 PATH 中的 `node.exe`。
+- 如需完全离线的一键分发，再决定是否把约 811 MB 的模型嵌入 EXE；当前选择是不打包模型。
 - 提供自己的设置 UI、模型选择/下载、麦克风选择和 autocorrect 安装策略。
 - 设计安装器、自动启动和版本更新策略。
 - 如需要后台体验，再补原生托盘图标；当前 app 应保持打开或最小化，点“退出”会停止 host。

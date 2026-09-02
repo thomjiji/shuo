@@ -117,8 +117,10 @@ public sealed partial class MainWindow : Window
                 _autocorrectPath = message.AutocorrectPath;
                 break;
             case "recording":
+                _overlay.ShowRecording();
+                break;
             case "transcribing":
-                _overlay.ShowActivity();
+                _overlay.ShowTranscribing();
                 break;
             case "transcript":
                 _ = PasteTranscriptAsync(message.Text);

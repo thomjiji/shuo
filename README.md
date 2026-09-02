@@ -1,5 +1,7 @@
 # Windows Dictation
 
+本项目仅供我个人使用，它的生命周期已定，豆包输入法推出 Windows 版后将停止维护。
+
 Windows 原生 WinUI 3 本地听写应用。按全局快捷键开始录音，再按一次停止；本地模型转写完成后，文本会粘贴到原前台输入框。
 
 在另一台 Windows PC 上运行，请参阅[安装指南](docs/setup.md)。

@@ -29,6 +29,8 @@ public sealed partial class MainWindow : Window
     private bool _shortcutEditorOpen;
     private bool _togglePending;
     private bool _started;
+    private bool _daemonReady;
+    private string? _startupError;
     private bool _closed;
 
     public MainWindow()
@@ -59,6 +61,8 @@ public sealed partial class MainWindow : Window
     {
         if (_started) return;
         _started = true;
+        _daemonReady = false;
+        _startupError = null;
         try
         {
             var workerPath = Path.Combine(AppContext.BaseDirectory, "worker", "dictation-daemon.mjs");
@@ -96,6 +100,8 @@ public sealed partial class MainWindow : Window
 
     private void OnDaemonMessage(object? sender, DaemonMessage message)
     {
+        if (message.Type == "ready") _daemonReady = true;
+        else if (message.Type == "error" && !_daemonReady) _startupError = message.Error;
         DispatcherQueue.TryEnqueue(() => HandleDaemonMessage(message));
     }
 
@@ -112,7 +118,16 @@ public sealed partial class MainWindow : Window
             _started = false;
             _togglePending = false;
             _overlay.Hide();
-            if (!_closed) ShowError("听写服务已停止", "再次按快捷键可重新启动。");
+            if (_closed) return;
+            var startupError = _startupError;
+            if (string.IsNullOrWhiteSpace(startupError))
+            {
+                ShowError("听写服务已停止", "再次按快捷键可重新启动。");
+            }
+            else
+            {
+                ShowError("听写失败", startupError);
+            }
         });
     }
 

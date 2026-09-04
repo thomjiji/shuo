@@ -1,6 +1,6 @@
 # 在另一台 Windows PC 上运行
 
-当前 `win-x64` 便携发布会将 .NET 10 Desktop Runtime、Windows App SDK、Node.js runtime、worker 和 `node_modules` 压进一个 `WindowsDictation.exe`。当前构建约 160 MB，目标电脑不需要 Pi、.NET 或 Node.js；GGUF 模型仍是外部文件。
+当前 `win-x64` 便携发布会将 .NET 10 Desktop Runtime、Windows App SDK、Node.js runtime、worker 和 `node_modules` 压进一个 `winspeak.exe`。当前构建约 160 MB，目标电脑不需要 Pi、.NET 或 Node.js；GGUF 模型仍是外部文件。
 
 ## 1. 在构建电脑生成一个 EXE
 
@@ -14,7 +14,7 @@ Remove-Item -Recurse -Force .\publish\win-x64 -ErrorAction SilentlyContinue
 dotnet publish --configuration Release --runtime win-x64 --output .\publish\win-x64 -p:PortableBundle=true "-p:NodeRuntimePath=$node"
 ```
 
-输出目录中只有 `publish\win-x64\WindowsDictation.exe`。将这一个文件复制到目标电脑的本地目录即可；它在首次启动时会自动解压运行所需的原生文件。
+输出目录中只有 `publish\win-x64\winspeak.exe`。将这一个文件复制到目标电脑的本地目录即可；它在首次启动时会自动解压运行所需的原生文件。
 
 ## 2. 放置模型
 
@@ -52,7 +52,7 @@ notepad (Join-Path $settingsDir "settings.json")
 
 ## 4. 启动并验证
 
-双击 `WindowsDictation.exe`。首次启动可能比后续启动慢，因为 app 会自动解压内置运行时。Windows 需要允许桌面应用访问默认麦克风。
+双击 `winspeak.exe`。首次启动可能比后续启动慢，因为 app 会自动解压内置运行时。Windows 需要允许桌面应用访问默认麦克风。
 
 启动后，可点击“录音触发快捷键”右侧的铅笔图标修改快捷键；默认 `Ctrl+Alt+\`。在普通权限的文本输入框中按一次已设置的快捷键开始录音，再按一次停止并转写。完成后文字会粘贴到原先的前台输入框。
 
@@ -68,4 +68,4 @@ notepad (Join-Path $settingsDir "settings.json")
 
 ## 更新
 
-关闭 app 后，用新的 `WindowsDictation.exe` 覆盖旧文件即可。用户配置和模型位于 EXE 之外，不会被覆盖。
+关闭 app 后，用新的 `winspeak.exe` 覆盖旧文件即可。用户配置和模型位于 EXE 之外，不会被覆盖。

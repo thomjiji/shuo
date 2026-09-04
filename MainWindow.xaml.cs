@@ -38,9 +38,11 @@ public sealed partial class MainWindow : Window
         InitializeComponent();
         ExtendsContentIntoTitleBar = true;
         SetTitleBar(AppTitleBar);
-        AppWindow.SetIcon("Assets/AppIcon.ico");
-        AppWindow.Resize(new SizeInt32(1000, 700));
         _window = WindowNative.GetWindowHandle(this);
+        var iconPath = Path.Combine(AppContext.BaseDirectory, "Assets", "AppIcon.ico");
+        AppWindow.SetIcon(iconPath);
+        NativeMethods.SetWindowIcons(_window, iconPath);
+        AppWindow.Resize(new SizeInt32(1000, 700));
         _sizeConstraints = new WindowSizeConstraints(_window, MinimumWindowWidth, MinimumWindowHeight);
 
         _daemon.MessageReceived += OnDaemonMessage;

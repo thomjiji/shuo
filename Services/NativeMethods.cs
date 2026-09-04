@@ -14,6 +14,7 @@ internal static class NativeMethods
     internal const uint VkOem5 = 0xDC;
     internal const uint WmHotkey = 0x0312;
     internal const uint WmGetMinMaxInfo = 0x0024;
+    private const uint WmSetIcon = 0x0080;
     internal const int HotkeyId = 1;
     internal const int SwHide = 0;
     internal const int SwShownoactivate = 4;
@@ -32,6 +33,10 @@ internal static class NativeMethods
     private const uint SwpFramechanged = 0x0020;
     private const uint SwpShowwindow = 0x0040;
     private const uint MonitorDefaulttonull = 0;
+    private const uint ImageIcon = 1;
+    private const uint LrLoadfromfile = 0x0010;
+    private const int IconSmall = 0;
+    private const int IconBig = 1;
 
     internal delegate IntPtr SubclassProc(
         IntPtr window,
@@ -77,6 +82,18 @@ internal static class NativeMethods
     [DllImport("user32.dll", SetLastError = true)]
     private static extern IntPtr SetWindowLongPtr(IntPtr window, int index, IntPtr value);
 
+    [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    private static extern IntPtr LoadImage(
+        IntPtr instance,
+        string name,
+        uint type,
+        int desiredWidth,
+        int desiredHeight,
+        uint loadFlags);
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr SendMessage(IntPtr window, uint message, IntPtr wParam, IntPtr lParam);
+
     [DllImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
     internal static extern bool ShowWindow(IntPtr window, int command);
@@ -116,6 +133,23 @@ internal static class NativeMethods
             0,
             0,
             SwpNomove | SwpNosize | SwpNozorder | SwpNoactivate | SwpFramechanged);
+    }
+
+    internal static void SetWindowIcons(IntPtr window, string iconPath)
+    {
+        if (!File.Exists(iconPath)) return;
+
+        var smallIcon = LoadImage(IntPtr.Zero, iconPath, ImageIcon, 16, 16, LrLoadfromfile);
+        if (smallIcon != IntPtr.Zero)
+        {
+            SendMessage(window, WmSetIcon, new IntPtr(IconSmall), smallIcon);
+        }
+
+        var largeIcon = LoadImage(IntPtr.Zero, iconPath, ImageIcon, 48, 48, LrLoadfromfile);
+        if (largeIcon != IntPtr.Zero)
+        {
+            SendMessage(window, WmSetIcon, new IntPtr(IconBig), largeIcon);
+        }
     }
 
     internal static RectInt32 GetForegroundWorkArea()

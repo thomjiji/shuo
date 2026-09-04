@@ -39,10 +39,10 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          $asset = "publish\win-x64\WindowsDictation.exe"
+          $asset = "publish\win-x64\winspeak.exe"
           gh release view $env:RELEASE_TAG *> $null
           if ($LASTEXITCODE -eq 0) {
             gh release upload $env:RELEASE_TAG $asset --clobber
           } else {
-            gh release create $env:RELEASE_TAG $asset --generate-notes --title "Windows Dictation $env:RELEASE_TAG"
+            gh release create $env:RELEASE_TAG $asset --generate-notes --title "WinSpeak $env:RELEASE_TAG"
           }

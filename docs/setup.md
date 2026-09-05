@@ -4,7 +4,7 @@
 
 ## 1. 在构建电脑生成一个 EXE
 
-构建电脑需要 x64 Windows、.NET SDK 10 和 x64 Node.js 22 或更高版本。先退出正在运行的 说，再执行：
+构建电脑需要 x64 Windows、.NET SDK 10 和 x64 Node.js 22 或更高版本。先退出正在运行的 shuo，再执行：
 
 ```powershell
 Set-Location "$HOME\git\shuo"

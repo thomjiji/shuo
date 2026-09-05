@@ -36,9 +36,10 @@
     <Compile Remove="test\**\*.cs" />
     <None Remove="test\**\*" />
     <Content Remove="test\**\*" />
+    <Content Remove="Assets\*.png" />
+    <None Remove="Assets\*.png" />
     <None Remove="publish\**\*" />
     <Content Remove="publish\**\*" />
-    <Content Include="Assets\AppIcon.ico" />
     <None Update="worker\dictation-daemon.mjs">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
@@ -67,7 +68,9 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.Windows.SDK.BuildTools" Version="10.0.28000.2705" />
-    <PackageReference Include="Microsoft.WindowsAppSDK" Version="2.4.0" />
+    <PackageReference Include="Microsoft.WindowsAppSDK.WinUI" Version="2.3.6" />
+    <PackageReference Include="Microsoft.WindowsAppSDK.InteractiveExperiences" Version="2.1.6" />
+    <PackageReference Include="Microsoft.Windows.SDK.BuildTools.MSIX" Version="1.7.251221100" />
   </ItemGroup>
 
   <Target Name="RequireNodeRuntime" BeforeTargets="PrepareForPublish" Condition="'$(BundleNodeRuntime)' == 'true' and !Exists('$(NodeRuntimePath)')">

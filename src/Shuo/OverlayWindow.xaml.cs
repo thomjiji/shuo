@@ -13,14 +13,15 @@ public sealed partial class OverlayWindow : Window
 {
     private const int OverlayWidth = 320;
     private const int OverlayHeight = 36;
-    private const double ScrollSpeed = 42; // Logical pixels per second.
+    private const double SlideSeconds = 0.16;
     private readonly IntPtr _handle;
     private readonly Stopwatch _clock = new();
     private RectInt32 _workArea;
     private bool _visible;
     private bool _hasText;
     private double _textWidth;
-    private double _previousFrame;
+    private double _slideFrom;
+    private double _slideTo;
 
     public OverlayWindow()
     {
@@ -70,16 +71,10 @@ public sealed partial class OverlayWindow : Window
         {
             Position();
             TextViewport.UpdateLayout();
-            if (_hasText)
-            {
-                TextOffset.X = TextViewport.ActualWidth;
-                _previousFrame = 0;
-                _clock.Restart();
-                CompositionTarget.Rendering += OnRendering;
-            }
-            else StopScrolling();
+            if (_hasText) TextOffset.X = TextViewport.ActualWidth;
         }
-        // Streaming corrections update the same line without restarting its position.
+        if (_hasText) FollowLatestText();
+        else StopScrolling();
     }
 
     internal void Transcribing()
@@ -101,17 +96,34 @@ public sealed partial class OverlayWindow : Window
         RecordingDot.Visibility = busy ? Visibility.Collapsed : Visibility.Visible;
     }
 
-    private void OnRendering(object? sender, object args)
+    private void FollowLatestText()
     {
-        var now = _clock.Elapsed.TotalSeconds;
-        var elapsed = Math.Min(now - _previousFrame, 0.05);
-        _previousFrame = now;
-        var next = TextOffset.X - ScrollSpeed * elapsed;
-        TextOffset.X = next + _textWidth < 0 ? TextViewport.ActualWidth : next;
+        if (!_visible || !_hasText) return;
+        _slideFrom = TextOffset.X;
+        _slideTo = TextViewport.ActualWidth - _textWidth;
+        StopScrolling();
+        if (Math.Abs(_slideTo - _slideFrom) < 0.1)
+        {
+            TextOffset.X = _slideTo;
+            return;
+        }
+        _clock.Restart();
+        CompositionTarget.Rendering += OnRendering;
     }
 
-    private void TextViewport_SizeChanged(object sender, SizeChangedEventArgs args) =>
+    private void OnRendering(object? sender, object args)
+    {
+        var progress = Math.Min(_clock.Elapsed.TotalSeconds / SlideSeconds, 1);
+        var eased = 1 - Math.Pow(1 - progress, 3);
+        TextOffset.X = _slideFrom + (_slideTo - _slideFrom) * eased;
+        if (progress >= 1) StopScrolling();
+    }
+
+    private void TextViewport_SizeChanged(object sender, SizeChangedEventArgs args)
+    {
         TextClip.Rect = new Rect(0, 0, Math.Max(0, args.NewSize.Width), Math.Max(0, args.NewSize.Height));
+        FollowLatestText();
+    }
 
     private void Position()
     {

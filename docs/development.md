@@ -41,6 +41,7 @@ dotnet build Shuo.slnx --configuration Debug
 | `model-error` | 切换失败，`message` 说明原因，`modelPath` 仍指向原选择。 |
 | `model-list-error` | 模型目录无法读取。 |
 | `recording` | 已开始录音。 |
+| `audio-level` | 录音期间每约 64 ms 返回归一化音量 `level`（0 到 1），驱动浮窗波纹。 |
 | `transcribing` | 录音结束，正在转写。 |
 | `transcript` | 最终文本位于 `text`，可粘贴。 |
 | `empty` | 没有可输入的文本。 |

@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import {
+  audioLevel,
   convertFrames,
   getSettingsPath,
   importLegacySettings,
@@ -103,4 +104,15 @@ test("Shuo imports pi-transcribe settings only once", () => {
 test("worker validates settings and converts PCM frames", () => {
   assert.throws(() => parseSettings({ ...settings, model: { id: "missing path" } }), /Missing model settings/);
   assert.deepEqual([...convertFrames([Int16Array.of(-32_768, 0), Int16Array.of(16_384)])], [-1, 0, 0.5]);
+});
+
+test("microphone level is silent at zero, sign-independent, monotonic and bounded", () => {
+  assert.equal(audioLevel(new Int16Array()), 0);
+  assert.equal(audioLevel(new Int16Array(512)), 0);
+  const quiet = audioLevel(new Int16Array(512).fill(100));
+  const voice = audioLevel(new Int16Array(512).fill(1000));
+  const loud = audioLevel(new Int16Array(512).fill(10000));
+  assert.ok(quiet >= 0 && quiet < voice && voice < loud && loud <= 1);
+  assert.equal(voice, audioLevel(new Int16Array(512).fill(-1000)));
+  assert.equal(audioLevel(new Int16Array(512).fill(-32768)), 1);
 });

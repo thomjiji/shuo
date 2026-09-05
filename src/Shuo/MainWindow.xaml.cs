@@ -398,6 +398,9 @@ public sealed partial class MainWindow : Window
                     ? "豆包连接成功。按快捷键开始说话，再按一次结束。"
                     : message.Error ?? "豆包连接测试失败。";
                 break;
+            case "audio-level":
+                _overlay.UpdateAudioLevel(message.Level ?? 0);
+                return;
             case "partial":
                 LiveTranscript.Text = message.Text ?? "";
                 LiveTranscript.Visibility = Visibility.Visible;

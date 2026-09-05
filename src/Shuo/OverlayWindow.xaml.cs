@@ -22,6 +22,12 @@ public sealed partial class OverlayWindow : Window
     private double _textWidth;
     private double _slideFrom;
     private double _slideTo;
+    private double _panelWidth = 36;
+    private readonly Stopwatch _voiceClock = new();
+    private double _targetLevel;
+    private double _displayLevel;
+    private double _voiceFrame;
+    private bool _busy;
 
     public OverlayWindow()
     {
@@ -45,6 +51,7 @@ public sealed partial class OverlayWindow : Window
         Hide();
         _workArea = NativeMethods.GetForegroundWorkArea();
         _hasText = false;
+        _panelWidth = 36;
         TranscriptText.Text = "";
         _visible = true;
         SetBusy(busy);
@@ -67,12 +74,14 @@ public sealed partial class OverlayWindow : Window
         TranscriptText.Text = value;
         TranscriptText.Measure(new Size(double.PositiveInfinity, 22));
         _textWidth = TranscriptText.DesiredSize.Width;
-        if (hadText != _hasText)
+        var width = _hasText ? Math.Min(OverlayWidth, Math.Ceiling(_textWidth) + 46) : 36;
+        if (_panelWidth != width)
         {
+            _panelWidth = width;
             Position();
             TextViewport.UpdateLayout();
-            if (_hasText) TextOffset.X = TextViewport.ActualWidth;
         }
+        if (!hadText && _hasText) TextOffset.X = TextViewport.ActualWidth;
         if (_hasText) FollowLatestText();
         else StopScrolling();
     }
@@ -91,9 +100,49 @@ public sealed partial class OverlayWindow : Window
 
     private void SetBusy(bool busy)
     {
+        _busy = busy;
         BusyRing.IsActive = busy;
         BusyRing.Visibility = busy ? Visibility.Visible : Visibility.Collapsed;
-        RecordingDot.Visibility = busy ? Visibility.Collapsed : Visibility.Visible;
+        VoiceIndicator.Visibility = busy ? Visibility.Collapsed : Visibility.Visible;
+        StopVoiceAnimation();
+        if (!busy && _visible)
+        {
+            _voiceClock.Restart();
+            CompositionTarget.Rendering += OnVoiceRendering;
+        }
+    }
+
+    internal void UpdateAudioLevel(double level)
+    {
+        if (_visible && !_busy) _targetLevel = Math.Clamp(level, 0, 1);
+    }
+
+    private void OnVoiceRendering(object? sender, object args)
+    {
+        var now = _voiceClock.Elapsed.TotalSeconds;
+        var elapsed = Math.Min(now - _voiceFrame, 0.1);
+        _voiceFrame = now;
+        var response = _targetLevel > _displayLevel ? 24 : 9;
+        _displayLevel += (_targetLevel - _displayLevel) * (1 - Math.Exp(-response * elapsed));
+        DotScale.ScaleX = DotScale.ScaleY = 1 + _displayLevel * 0.35;
+        var phase = now % 0.9 / 0.9;
+        DrawRipple(RippleOne, RippleOneScale, phase);
+        DrawRipple(RippleTwo, RippleTwoScale, (phase + 0.5) % 1);
+    }
+
+    private void DrawRipple(Microsoft.UI.Xaml.Shapes.Ellipse ripple, ScaleTransform scale, double phase)
+    {
+        scale.ScaleX = scale.ScaleY = 0.8 + phase * (0.5 + _displayLevel * 1.1);
+        ripple.Opacity = _displayLevel * (1 - phase) * 0.8;
+    }
+
+    private void StopVoiceAnimation()
+    {
+        CompositionTarget.Rendering -= OnVoiceRendering;
+        _voiceClock.Stop();
+        _targetLevel = _displayLevel = _voiceFrame = 0;
+        RippleOne.Opacity = RippleTwo.Opacity = 0;
+        DotScale.ScaleX = DotScale.ScaleY = 1;
     }
 
     private void FollowLatestText()
@@ -142,7 +191,7 @@ public sealed partial class OverlayWindow : Window
     private RectInt32 CalculateBounds(double scale)
     {
         var margin = (int)Math.Round(20 * scale);
-        var width = Math.Max(1, Math.Min((int)Math.Round((_hasText ? OverlayWidth : 36) * scale), _workArea.Width - margin * 2));
+        var width = Math.Max(1, Math.Min((int)Math.Round(_panelWidth * scale), _workArea.Width - margin * 2));
         var height = Math.Max(1, Math.Min((int)Math.Round(OverlayHeight * scale), _workArea.Height - margin * 2));
         return new RectInt32(_workArea.X + (_workArea.Width - width) / 2,
             _workArea.Y + _workArea.Height - height - margin, width, height);
@@ -158,6 +207,7 @@ public sealed partial class OverlayWindow : Window
     {
         _visible = false;
         StopScrolling();
+        StopVoiceAnimation();
         BusyRing.IsActive = false;
         NativeMethods.ShowWindow(_handle, NativeMethods.SwHide);
     }

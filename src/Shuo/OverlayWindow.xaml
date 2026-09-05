@@ -12,8 +12,22 @@
                 <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
             <Grid Width="10" Height="10" VerticalAlignment="Center">
-                <Ellipse x:Name="RecordingDot" Width="6" Height="6"
-                         Fill="{ThemeResource SystemControlHighlightAccentBrush}" />
+                <Grid x:Name="VoiceIndicator">
+                    <Ellipse x:Name="RippleOne" Width="10" Height="10" StrokeThickness="1"
+                             Stroke="{ThemeResource SystemControlHighlightAccentBrush}"
+                             Opacity="0" RenderTransformOrigin="0.5,0.5">
+                        <Ellipse.RenderTransform><ScaleTransform x:Name="RippleOneScale" /></Ellipse.RenderTransform>
+                    </Ellipse>
+                    <Ellipse x:Name="RippleTwo" Width="10" Height="10" StrokeThickness="1"
+                             Stroke="{ThemeResource SystemControlHighlightAccentBrush}"
+                             Opacity="0" RenderTransformOrigin="0.5,0.5">
+                        <Ellipse.RenderTransform><ScaleTransform x:Name="RippleTwoScale" /></Ellipse.RenderTransform>
+                    </Ellipse>
+                    <Ellipse Width="6" Height="6" RenderTransformOrigin="0.5,0.5"
+                             Fill="{ThemeResource SystemControlHighlightAccentBrush}">
+                        <Ellipse.RenderTransform><ScaleTransform x:Name="DotScale" /></Ellipse.RenderTransform>
+                    </Ellipse>
+                </Grid>
                 <ProgressRing x:Name="BusyRing" Width="10" Height="10"
                               IsActive="False" Visibility="Collapsed" />
             </Grid>

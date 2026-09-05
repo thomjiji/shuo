@@ -123,6 +123,14 @@ export function importLegacySettings({
   return settings;
 }
 
+export function audioLevel(frame) {
+  if (!frame.length) return 0;
+  let sum = 0;
+  for (const sample of frame) sum += (sample / 32768) ** 2;
+  const rms = Math.sqrt(sum / frame.length);
+  return rms > 0 ? Math.max(0, Math.min(1, (20 * Math.log10(rms) + 55) / 40)) : 0;
+}
+
 export function convertFrames(frames) {
   const length = frames.reduce((total, frame) => total + frame.length, 0);
   const pcm = new Float32Array(length);
@@ -385,10 +393,16 @@ export class DictationDaemon {
   }
 
   async readFrames(recorder) {
+    let levelSamples = 0;
     try {
       while (!this.stopping && recorder.isRecording) {
         const frame = await recorder.read();
         if (!this.stopping) {
+          levelSamples += frame.length;
+          if (levelSamples >= 1024) {
+            emit("audio-level", { level: audioLevel(frame) });
+            levelSamples = 0;
+          }
           if (this.cloud) this.cloud.feed(frame);
           else this.frames.push(frame);
         }

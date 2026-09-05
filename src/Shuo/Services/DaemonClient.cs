@@ -13,7 +13,8 @@ internal sealed record DaemonMessage(
     string? Model = null,
     string? AutocorrectPath = null,
     string? ModelPath = null,
-    LocalModel[]? Models = null);
+    LocalModel[]? Models = null,
+    double? Level = null);
 
 internal sealed class DaemonClient : IAsyncDisposable
 {
@@ -92,7 +93,8 @@ internal sealed class DaemonClient : IAsyncDisposable
                     GetString(root, "model"),
                     GetString(root, "autocorrectPath"),
                     GetString(root, "modelPath"),
-                    GetModels(root)));
+                    GetModels(root),
+                    root.TryGetProperty("level", out var level) && level.TryGetDouble(out var number) && double.IsFinite(number) ? number : null));
             }
             catch (JsonException)
             {

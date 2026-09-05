@@ -57,7 +57,7 @@ public sealed partial class MainWindow : Window
         _tray = new TrayIcon(iconPath,
             () => DispatcherQueue.TryEnqueue(ShowSettings),
             () => DispatcherQueue.TryEnqueue(() => _ = ExitAsync()));
-        AppWindow.IsShownInSwitchers = false;
+        AppWindow.IsShownInSwitchers = true;
         AppWindow.Closing += OnWindowClosing;
 
         _daemon.MessageReceived += OnDaemonMessage;

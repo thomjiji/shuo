@@ -112,6 +112,19 @@ internal static class NativeMethods
     [DllImport("user32.dll")]
     internal static extern IntPtr GetForegroundWindow();
 
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool SetLayeredWindowAttributes(IntPtr window, uint colorKey, byte alpha, uint flags);
+
+    internal static void MakeTransparentMenuHost(IntPtr window)
+    {
+        const long layered = 0x00080000;
+        const uint alpha = 0x00000002;
+        var style = GetWindowLongPtr(window, GwlExstyle).ToInt64();
+        SetWindowLongPtr(window, GwlExstyle, new IntPtr(style | layered | WsExToolwindow));
+        SetLayeredWindowAttributes(window, 0, 0, alpha);
+    }
+
     internal static void MakeNoActivateToolWindow(IntPtr window)
     {
         var exStyle = GetWindowLongPtr(window, GwlExstyle).ToInt64();

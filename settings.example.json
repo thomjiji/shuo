@@ -12,5 +12,7 @@
   "microphone": {
     "type": "system-default"
   },
-  "autocorrectPath": "C:\\optional\\path\\to\\autocorrect.exe"
+  "autocorrectPath": "C:\\optional\\path\\to\\autocorrect.exe",
+  "removeFillerWords": false,
+  "trimTrailingPeriod": false
 }

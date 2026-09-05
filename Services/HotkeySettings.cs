@@ -52,7 +52,7 @@ internal static class HotkeySettings
         File.WriteAllText(path, root.ToJsonString(new JsonSerializerOptions { WriteIndented = true }) + Environment.NewLine);
     }
 
-    private static string GetPath()
+    internal static string GetPath()
     {
         var configured = Environment.GetEnvironmentVariable(SettingsOverride);
         if (!string.IsNullOrWhiteSpace(configured)) return Path.GetFullPath(configured);

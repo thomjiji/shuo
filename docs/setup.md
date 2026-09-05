@@ -48,7 +48,7 @@ notepad (Join-Path $settingsDir "settings.json")
 }
 ```
 
-`autocorrectPath` 是可选项，不配置时会直接粘贴原始转写文本。
+`autocorrectPath` 是可选项，用于中英文排版整理。口水词过滤和末尾句号选项可在主界面设置，不依赖 autocorrect。
 
 ## 4. 启动并验证
 
@@ -68,4 +68,4 @@ notepad (Join-Path $settingsDir "settings.json")
 
 ## 更新
 
-关闭 app 后，用新的 `winspeak.exe` 覆盖旧文件即可。用户配置和模型位于 EXE 之外，不会被覆盖。
+右键托盘图标选择“退出”后，用新的 `winspeak.exe` 覆盖旧文件即可。关闭主窗口只会隐藏窗口，应用仍在运行。用户配置和模型位于 EXE 之外，不会被覆盖。

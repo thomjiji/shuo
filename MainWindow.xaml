@@ -21,12 +21,12 @@
             </TitleBar.IconSource>
         </TitleBar>
 
-        <Grid Grid.Row="1">
+        <ScrollViewer Grid.Row="1" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
             <StackPanel
                 MaxWidth="920"
                 HorizontalAlignment="Stretch"
-                Padding="32,40,32,32"
-                Spacing="14">
+                Padding="32,24,32,24"
+                Spacing="12">
                 <TextBlock FontSize="16" FontWeight="SemiBold" Text="快捷方式" />
 
                 <Border
@@ -162,12 +162,56 @@
                     </StackPanel>
                 </Border>
 
+                <TextBlock Margin="0,4,0,0" FontSize="16" FontWeight="SemiBold" Text="文本整理" />
+                <Border
+                    Padding="18"
+                    Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                    BorderThickness="1"
+                    CornerRadius="8">
+                    <StackPanel Spacing="16">
+                        <Grid ColumnSpacing="24">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel VerticalAlignment="Center" Spacing="4">
+                                <TextBlock FontSize="16" FontWeight="SemiBold" Text="去除口水词" />
+                                <TextBlock FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                           Text="清除停顿中的“嗯、呃”等填充音，尽量保留有意义的语气。" TextWrapping="Wrap" />
+                            </StackPanel>
+                            <ToggleSwitch x:Name="RemoveFillerWordsToggle" Grid.Column="1" VerticalAlignment="Center"
+                                          OffContent="" OnContent="" MinWidth="0"
+                                          automation:AutomationProperties.Name="去除口水词"
+                                          Toggled="TextCleanupToggle_Toggled" />
+                        </Grid>
+                        <Border Height="1" Background="{ThemeResource CardStrokeColorDefaultBrush}" />
+                        <Grid ColumnSpacing="24">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel VerticalAlignment="Center" Spacing="4">
+                                <TextBlock FontSize="16" FontWeight="SemiBold" Text="去掉末尾句号" />
+                                <TextBlock FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                           Text="保留句中标点、问号和感叹号。" TextWrapping="Wrap" />
+                            </StackPanel>
+                            <ToggleSwitch x:Name="TrimTrailingPeriodToggle" Grid.Column="1" VerticalAlignment="Center"
+                                          OffContent="" OnContent="" MinWidth="0"
+                                          automation:AutomationProperties.Name="去掉末尾句号"
+                                          Toggled="TextCleanupToggle_Toggled" />
+                        </Grid>
+                    </StackPanel>
+                </Border>
+                <TextBlock FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                           Text="关闭窗口后仍在托盘运行。右键托盘图标可退出。" TextWrapping="Wrap" />
+
                 <InfoBar
                     x:Name="ErrorInfo"
                     IsClosable="True"
                     IsOpen="False"
                     Severity="Error" />
             </StackPanel>
-        </Grid>
+        </ScrollViewer>
     </Grid>
 </Window>

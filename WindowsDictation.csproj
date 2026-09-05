@@ -33,6 +33,9 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Remove="test\**\*.cs" />
+    <None Remove="test\**\*" />
+    <Content Remove="test\**\*" />
     <None Remove="publish\**\*" />
     <Content Remove="publish\**\*" />
     <Content Include="Assets\AppIcon.ico" />

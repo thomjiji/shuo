@@ -1,4 +1,5 @@
 using Microsoft.UI.Text;
+using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
@@ -22,6 +23,12 @@ public sealed partial class MainWindow : Window
     private readonly OverlayWindow _overlay = new();
     private readonly IntPtr _window;
     private readonly WindowSizeConstraints _sizeConstraints;
+    private readonly TrayIcon _tray;
+    private readonly CancellationTokenSource _shutdown = new();
+    private TextCleanupOptions _cleanupOptions = new();
+    private TextCleanupOptions _recordingCleanupOptions = new();
+    private bool _updatingCleanupControls = true;
+    private bool _exiting;
     private HotkeyBinding? _hotkeyBinding;
     private HotkeyBinding? _draftHotkey;
     private GlobalHotkey? _hotkey;
@@ -44,6 +51,11 @@ public sealed partial class MainWindow : Window
         NativeMethods.SetWindowIcons(_window, iconPath);
         AppWindow.Resize(new SizeInt32(1000, 700));
         _sizeConstraints = new WindowSizeConstraints(_window, MinimumWindowWidth, MinimumWindowHeight);
+        _tray = new TrayIcon(iconPath,
+            () => DispatcherQueue.TryEnqueue(ShowSettings),
+            () => DispatcherQueue.TryEnqueue(() => _ = ExitAsync()));
+        AppWindow.IsShownInSwitchers = false;
+        AppWindow.Closing += OnWindowClosing;
 
         _daemon.MessageReceived += OnDaemonMessage;
         _daemon.ErrorReceived += OnDaemonError;
@@ -57,6 +69,56 @@ public sealed partial class MainWindow : Window
         }
 
         UpdateHotkeyPreview();
+        try
+        {
+            _cleanupOptions = TextCleanupSettings.Load();
+        }
+        catch (Exception settingsError)
+        {
+            ShowError("无法读取文本整理设置", settingsError.Message);
+        }
+        _recordingCleanupOptions = _cleanupOptions;
+        UpdateCleanupControls();
+    }
+
+    internal void ShowSettings()
+    {
+        if (_exiting || _closed) return;
+        if (AppWindow.Presenter is OverlappedPresenter presenter) presenter.Restore();
+        AppWindow.Show();
+        Activate();
+    }
+
+    private void OnWindowClosing(AppWindow sender, AppWindowClosingEventArgs args)
+    {
+        if (_exiting) return;
+        args.Cancel = true;
+        if (_shortcutEditorOpen) CloseShortcutEditor(false);
+        AppWindow.Hide();
+    }
+
+    private void UpdateCleanupControls()
+    {
+        _updatingCleanupControls = true;
+        RemoveFillerWordsToggle.IsOn = _cleanupOptions.RemoveFillerWords;
+        TrimTrailingPeriodToggle.IsOn = _cleanupOptions.TrimTrailingPeriod;
+        _updatingCleanupControls = false;
+    }
+
+    private void TextCleanupToggle_Toggled(object sender, RoutedEventArgs args)
+    {
+        if (_updatingCleanupControls) return;
+        var options = new TextCleanupOptions(RemoveFillerWordsToggle.IsOn, TrimTrailingPeriodToggle.IsOn);
+        try
+        {
+            TextCleanupSettings.Save(options);
+            _cleanupOptions = options;
+        }
+        catch (Exception error)
+        {
+            UpdateCleanupControls();
+            ShowError("无法保存文本整理设置", error.Message);
+        }
     }
 
     internal async Task StartAsync()
@@ -83,6 +145,7 @@ public sealed partial class MainWindow : Window
 
     private async Task ToggleAsync()
     {
+        if (_exiting || _closed) return;
         if (_togglePending) return;
         _togglePending = true;
         try
@@ -117,6 +180,7 @@ public sealed partial class MainWindow : Window
     {
         DispatcherQueue.TryEnqueue(() =>
         {
+            if (_exiting || _closed) return;
             _started = false;
             _togglePending = false;
             _overlay.Hide();
@@ -135,12 +199,14 @@ public sealed partial class MainWindow : Window
 
     private void HandleDaemonMessage(DaemonMessage message)
     {
+        if (_exiting || _closed) return;
         switch (message.Type)
         {
             case "ready":
                 _autocorrectPath = message.AutocorrectPath;
                 break;
             case "recording":
+                _recordingCleanupOptions = _cleanupOptions;
                 _togglePending = false;
                 _overlay.Show();
                 break;
@@ -171,8 +237,12 @@ public sealed partial class MainWindow : Window
         if (string.IsNullOrWhiteSpace(text)) return;
         try
         {
-            await TranscriptPaster.PasteAsync(text, _autocorrectPath);
+            await TranscriptPaster.PasteAsync(text, _autocorrectPath, _recordingCleanupOptions, _shutdown.Token);
             _overlay.Hide();
+        }
+        catch (OperationCanceledException) when (_shutdown.IsCancellationRequested)
+        {
+            // Explicit exit cancels any pending paste.
         }
         catch (Exception error)
         {
@@ -394,20 +464,38 @@ public sealed partial class MainWindow : Window
 
     private void ShowError(string title, string detail)
     {
+        if (_exiting || _closed) return;
         ErrorInfo.Title = title;
         ErrorInfo.Message = detail;
         ErrorInfo.Severity = InfoBarSeverity.Error;
         ErrorInfo.IsOpen = true;
     }
 
+    private async Task ExitAsync()
+    {
+        if (_exiting) return;
+        _exiting = true;
+        _shutdown.Cancel();
+        _tray.Dispose();
+        _hotkey?.Dispose();
+        _overlay.Hide();
+        AppWindow.Hide();
+        try
+        {
+            await _daemon.DisposeAsync();
+        }
+        finally
+        {
+            _sizeConstraints.Dispose();
+            _overlay.Close();
+            if (!_closed) Close();
+            Application.Current.Exit();
+        }
+    }
+
     private async void OnClosed(object sender, WindowEventArgs eventArgs)
     {
-        if (_closed) return;
         _closed = true;
-        _hotkey?.Dispose();
-        _sizeConstraints.Dispose();
-        _overlay.Close();
-        await _daemon.DisposeAsync();
-        Application.Current.Exit();
+        await ExitAsync();
     }
 }

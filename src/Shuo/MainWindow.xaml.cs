@@ -405,7 +405,7 @@ public sealed partial class MainWindow : Window
                 break;
             case "connecting":
                 _dictationActive = true;
-                _overlay.Begin(true, true);
+                _overlay.Begin(true);
                 CloudStatus.Text = "正在连接豆包...";
                 LiveTranscript.Text = "";
                 LiveTranscript.Visibility = Visibility.Collapsed;
@@ -415,7 +415,7 @@ public sealed partial class MainWindow : Window
                 _recordingCleanupOptions = _cleanupOptions;
                 if (_cloudOptions.Enabled) CloudStatus.Text = "正在录音并转录...";
                 _togglePending = false;
-                _overlay.Recording(_cloudOptions.Enabled);
+                _overlay.Recording();
                 break;
             case "transcribing":
                 _dictationActive = true;

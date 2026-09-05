@@ -5,42 +5,30 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
     <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
             BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-            BorderThickness="1" CornerRadius="12" Padding="20,16">
-        <Grid RowSpacing="10" IsHitTestVisible="False">
-            <Grid.RowDefinitions>
-                <RowDefinition Height="Auto" />
-                <RowDefinition Height="*" />
-            </Grid.RowDefinitions>
-            <Grid ColumnSpacing="10">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
-                </Grid.ColumnDefinitions>
-                <Grid Width="20" Height="20">
-                    <FontIcon x:Name="MicrophoneIcon" FontFamily="Segoe MDL2 Assets"
-                              Glyph="&#xE720;" FontSize="18"
-                              Foreground="{ThemeResource SystemControlHighlightAccentBrush}" />
-                    <ProgressRing x:Name="BusyRing" Width="18" Height="18"
-                                  IsActive="False" Visibility="Collapsed" />
-                </Grid>
-                <TextBlock x:Name="StatusLabel" Grid.Column="1"
-                           Text="正在聆听" FontSize="13" FontWeight="SemiBold"
-                           VerticalAlignment="Center" />
-                <TextBlock x:Name="ShortcutHint" Grid.Column="2"
-                           Text="再按快捷键结束" FontSize="12" VerticalAlignment="Center"
-                           Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+            BorderThickness="1" CornerRadius="12" Padding="12,0">
+        <Grid ColumnSpacing="10" IsHitTestVisible="False">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="10" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+            <Grid Width="10" Height="10" VerticalAlignment="Center">
+                <Ellipse x:Name="RecordingDot" Width="6" Height="6"
+                         Fill="{ThemeResource SystemControlHighlightAccentBrush}" />
+                <ProgressRing x:Name="BusyRing" Width="10" Height="10"
+                              IsActive="False" Visibility="Collapsed" />
             </Grid>
-            <ScrollViewer x:Name="TranscriptScroll" Grid.Row="1"
-                          HorizontalScrollBarVisibility="Disabled"
-                          VerticalScrollBarVisibility="Hidden"
-                          HorizontalScrollMode="Disabled" VerticalScrollMode="Enabled"
-                          IsTabStop="False" ZoomMode="Disabled">
-                <TextBlock x:Name="TranscriptText" Text="请开始说话..."
-                           FontSize="18" LineHeight="26" TextWrapping="Wrap"
-                           Foreground="{ThemeResource TextFillColorPrimaryBrush}"
-                           SizeChanged="TranscriptText_SizeChanged" />
-            </ScrollViewer>
+            <Canvas x:Name="TextViewport" Grid.Column="1" Height="22"
+                    VerticalAlignment="Center" SizeChanged="TextViewport_SizeChanged">
+                <Canvas.Clip>
+                    <RectangleGeometry x:Name="TextClip" />
+                </Canvas.Clip>
+                <TextBlock x:Name="TranscriptText" FontSize="14" LineHeight="22"
+                           TextWrapping="NoWrap">
+                    <TextBlock.RenderTransform>
+                        <TranslateTransform x:Name="TextOffset" />
+                    </TextBlock.RenderTransform>
+                </TextBlock>
+            </Canvas>
         </Grid>
     </Border>
 </Window>

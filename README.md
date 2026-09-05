@@ -32,9 +32,9 @@ Windows 原生 WinUI 3 听写应用，支持本地模型和豆包云端流式识
 
 ## 配置
 
-新安装的配置位于 `%LOCALAPPDATA%\Shuo\settings.json`。如果新文件不存在，应用会继续使用已有的 `%LOCALAPPDATA%\WindowsDictation\settings.json`，保留原有快捷键和偏好。两者都不存在时，首次启动服务会从 `~/.pi/agent/pi-transcribe.json` 导入模型、麦克风、语言和可选的 autocorrect 路径。
+新安装的配置位于 `%LOCALAPPDATA%\Shuo\settings.json`。如果新文件不存在，应用会继续使用已有的 `%LOCALAPPDATA%\WindowsDictation\settings.json`，保留原有快捷键和偏好。两者都不存在时，首次启动服务会优先从 `~/.pi/agent/pi-transcribe.json` 导入配置；没有可导入文件时自动创建默认配置，可直接在界面填写豆包 API Key。
 
-GGUF 模型不包含在 EXE 中。没有可导入配置时，按[安装指南](docs/setup.md#3-创建配置)创建配置。
+GGUF 模型不包含在 EXE 中。使用本地模型时，按[安装指南](docs/setup.md#3-创建配置)填写模型路径。
 
 ## 开发
 

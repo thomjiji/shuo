@@ -29,6 +29,8 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - run: npm test
+      - run: dotnet run --project test/TextCleanup.Tests/TextCleanup.Tests.csproj --configuration Release
       - name: Publish portable EXE
         shell: pwsh
         run: |

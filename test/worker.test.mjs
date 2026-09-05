@@ -116,3 +116,16 @@ test("microphone level is silent at zero, sign-independent, monotonic and bounde
   assert.equal(voice, audioLevel(new Int16Array(512).fill(-1000)));
   assert.equal(audioLevel(new Int16Array(512).fill(-32768)), 1);
 });
+
+test("a fresh PC creates usable defaults without Pi or a local model", () => {
+  const directory = mkdtempSync(join(tmpdir(), "shuo-fresh-"));
+  const settingsPath = join(directory, "Shuo", "settings.json");
+  const legacyPath = join(directory, "missing-pi.json");
+  try {
+    const loaded = importLegacySettings({ settingsPath, legacyPath, home: directory, environment: {} });
+    assert.deepEqual(loaded.model, { id: "", path: "" });
+    assert.deepEqual(loaded.microphone, { type: "system-default" });
+    assert.deepEqual(parseSettings(JSON.parse(readFileSync(settingsPath, "utf8"))), loaded);
+    assert.deepEqual(importLegacySettings({ settingsPath, legacyPath }), loaded);
+  } finally { rmSync(directory, { recursive: true, force: true }); }
+});

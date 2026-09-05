@@ -2,6 +2,14 @@
 
 当前 `win-x64` 便携发布会将 .NET 10 Desktop Runtime、Windows App SDK、Node.js runtime、worker 和 `node_modules` 压进一个 `shuo.exe`。当前构建约 138 MiB，目标电脑不需要 Pi、.NET 或 Node.js；GGUF 模型仍是外部文件。
 
+## 下载后直接使用豆包
+
+1. 从 [最新 Release](https://github.com/thomjiji/shuo/releases/latest) 下载 `shuo.exe`，放到固定的本地目录后双击运行。
+2. 选择“豆包云端”，填写火山引擎语音控制台的 API Key，点击“保存并测试”。新电脑会自动创建默认配置，不需要先下载本地模型或安装 Pi。
+3. 允许桌面应用访问麦克风，在文本输入框按 `Ctrl+Alt+\` 开始说话，再按一次结束并粘贴。
+
+API Key 需要在每台电脑上填写一次。凭据保存在该电脑的 Windows 凭据管理器中，不包含在 EXE 内。以下构建、模型和手动配置步骤用于自行构建或使用本地模型。
+
 ## 1. 在构建电脑生成一个 EXE
 
 构建电脑需要 x64 Windows、.NET SDK 10 和 x64 Node.js 22 或更高版本。先退出正在运行的 shuo，再执行：
@@ -24,7 +32,7 @@ dotnet publish src/Shuo/Shuo.csproj --configuration Release --runtime win-x64 --
 
 ## 3. 创建配置
 
-已有旧版配置的电脑会继续使用 `%LOCALAPPDATA%\WindowsDictation\settings.json`。新电脑没有可导入配置时，请创建 `%LOCALAPPDATA%\Shuo\settings.json`：
+已有旧版配置的电脑会继续使用 `%LOCALAPPDATA%\WindowsDictation\settings.json`。使用本地模型时，可编辑自动创建的 `%LOCALAPPDATA%\Shuo\settings.json`：
 
 ```powershell
 $settingsDir = Join-Path $env:LOCALAPPDATA "Shuo"

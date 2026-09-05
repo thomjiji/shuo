@@ -39,7 +39,7 @@ export function parseSettings(value, source = "settings.json") {
   if (!isRecord(value) || value.version !== 1 || value.backend?.type !== "transcribe-cpp") {
     throw new Error(`Invalid settings in ${source}`);
   }
-  if (!isRecord(value.model) || typeof value.model.id !== "string" || typeof value.model.path !== "string" || !value.model.path.trim()) {
+  if (!isRecord(value.model) || typeof value.model.id !== "string" || typeof value.model.path !== "string" || (!value.model.path.trim() && value.model.id.trim())) {
     throw new Error(`Missing model settings in ${source}`);
   }
   if (typeof value.transcriptionLanguage !== "string" || !value.transcriptionLanguage.trim()) {
@@ -112,11 +112,15 @@ export function importLegacySettings({
   }
 
   const legacy = legacyPath || getLegacySettingsPath(environment, home);
-  if (!existsSync(legacy)) {
-    throw new Error(`No settings found. Create ${target} or configure pi-transcribe first.`);
-  }
+  const settings = existsSync(legacy)
+    ? parseSettings(JSON.parse(readFileSync(legacy, "utf8")), legacy)
+    : {
+        model: { id: "", path: "" },
+        transcriptionLanguage: "auto",
+        chineseOutput: "simplified",
+        microphone: { type: "system-default" },
+      };
 
-  const settings = parseSettings(JSON.parse(readFileSync(legacy, "utf8")), legacy);
   settings.autocorrectPath = legacyAutocorrectPath(environment, home);
   mkdirSync(dirname(target), { recursive: true });
   writeFileSync(target, `${JSON.stringify(serializableSettings(settings), null, 2)}\n`);
@@ -343,6 +347,7 @@ export class DictationDaemon {
   }
 
   async loadModel() {
+    if (!this.settings.model.path) throw new Error("请先在转录服务中配置豆包云端，或在设置文件中指定本地模型。");
     if (this.model) return this.model;
     if (!this.modelLoading) {
       this.modelLoading = this.runtime.TranscribeModel.load(this.settings.model.path).then((model) => {
@@ -466,7 +471,7 @@ async function main() {
   const sendModels = async () => {
     try {
       emit("models", {
-        models: await findLocalModels(daemon.settings.model.path),
+        models: daemon.settings.model.path ? await findLocalModels(daemon.settings.model.path) : [],
         modelPath: daemon.settings.model.path,
       });
     } catch (error) {

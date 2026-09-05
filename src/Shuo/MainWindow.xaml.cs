@@ -88,6 +88,16 @@ public sealed partial class MainWindow : Window
         }
         _recordingCleanupOptions = _cleanupOptions;
         UpdateCleanupControls();
+        try
+        {
+            _cloudOptions = CloudSettings.Load();
+            ProviderPicker.SelectedIndex = _cloudOptions.Enabled ? 1 : 0;
+            CloudApiKey.Password = _cloudOptions.ApiKey;
+            CloudAppId.Text = _cloudOptions.AppId;
+            CloudAccessToken.Password = _cloudOptions.AccessToken;
+            CloudResourceId.Text = _cloudOptions.ResourceId;
+        }
+        catch (Exception cloudError) { CloudStatus.Text = cloudError.Message; }
     }
 
     internal void ShowSettings()
@@ -106,10 +116,57 @@ public sealed partial class MainWindow : Window
         AppWindow.Hide();
     }
 
+    private CloudOptions _cloudOptions = new();
+    private bool _cloudTesting;
+    private bool _backendConfigured;
+
+    private void ProviderPicker_SelectionChanged(object sender, SelectionChangedEventArgs args)
+    {
+        if (CloudFields is null || SaveCloudButton is null) return;
+        CloudFields.Visibility = ProviderPicker.SelectedIndex == 1 ? Visibility.Visible : Visibility.Collapsed;
+        SaveCloudButton.Content = ProviderPicker.SelectedIndex == 1 ? "保存并测试" : "保存";
+    }
+
+    private Task ConfigureBackendAsync() => _daemon.SendAsync(JsonSerializer.Serialize(new
+    {
+        type = "configure-backend",
+        provider = _cloudOptions.Enabled ? "doubao" : "local",
+        config = new { apiKey = _cloudOptions.ApiKey, appId = _cloudOptions.AppId,
+            accessToken = _cloudOptions.AccessToken, resourceId = _cloudOptions.ResourceId }
+    }));
+
+    private async void SaveCloudButton_Click(object sender, RoutedEventArgs args)
+    {
+        if (_dictationActive || _togglePending || _modelChanging || !_daemonReady) return;
+        try
+        {
+            var options = new CloudOptions(ProviderPicker.SelectedIndex == 1,
+                CloudResourceId.Text.Trim(), CloudApiKey.Password.Trim(),
+                CloudAppId.Text.Trim(), CloudAccessToken.Password.Trim());
+            CloudSettings.Save(options);
+            _cloudOptions = options;
+            _modelChanging = true;
+            _cloudTesting = options.Enabled;
+            CloudStatus.Text = options.Enabled ? "正在测试豆包连接..." : "正在切换到本地模型...";
+            UpdateModelControls();
+            await ConfigureBackendAsync();
+            if (_cloudTesting) await _daemon.SendAsync("test-cloud");
+        }
+        catch (Exception error)
+        {
+            _modelChanging = false;
+            _cloudTesting = false;
+            CloudStatus.Text = error.Message;
+            UpdateModelControls();
+        }
+    }
+
     private void UpdateModelControls()
     {
         var idle = _daemonReady && !_dictationActive && !_togglePending && !_modelChanging && !_loadingModels;
-        ModelPicker.IsEnabled = idle && ModelPicker.Items.Count > 0;
+        var cloudIdle = _daemonReady && !_dictationActive && !_togglePending && !_modelChanging;
+        foreach (var control in new Control[] { ProviderPicker, CloudApiKey, CloudAppId, CloudAccessToken, CloudResourceId, SaveCloudButton }) control.IsEnabled = cloudIdle;
+        ModelPicker.IsEnabled = idle && !_cloudOptions.Enabled && ModelPicker.Items.Count > 0;
         RefreshModelsButton.IsEnabled = _daemonReady && !_dictationActive && !_togglePending && !_modelChanging && !_loadingModels;
         EditShortcutButton.IsEnabled = !_modelChanging;
         RemoveFillerWordsToggle.IsEnabled = !_modelChanging;
@@ -207,11 +264,14 @@ public sealed partial class MainWindow : Window
             var node = Environment.GetEnvironmentVariable("SHUO_NODE");
             if (string.IsNullOrWhiteSpace(node)) node = Environment.GetEnvironmentVariable("WINDOWS_DICTATION_NODE");
             if (string.IsNullOrWhiteSpace(node)) node = File.Exists(bundledNode) ? bundledNode : "node.exe";
+            _modelChanging = true;
             await _daemon.StartAsync(node, workerPath);
+            await ConfigureBackendAsync();
         }
         catch (Exception error)
         {
             _started = false;
+            _modelChanging = false;
             ShowError("无法启动听写服务", error.Message);
             _overlay.Hide();
         }
@@ -226,6 +286,7 @@ public sealed partial class MainWindow : Window
         try
         {
             await StartAsync();
+            if (!_backendConfigured) throw new InvalidOperationException("请先保存转录服务设置。");
             await _daemon.SendAsync("toggle");
         }
         catch (Exception error)
@@ -259,6 +320,7 @@ public sealed partial class MainWindow : Window
             if (_exiting || _closed) return;
             _started = false;
             _daemonReady = false;
+            _backendConfigured = false;
             _togglePending = false;
             _dictationActive = false;
             _modelChanging = false;
@@ -315,9 +377,41 @@ public sealed partial class MainWindow : Window
                     : "切换失败，仍使用原模型。";
                 if (message.Type == "model-error") ShowError("无法切换模型", message.Error ?? "未知错误。");
                 break;
+            case "backend-configured":
+                _backendConfigured = true;
+                if (!_cloudTesting) _modelChanging = false;
+                if (!_cloudTesting) CloudStatus.Text = _cloudOptions.Enabled
+                    ? "当前使用豆包云端。按快捷键开始流式听写。" : "当前使用本地模型。";
+                break;
+            case "backend-error":
+                _modelChanging = false;
+                _cloudTesting = false;
+                // Block dictation until the selected service is successfully applied.
+                _backendConfigured = false;
+                CloudStatus.Text = message.Error ?? "无法配置转录服务。";
+                break;
+            case "cloud-tested":
+            case "cloud-test-error":
+                _modelChanging = false;
+                _cloudTesting = false;
+                CloudStatus.Text = message.Type == "cloud-tested"
+                    ? "豆包连接成功。按快捷键开始说话，再按一次结束。"
+                    : message.Error ?? "豆包连接测试失败。";
+                break;
+            case "partial":
+                LiveTranscript.Text = message.Text ?? "";
+                LiveTranscript.Visibility = Visibility.Visible;
+                break;
+            case "connecting":
+                _dictationActive = true;
+                CloudStatus.Text = "正在连接豆包...";
+                LiveTranscript.Text = "";
+                LiveTranscript.Visibility = Visibility.Collapsed;
+                break;
             case "recording":
                 _dictationActive = true;
                 _recordingCleanupOptions = _cleanupOptions;
+                if (_cloudOptions.Enabled) CloudStatus.Text = "正在录音并转录...";
                 _togglePending = false;
                 _overlay.Show();
                 break;
@@ -327,6 +421,7 @@ public sealed partial class MainWindow : Window
                 _overlay.Hide();
                 break;
             case "transcript":
+                if (_cloudOptions.Enabled) { LiveTranscript.Text = message.Text ?? ""; CloudStatus.Text = "转录完成。"; }
                 _dictationActive = false;
                 _togglePending = false;
                 _ = PasteTranscriptAsync(message.Text);

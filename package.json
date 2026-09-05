@@ -8,11 +8,12 @@
   },
   "scripts": {
     "test": "npm run test:worker",
-    "test:worker": "node --test test/worker.test.mjs test/models.test.mjs"
+    "test:worker": "node --test test/worker.test.mjs test/models.test.mjs test/doubao.test.mjs"
   },
   "dependencies": {
     "@picovoice/pvrecorder-node": "1.2.9",
     "opencc-js": "^1.4.1",
-    "transcribe-cpp": "0.2.2"
+    "transcribe-cpp": "0.2.2",
+    "ws": "^8.21.3"
   }
 }

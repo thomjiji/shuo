@@ -48,9 +48,11 @@ dotnet build Shuo.slnx --configuration Debug
 | `error` | 失败原因位于 `message`。 |
 | `stopped` | worker 已完成关闭。 |
 
+`configure-backend` JSON 命令携带 `provider`（`local` 或 `doubao`）及内存中的 `config`，返回 `backend-configured` 或 `backend-error`。`test-cloud` 检查云端调用并返回 `cloud-tested` 或 `cloud-test-error`。云端连接期间发送 `connecting`，界面禁止更改服务。凭据由 WinUI 宿主从 Windows PasswordVault 读取，经 worker 标准输入传递，不写入命令行、配置文件或事件输出。
+
 `worker/models.mjs` 从当前模型路径确定扫描范围，识别 Hugging Face 的仓库与快照层级，不遍历缓存 blobs 或其他目录。切换命令再次检查候选列表；先释放旧模型，再加载新模型，成功后以临时文件替换配置，仅更新 `model` 字段。失败时保留原配置，下次听写重新加载原模型。命令队列与界面状态共同避免录音、转录和切换重叠。
 
-模型在多次听写间复用，当前流程不提供实时文字。宿主退出时会等待 worker，超过五秒则终止子进程。
+本地模型在多次听写间复用，停止录音后执行转写。豆包模式通过 `worker/doubao.mjs` 建立双向流式 WebSocket，每 200 ms 发送一包 16 kHz、16-bit 单声道 PCM。`partial` 事件携带当前完整预览文本；最后一个音频包带结束标记，收到服务端最终包才发送 `transcript`。断线或超时不提交未确认文本。宿主退出时会等待 worker，超过五秒则终止子进程。
 
 ## 配置与发布
 

@@ -52,6 +52,12 @@ notepad (Join-Path $settingsDir "settings.json")
 
 `autocorrectPath` 是可选项，用于中英文排版整理。口水词过滤和末尾句号选项可在主界面设置，不依赖 autocorrect。
 
+## 豆包云端配置
+
+在火山引擎开通[流式语音识别](https://www.volcengine.com/product/asr)，从语音控制台获取 API Key。打开 shuo，在“转录服务”中选择“豆包云端”，填写 API Key 后点击“保存并测试”。默认资源 ID 为流式识别 2.0 小时版的 `volc.seedasr.sauc.duration`；其他套餐须在展开项中填写对应资源 ID。旧版控制台可填写 App ID 和 Access Token，API Key 留空。
+
+凭据保存在当前 Windows 用户的凭据管理器中，配置文件仅记录服务选择和资源 ID。云端模式需要联网，录音会上传到火山引擎并按用量计费。录音时主窗口显示实时文字，停止后等待最终结果，再执行本地文本整理和粘贴。详细协议见[官方文档](https://www.volcengine.com/docs/6561/1354869)。
+
 ## 4. 启动并验证
 
 双击 `shuo.exe`。首次启动可能比后续启动慢，因为 app 会自动解压内置运行时。Windows 需要允许桌面应用访问默认麦克风。

@@ -5,6 +5,7 @@ import { createInterface } from "node:readline";
 import { fileURLToPath } from "node:url";
 
 import { findLocalModels, saveModelSelection } from "./models.mjs";
+import { DoubaoStream, doubaoHeaders } from "./doubao.mjs";
 
 const SAMPLE_RATE = 16_000;
 const FRAME_LENGTH = 512;
@@ -138,9 +139,6 @@ export function convertFrames(frames) {
 function readSettings() {
   const path = getSettingsPath();
   const settings = importLegacySettings({ settingsPath: path });
-  if (!existsSync(settings.model.path)) {
-    throw new Error(`Configured model file is missing: ${settings.model.path}`);
-  }
   return settings;
 }
 
@@ -207,6 +205,41 @@ export class DictationDaemon {
     this.frames = [];
     this.captureError = undefined;
     this.stopping = false;
+    this.provider = "local";
+    this.cloudConfig = {};
+    this.cloud = undefined;
+  }
+
+  configureBackend(command) {
+    if (this.state !== "idle") throw new Error("请等待当前听写结束。");
+    if (!["local", "doubao"].includes(command.provider)) throw new Error("未知转录服务。");
+    if (command.provider === "doubao") doubaoHeaders(command.config || {});
+    this.provider = command.provider;
+    this.cloudConfig = command.config || {};
+  }
+
+  async testCloud() {
+    if (this.state !== "idle") throw new Error("请等待当前听写结束。");
+    this.state = "testing";
+    const stream = new DoubaoStream(this.cloudConfig);
+    try {
+      await stream.connect();
+      stream.feed(new Int16Array(3200));
+      await stream.finish();
+    } finally {
+      stream.close();
+      this.state = "idle";
+    }
+  }
+
+  async abortRecording(error) {
+    if (this.state !== "recording") return;
+    this.state = "transcribing";
+    await this.finishCapture().catch(() => {});
+    this.cloud?.close();
+    this.cloud = undefined;
+    this.state = "idle";
+    emit("error", { message: errorMessage(error) });
   }
 
   async toggle() {
@@ -216,6 +249,8 @@ export class DictationDaemon {
         // ponytail: fixed 250ms guard; replace with a recorder-ready signal if immediate stop matters.
         await new Promise((resolve) => setTimeout(resolve, STARTUP_GUARD_MS));
       } catch (error) {
+        this.cloud?.close();
+        this.cloud = undefined;
         this.state = "idle";
         emit("error", { message: errorMessage(error) });
       }
@@ -230,6 +265,12 @@ export class DictationDaemon {
     emit("transcribing");
     try {
       const pcm = await this.finishCapture();
+      if (this.cloud) {
+        const result = await this.cloud.finish();
+        const text = this.format(result.text, result.language, this.settings.transcriptionLanguage);
+        emit(text ? "transcript" : "empty", text ? { text } : {});
+        return;
+      }
       if (pcm.length === 0) {
         emit("empty");
         return;
@@ -250,6 +291,8 @@ export class DictationDaemon {
     } catch (error) {
       emit("error", { message: errorMessage(error) });
     } finally {
+      this.cloud?.close();
+      this.cloud = undefined;
       this.state = "idle";
     }
   }
@@ -283,6 +326,8 @@ export class DictationDaemon {
   }
 
   async shutdown() {
+    this.state = "stopping";
+    this.cloud?.close();
     if (this.recorder) await this.finishCapture().catch(() => undefined);
     await this.modelLoading?.catch(() => undefined);
     this.model?.dispose();
@@ -306,6 +351,14 @@ export class DictationDaemon {
   }
 
   async startRecording() {
+    if (this.provider === "doubao") {
+      this.state = "connecting";
+      emit("connecting");
+      this.cloud = new DoubaoStream(this.cloudConfig, (text) => emit("partial", { text }));
+      try { await this.cloud.connect(); }
+      catch (error) { this.cloud.close(); this.cloud = undefined; throw error; }
+      this.cloud.result.catch((error) => { void this.abortRecording(error); });
+    }
     const recorder = new this.runtime.PvRecorder(
       FRAME_LENGTH,
       microphoneIndex(this.runtime.PvRecorder, this.settings.microphone),
@@ -323,7 +376,7 @@ export class DictationDaemon {
       this.recorder = recorder;
       this.readLoop = this.readFrames(recorder);
       this.state = "recording";
-      void this.loadModel().catch(() => undefined);
+      if (this.provider === "local") void this.loadModel().catch(() => undefined);
       emit("recording");
     } catch (error) {
       recorder.release();
@@ -335,10 +388,16 @@ export class DictationDaemon {
     try {
       while (!this.stopping && recorder.isRecording) {
         const frame = await recorder.read();
-        if (!this.stopping) this.frames.push(frame);
+        if (!this.stopping) {
+          if (this.cloud) this.cloud.feed(frame);
+          else this.frames.push(frame);
+        }
       }
     } catch (error) {
-      if (!this.stopping) this.captureError = error;
+      if (!this.stopping) {
+        this.captureError = error;
+        void this.abortRecording(error);
+      }
     }
   }
 
@@ -426,6 +485,22 @@ async function main() {
           }
         });
         break;
+      case "configure-backend":
+        enqueue(async () => {
+          try {
+            daemon.configureBackend(command);
+            emit("backend-configured");
+          } catch (error) { emit("backend-error", { message: errorMessage(error) }); }
+        });
+        break;
+      case "test-cloud":
+        enqueue(async () => {
+          try {
+            await daemon.testCloud();
+            emit("cloud-tested");
+          } catch (error) { emit("cloud-test-error", { message: errorMessage(error) }); }
+        });
+        break;
       case "models":
         enqueue(sendModels);
         break;
@@ -450,7 +525,7 @@ async function main() {
         enqueue(shutdown);
         break;
       default:
-        emit("error", { message: `Unknown command: ${line.trim()}` });
+        emit("error", { message: "Unknown command" });
     }
   });
   input.on("close", () => {

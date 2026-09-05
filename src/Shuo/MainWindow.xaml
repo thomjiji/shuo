@@ -27,6 +27,41 @@
                 HorizontalAlignment="Stretch"
                 Padding="32,24,32,24"
                 Spacing="12">
+                <Border Padding="18"
+                        Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                        BorderThickness="1" CornerRadius="8">
+                    <StackPanel Spacing="10">
+                        <TextBlock FontSize="16" FontWeight="SemiBold" Text="转录服务" />
+                        <StackPanel x:Name="CloudControls" Spacing="10">
+                            <ComboBox x:Name="ProviderPicker" SelectedIndex="0" HorizontalAlignment="Stretch"
+                                      SelectionChanged="ProviderPicker_SelectionChanged">
+                                <ComboBoxItem Content="本地模型" />
+                                <ComboBoxItem Content="豆包云端 · 流式识别 2.0" />
+                            </ComboBox>
+                            <StackPanel x:Name="CloudFields" Spacing="8" Visibility="Collapsed">
+                                <TextBlock Text="录音会上传到火山引擎，并按音频时长计费。凭据保存在 Windows 凭据管理器中。"
+                                           FontSize="12" TextWrapping="Wrap"
+                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                <PasswordBox x:Name="CloudApiKey" Header="语音控制台 API Key" />
+                                <Expander Header="旧版控制台凭据与资源设置" HorizontalAlignment="Stretch"
+                                          HorizontalContentAlignment="Stretch">
+                                    <StackPanel Spacing="8">
+                                        <TextBox x:Name="CloudAppId" Header="App ID（旧版控制台）" />
+                                        <PasswordBox x:Name="CloudAccessToken" Header="Access Token（旧版控制台）" />
+                                        <TextBox x:Name="CloudResourceId" Header="资源 ID"
+                                                 Text="volc.seedasr.sauc.duration" />
+                                    </StackPanel>
+                                </Expander>
+                            </StackPanel>
+                            <Button x:Name="SaveCloudButton" Content="保存并测试" Click="SaveCloudButton_Click" />
+                        </StackPanel>
+                        <TextBlock x:Name="CloudStatus" Text="当前使用本地模型。" FontSize="12" TextWrapping="Wrap" />
+                        <TextBlock x:Name="LiveTranscript" TextWrapping="Wrap" MaxHeight="100"
+                                   IsTextSelectionEnabled="True" Visibility="Collapsed" />
+                    </StackPanel>
+                </Border>
+
                 <TextBlock FontSize="16" FontWeight="SemiBold" Text="快捷方式" />
 
                 <Border

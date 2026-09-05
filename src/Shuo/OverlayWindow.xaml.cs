@@ -52,6 +52,8 @@ public sealed partial class OverlayWindow : Window
         _workArea = NativeMethods.GetForegroundWorkArea();
         _hasText = false;
         _panelWidth = 36;
+        TrackGrid.ColumnSpacing = 0;
+        LeftFade.Opacity = 0;
         TranscriptText.Text = "";
         _visible = true;
         SetBusy(busy);
@@ -74,7 +76,8 @@ public sealed partial class OverlayWindow : Window
         TranscriptText.Text = value;
         TranscriptText.Measure(new Size(double.PositiveInfinity, 22));
         _textWidth = TranscriptText.DesiredSize.Width;
-        var width = _hasText ? Math.Min(OverlayWidth, Math.Ceiling(_textWidth) + 46) : 36;
+        TrackGrid.ColumnSpacing = _hasText ? 8 : 0;
+        var width = _hasText ? Math.Min(OverlayWidth, Math.Ceiling(_textWidth) + 44) : 36;
         if (_panelWidth != width)
         {
             _panelWidth = width;
@@ -132,7 +135,7 @@ public sealed partial class OverlayWindow : Window
 
     private void DrawRipple(Microsoft.UI.Xaml.Shapes.Ellipse ripple, ScaleTransform scale, double phase)
     {
-        scale.ScaleX = scale.ScaleY = 0.9 + phase * (0.7 + _displayLevel * 1.2);
+        scale.ScaleX = scale.ScaleY = 0.32 + phase * (0.25 + _displayLevel * 0.35);
         ripple.Opacity = Math.Min(1, _displayLevel * 1.25) * (1 - phase);
     }
 
@@ -172,13 +175,7 @@ public sealed partial class OverlayWindow : Window
 
     private void UpdateTextFade()
     {
-        // Keep the fade fixed to the viewport while the text itself moves.
-        var left = -TextOffset.X;
-        TranscriptInk.StartPoint = new Point(left, 0);
-        TranscriptInk.EndPoint = new Point(left + 18, 0);
-        var color = FadeEnd.Color;
-        color.A = (byte)Math.Round(color.A * (1 - Math.Clamp(left / 18, 0, 1)));
-        FadeStart.Color = color;
+        LeftFade.Opacity = Math.Clamp(-TextOffset.X / 18, 0, 1);
     }
 
     private void TextViewport_SizeChanged(object sender, SizeChangedEventArgs args)

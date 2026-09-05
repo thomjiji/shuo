@@ -48,7 +48,7 @@ public sealed partial class MainWindow : Window
         var iconPath = Path.Combine(AppContext.BaseDirectory, "Assets", "AppIcon.ico");
         AppWindow.SetIcon(iconPath);
         NativeMethods.SetWindowIcons(_window, iconPath);
-        AppWindow.Resize(new SizeInt32(1000, 700));
+        AppWindow.Resize(new SizeInt32(900, 820));
         if (AppWindow.Presenter is OverlappedPresenter presenter)
         {
             presenter.PreferredMinimumWidth = MinimumWindowWidth;

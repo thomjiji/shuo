@@ -3,8 +3,10 @@
     <OutputType>WinExe</OutputType>
     <TargetFramework>net10.0-windows10.0.26100.0</TargetFramework>
     <TargetPlatformMinVersion>10.0.17763.0</TargetPlatformMinVersion>
-    <RootNamespace>WindowsDictation</RootNamespace>
-    <AssemblyName>winspeak</AssemblyName>
+    <RootNamespace>Shuo</RootNamespace>
+    <AssemblyName>shuo</AssemblyName>
+    <Title>说</Title>
+    <Product>说</Product>
     <ApplicationIcon>Assets\AppIcon.ico</ApplicationIcon>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <Platforms>x86;x64;ARM64</Platforms>
@@ -21,7 +23,6 @@
     <SelfContained>true</SelfContained>
     <PublishSingleFile>true</PublishSingleFile>
     <IncludeAllContentForSelfExtract>true</IncludeAllContentForSelfExtract>
-    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
     <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
     <PublishTrimmed>false</PublishTrimmed>
     <PublishReadyToRun>false</PublishReadyToRun>
@@ -29,32 +30,24 @@
     <DebugSymbols>false</DebugSymbols>
     <DebugType>none</DebugType>
     <EnableMsixTooling>true</EnableMsixTooling>
-    <BundleNodeRuntime>true</BundleNodeRuntime>
   </PropertyGroup>
 
   <ItemGroup>
-    <Compile Remove="test\**\*.cs" />
-    <None Remove="test\**\*" />
-    <Content Remove="test\**\*" />
-    <Content Remove="Assets\*.png" />
-    <None Remove="Assets\*.png" />
-    <None Remove="publish\**\*" />
-    <Content Remove="publish\**\*" />
-    <None Update="worker\dictation-daemon.mjs">
+    <None Include="..\..\worker\dictation-daemon.mjs" Link="worker\dictation-daemon.mjs">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
     </None>
-    <None Update="settings.example.json">
+    <None Include="..\..\settings.example.json" Link="settings.example.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
     </None>
-    <None Include="node_modules\**\*">
+    <None Include="..\..\node_modules\**\*" Link="node_modules\%(RecursiveDir)%(Filename)%(Extension)">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
     </None>
   </ItemGroup>
 
-  <ItemGroup Condition="'$(BundleNodeRuntime)' == 'true' and '$(NodeRuntimePath)' != ''">
+  <ItemGroup Condition="'$(PortableBundle)' == 'true' and '$(NodeRuntimePath)' != ''">
     <None Include="$(NodeRuntimePath)">
       <Link>node.exe</Link>
       <TargetPath>node.exe</TargetPath>
@@ -73,7 +66,7 @@
     <PackageReference Include="Microsoft.Windows.SDK.BuildTools.MSIX" Version="1.7.251221100" />
   </ItemGroup>
 
-  <Target Name="RequireNodeRuntime" BeforeTargets="PrepareForPublish" Condition="'$(BundleNodeRuntime)' == 'true' and !Exists('$(NodeRuntimePath)')">
+  <Target Name="RequireNodeRuntime" BeforeTargets="PrepareForPublish" Condition="'$(PortableBundle)' == 'true' and !Exists('$(NodeRuntimePath)')">
     <Error Text="PortableBundle requires NodeRuntimePath to point to an x64 node.exe." />
   </Target>
 

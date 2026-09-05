@@ -1,4 +1,4 @@
-using WindowsDictation.Services;
+using Shuo.Services;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 
@@ -47,11 +47,11 @@ foreach (var (input, expected, options) in cases)
 }
 Console.WriteLine($"Passed {cases.Length} text cleanup cases.");
 
-var temporaryDirectory = Path.Combine(Path.GetTempPath(), "winspeak-settings-tests-" + Guid.NewGuid().ToString("N"));
+var temporaryDirectory = Path.Combine(Path.GetTempPath(), "shuo-settings-tests-" + Guid.NewGuid().ToString("N"));
 Directory.CreateDirectory(temporaryDirectory);
 var settingsPath = Path.Combine(temporaryDirectory, "settings.json");
-var previousOverride = Environment.GetEnvironmentVariable("WINDOWS_DICTATION_SETTINGS");
-Environment.SetEnvironmentVariable("WINDOWS_DICTATION_SETTINGS", settingsPath);
+var previousOverride = Environment.GetEnvironmentVariable("SHUO_SETTINGS");
+Environment.SetEnvironmentVariable("SHUO_SETTINGS", settingsPath);
 try
 {
     Assert(TextCleanupSettings.Load() == new TextCleanupOptions(), "Missing settings default to disabled.");
@@ -80,7 +80,7 @@ try
 }
 finally
 {
-    Environment.SetEnvironmentVariable("WINDOWS_DICTATION_SETTINGS", previousOverride);
+    Environment.SetEnvironmentVariable("SHUO_SETTINGS", previousOverride);
     File.Delete(settingsPath);
     Directory.Delete(temporaryDirectory);
 }
@@ -96,3 +96,19 @@ static void ExpectFailure(Action operation)
     catch (Exception error) when (error is JsonException or InvalidDataException) { return; }
     throw new Exception("Invalid settings should cause an explicit error.");
 }
+
+var localSettingsDirectory = Path.Combine(Path.GetTempPath(), "shuo-path-tests");
+var currentSettings = Path.Combine(localSettingsDirectory, "Shuo", "settings.json");
+var previousSettings = Path.Combine(localSettingsDirectory, "WindowsDictation", "settings.json");
+foreach (var paths in new[] { Array.Empty<string>(), new[] { currentSettings }, new[] { previousSettings }, new[] { currentSettings, previousSettings } })
+{
+    var expected = paths.Contains(currentSettings) || !paths.Contains(previousSettings) ? currentSettings : previousSettings;
+    Assert(HotkeySettings.ResolvePath(null, null, localSettingsDirectory, paths.Contains) == expected, "Prefer new settings, reuse old settings if needed.");
+}
+var primaryOverride = Path.Combine(localSettingsDirectory, "primary.json");
+var legacyOverride = Path.Combine(localSettingsDirectory, "legacy.json");
+bool NoDefaultLookup(string path) => throw new Exception("An explicit override must not inspect default files.");
+Assert(HotkeySettings.ResolvePath(primaryOverride, legacyOverride, localSettingsDirectory, NoDefaultLookup) == primaryOverride, "SHUO_SETTINGS takes precedence.");
+Assert(HotkeySettings.ResolvePath(null, legacyOverride, localSettingsDirectory, NoDefaultLookup) == legacyOverride, "The previous environment variable remains compatible.");
+Assert(HotkeySettings.ResolvePath("  ", legacyOverride, localSettingsDirectory, NoDefaultLookup) == legacyOverride, "An empty new override does not hide a legacy override.");
+Console.WriteLine("Passed Shuo settings path compatibility checks.");

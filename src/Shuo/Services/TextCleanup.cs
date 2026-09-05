@@ -1,6 +1,6 @@
 using System.Text.RegularExpressions;
 
-namespace WindowsDictation.Services;
+namespace Shuo.Services;
 
 internal sealed record TextCleanupOptions(bool RemoveFillerWords = false, bool TrimTrailingPeriod = false);
 

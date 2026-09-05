@@ -2,7 +2,7 @@ using System.Diagnostics;
 using System.Text.RegularExpressions;
 using Windows.ApplicationModel.DataTransfer;
 
-namespace WindowsDictation.Services;
+namespace Shuo.Services;
 
 internal static partial class TranscriptPaster
 {

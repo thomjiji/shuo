@@ -17,10 +17,14 @@ function errorMessage(error) {
   return error instanceof Error ? error.message : String(error);
 }
 
-export function getSettingsPath(environment = process.env, localAppData = environment.LOCALAPPDATA) {
-  const configured = environment.WINDOWS_DICTATION_SETTINGS?.trim();
+export function getSettingsPath(environment = process.env, localAppData = environment.LOCALAPPDATA, fileExists = existsSync) {
+  const configured = environment.SHUO_SETTINGS?.trim() || environment.WINDOWS_DICTATION_SETTINGS?.trim();
   if (configured) return resolve(configured);
-  return join(localAppData?.trim() || join(homedir(), "AppData", "Local"), "WindowsDictation", "settings.json");
+
+  const directory = localAppData?.trim() || join(homedir(), "AppData", "Local");
+  const settingsPath = join(directory, "Shuo", "settings.json");
+  const previousPath = join(directory, "WindowsDictation", "settings.json");
+  return !fileExists(settingsPath) && fileExists(previousPath) ? previousPath : settingsPath;
 }
 
 export function getLegacySettingsPath(environment = process.env, home = homedir()) {

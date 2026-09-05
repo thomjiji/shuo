@@ -2,7 +2,7 @@ using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
 
-namespace WindowsDictation.Services;
+namespace Shuo.Services;
 
 internal sealed record DaemonMessage(
     string Type,

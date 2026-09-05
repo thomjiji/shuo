@@ -1,0 +1,57 @@
+# 开发说明
+
+`src/Shuo` 是 WinUI 应用项目；`worker` 负责本地录音和转写；`test` 保存 Node 与 C# 测试。图标设计稿放在 `design`，应用只使用 `src/Shuo/Assets/AppIcon.ico`。
+
+## 开发与验证
+
+在仓库根目录执行：
+
+```powershell
+npm ci
+dotnet run --project src/Shuo/Shuo.csproj
+```
+
+验证命令：
+
+```powershell
+npm test
+dotnet run --project test/TextCleanup.Tests/TextCleanup.Tests.csproj
+dotnet build Shuo.slnx --configuration Debug
+```
+
+便携发布命令见[安装指南](setup.md#1-在构建电脑生成一个-exe)。发布前从托盘退出应用，以释放 EXE；避免同时运行多个实例争用快捷键。
+
+## 输入流程
+
+`MainWindow` 注册全局快捷键并启动 Node worker。worker 以 16 kHz 采集音频，停止录音后交给本地 transcribe-cpp 模型转写，按配置转换中文繁简体。宿主收到最终文本后执行可选的中英文排版整理、口水词过滤和末尾句号处理，再通过剪贴板和 Ctrl+V 输入到前台应用。
+
+`OverlayWindow` 只在录音期间显示，不激活、不接收焦点。它按前台窗口所在显示器的工作区定位；无法确定显示器时使用主屏。窗口样式中的不激活和工具窗口标志保证浮层不会夺走目标输入框的焦点。
+
+`GlobalHotkey` 使用 `RegisterHotKey`，通过主窗口的 `WM_HOTKEY` 接收事件。主窗口最小尺寸由 WinUI presenter 约束。关闭主窗口只隐藏设置界面；托盘的“退出”会取消待粘贴任务、释放快捷键并关闭 worker。
+
+## 进程协议
+
+宿主向 worker 的标准输入逐行发送 `toggle` 或 `shutdown`；worker 的标准输出只发送 JSONL 事件，诊断写入标准错误。
+
+| 事件 | 含义 |
+| --- | --- |
+| `ready` | 服务已准备好，携带模型标识和可选的 `autocorrectPath`。 |
+| `recording` | 已开始录音。 |
+| `transcribing` | 录音结束，正在转写。 |
+| `transcript` | 最终文本位于 `text`，可粘贴。 |
+| `empty` | 没有可输入的文本。 |
+| `busy` | 当前操作尚未结束。 |
+| `error` | 失败原因位于 `message`。 |
+| `stopped` | worker 已完成关闭。 |
+
+模型在多次听写间复用，当前流程不提供实时文字。宿主退出时会等待 worker，超过五秒则终止子进程。
+
+## 配置与发布
+
+`SHUO_SETTINGS` 可覆盖配置路径，`SHUO_NODE` 可覆盖 Node 路径；旧的 `WINDOWS_DICTATION_SETTINGS`、`WINDOWS_DICTATION_NODE` 仍作为后备。默认路径优先使用 `%LOCALAPPDATA%\Shuo\settings.json`，新文件不存在时继续使用已有的 `%LOCALAPPDATA%\WindowsDictation\settings.json`，保留旧用户的全部偏好。首次配置导入 Pi 的规则见 [README](../README.md#配置)。
+
+应用与 worker 必须采用相同的配置路径优先级。设置保存保留不属于当前界面的字段；文本整理选项按每次录音快照使用。
+
+项目显式链接仓库根目录的 worker、node_modules 和配置样例，发布时保持它们相对于 EXE 的路径。便携 EXE 包含 .NET、所需的 Windows App SDK 组件和 Node，运行时自动解压；模型仍是外部文件。
+
+WinUI 的 XBF 和 PRI 资源通过项目中的发布 targets 纳入输出。调整这些规则后，应从新的解压目录启动单文件 EXE，确认界面和包内 Node worker 都能启动。

@@ -1,7 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
 
-namespace WindowsDictation.Services;
+namespace Shuo.Services;
 
 internal static class TextCleanupSettings
 {

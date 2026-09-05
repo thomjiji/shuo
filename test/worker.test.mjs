@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -19,15 +19,50 @@ const settings = {
   model: { id: "Qwen3-ASR-0.6B", path: "C:\\models\\qwen.gguf" },
 };
 
-test("Windows Dictation owns its settings path", () => {
-  assert.equal(
-    getSettingsPath({ LOCALAPPDATA: "C:\\local" }),
-    "C:\\local\\WindowsDictation\\settings.json",
-  );
-  assert.equal(
-    getSettingsPath({ WINDOWS_DICTATION_SETTINGS: "C:\\custom\\settings.json" }),
-    "C:\\custom\\settings.json",
-  );
+test("Shuo settings path prefers explicit overrides without default fallback", () => {
+  const directory = join(tmpdir(), "shuo-path-tests");
+  const preferred = join(directory, "preferred.json");
+  const compatible = join(directory, "compatible.json");
+  const noLookup = () => { throw new Error("Explicit paths must not probe defaults"); };
+  assert.equal(getSettingsPath({ SHUO_SETTINGS: preferred, WINDOWS_DICTATION_SETTINGS: compatible }, directory, noLookup), preferred);
+  assert.equal(getSettingsPath({ WINDOWS_DICTATION_SETTINGS: compatible }, directory, noLookup), compatible);
+  assert.equal(getSettingsPath({ SHUO_SETTINGS: "  ", WINDOWS_DICTATION_SETTINGS: compatible }, directory, noLookup), compatible);
+});
+
+test("Shuo defaults to its new folder and reuses an existing WindowsDictation file", () => {
+  const directory = join(tmpdir(), "shuo-path-tests");
+  const current = join(directory, "Shuo", "settings.json");
+  const previous = join(directory, "WindowsDictation", "settings.json");
+  for (const [files, expected] of [
+    [[], current],
+    [[current], current],
+    [[previous], previous],
+    [[current, previous], current],
+  ]) {
+    assert.equal(getSettingsPath({ LOCALAPPDATA: directory }, undefined, (path) => files.includes(path)), expected);
+  }
+});
+
+test("Shuo reads the previous settings in place without losing app preferences", () => {
+  const directory = mkdtempSync(join(tmpdir(), "shuo-settings-"));
+  const previousPath = join(directory, "WindowsDictation", "settings.json");
+  const stored = JSON.stringify({
+    ...settings,
+    hotkey: { modifiers: 3, virtualKey: 0xDC },
+    removeFillerWords: true,
+    trimTrailingPeriod: true,
+    customPreference: "keep",
+  });
+  mkdirSync(join(directory, "WindowsDictation"));
+  writeFileSync(previousPath, stored);
+  try {
+    const imported = importLegacySettings({ environment: { LOCALAPPDATA: directory }, home: directory });
+    assert.equal(imported.model.path, settings.model.path);
+    assert.equal(readFileSync(previousPath, "utf8"), stored);
+    assert.equal(existsSync(join(directory, "Shuo")), false);
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
 });
 
 test("worker ignores app-only hotkey preferences", () => {
@@ -37,8 +72,8 @@ test("worker ignores app-only hotkey preferences", () => {
   }
 });
 
-test("Windows Dictation imports pi-transcribe settings only once", () => {
-  const directory = mkdtempSync(join(tmpdir(), "windows-dictation-"));
+test("Shuo imports pi-transcribe settings only once", () => {
+  const directory = mkdtempSync(join(tmpdir(), "shuo-"));
   const legacyPath = join(directory, "pi-transcribe.json");
   const settingsPath = join(directory, "owned", "settings.json");
   const autocorrectPath = join(directory, "autocorrect.exe");

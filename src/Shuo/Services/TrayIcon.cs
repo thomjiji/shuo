@@ -1,7 +1,7 @@
 using System.Drawing;
 using Forms = System.Windows.Forms;
 
-namespace WindowsDictation.Services;
+namespace Shuo.Services;
 
 internal sealed class TrayIcon : IDisposable
 {
@@ -24,7 +24,7 @@ internal sealed class TrayIcon : IDisposable
         _notification = new Forms.NotifyIcon
         {
             Icon = _icon,
-            Text = "WinSpeak",
+            Text = "说",
             ContextMenuStrip = _menu,
             Visible = true
         };

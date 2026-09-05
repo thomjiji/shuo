@@ -1,7 +1,9 @@
 using System.Runtime.InteropServices;
+using Microsoft.UI;
+using Microsoft.UI.Windowing;
 using Windows.Graphics;
 
-namespace WindowsDictation.Services;
+namespace Shuo.Services;
 
 internal static class NativeMethods
 {
@@ -13,7 +15,6 @@ internal static class NativeMethods
     internal const uint VkRwin = 0x5C;
     internal const uint VkOem5 = 0xDC;
     internal const uint WmHotkey = 0x0312;
-    internal const uint WmGetMinMaxInfo = 0x0024;
     private const uint WmSetIcon = 0x0080;
     internal const int HotkeyId = 1;
     internal const int SwHide = 0;
@@ -32,7 +33,6 @@ internal static class NativeMethods
     private const uint SwpNoactivate = 0x0010;
     private const uint SwpFramechanged = 0x0020;
     private const uint SwpShowwindow = 0x0040;
-    private const uint MonitorDefaulttonull = 0;
     private const uint ImageIcon = 1;
     private const uint LrLoadfromfile = 0x0010;
     private const int IconSmall = 0;
@@ -112,13 +112,6 @@ internal static class NativeMethods
     [DllImport("user32.dll")]
     internal static extern IntPtr GetForegroundWindow();
 
-    [DllImport("user32.dll", SetLastError = true)]
-    private static extern IntPtr MonitorFromWindow(IntPtr window, uint flags);
-
-    [DllImport("user32.dll", SetLastError = true)]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    private static extern bool GetMonitorInfo(IntPtr monitor, ref MonitorInfo monitorInfo);
-
     internal static void MakeNoActivateToolWindow(IntPtr window)
     {
         var exStyle = GetWindowLongPtr(window, GwlExstyle).ToInt64();
@@ -155,15 +148,8 @@ internal static class NativeMethods
     internal static RectInt32 GetForegroundWorkArea()
     {
         var foreground = GetForegroundWindow();
-        var monitor = MonitorFromWindow(foreground, MonitorDefaulttonull);
-        var monitorInfo = new MonitorInfo { Size = Marshal.SizeOf<MonitorInfo>() };
-        if (monitor != IntPtr.Zero && GetMonitorInfo(monitor, ref monitorInfo))
-        {
-            var work = monitorInfo.WorkArea;
-            return new RectInt32(work.Left, work.Top, work.Right - work.Left, work.Bottom - work.Top);
-        }
-
-        return new RectInt32(0, 0, 1920, 1080);
+        var windowId = Win32Interop.GetWindowIdFromWindow(foreground);
+        return DisplayArea.GetFromWindowId(windowId, DisplayAreaFallback.Primary).WorkArea;
     }
 
     internal static void ShowNoActivateTopmost(IntPtr window, RectInt32 bounds)
@@ -177,24 +163,6 @@ internal static class NativeMethods
             bounds.Height,
             SwpNoactivate | SwpShowwindow);
         ShowWindow(window, SwShownoactivate);
-    }
-
-    [StructLayout(LayoutKind.Sequential)]
-    private struct MonitorInfo
-    {
-        internal int Size;
-        internal Rect MonitorArea;
-        internal Rect WorkArea;
-        internal uint Flags;
-    }
-
-    [StructLayout(LayoutKind.Sequential)]
-    private struct Rect
-    {
-        internal int Left;
-        internal int Top;
-        internal int Right;
-        internal int Bottom;
     }
 
 }

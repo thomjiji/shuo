@@ -7,10 +7,10 @@ using Microsoft.UI.Xaml.Media;
 using Windows.Graphics;
 using Windows.System;
 using Windows.UI;
-using WindowsDictation.Services;
+using Shuo.Services;
 using WinRT.Interop;
 
-namespace WindowsDictation;
+namespace Shuo;
 
 public sealed partial class MainWindow : Window
 {
@@ -22,7 +22,6 @@ public sealed partial class MainWindow : Window
     private readonly DaemonClient _daemon = new();
     private readonly OverlayWindow _overlay = new();
     private readonly IntPtr _window;
-    private readonly WindowSizeConstraints _sizeConstraints;
     private readonly TrayIcon _tray;
     private readonly CancellationTokenSource _shutdown = new();
     private TextCleanupOptions _cleanupOptions = new();
@@ -50,7 +49,11 @@ public sealed partial class MainWindow : Window
         AppWindow.SetIcon(iconPath);
         NativeMethods.SetWindowIcons(_window, iconPath);
         AppWindow.Resize(new SizeInt32(1000, 700));
-        _sizeConstraints = new WindowSizeConstraints(_window, MinimumWindowWidth, MinimumWindowHeight);
+        if (AppWindow.Presenter is OverlappedPresenter presenter)
+        {
+            presenter.PreferredMinimumWidth = MinimumWindowWidth;
+            presenter.PreferredMinimumHeight = MinimumWindowHeight;
+        }
         _tray = new TrayIcon(iconPath,
             () => DispatcherQueue.TryEnqueue(ShowSettings),
             () => DispatcherQueue.TryEnqueue(() => _ = ExitAsync()));
@@ -131,7 +134,8 @@ public sealed partial class MainWindow : Window
         {
             var workerPath = Path.Combine(AppContext.BaseDirectory, "worker", "dictation-daemon.mjs");
             var bundledNode = Path.Combine(AppContext.BaseDirectory, "node.exe");
-            var node = Environment.GetEnvironmentVariable("WINDOWS_DICTATION_NODE");
+            var node = Environment.GetEnvironmentVariable("SHUO_NODE");
+            if (string.IsNullOrWhiteSpace(node)) node = Environment.GetEnvironmentVariable("WINDOWS_DICTATION_NODE");
             if (string.IsNullOrWhiteSpace(node)) node = File.Exists(bundledNode) ? bundledNode : "node.exe";
             await _daemon.StartAsync(node, workerPath);
         }
@@ -486,7 +490,6 @@ public sealed partial class MainWindow : Window
         }
         finally
         {
-            _sizeConstraints.Dispose();
             _overlay.Close();
             if (!_closed) Close();
             Application.Current.Exit();

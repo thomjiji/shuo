@@ -1,10 +1,10 @@
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Windows.Graphics;
-using WindowsDictation.Services;
+using Shuo.Services;
 using WinRT.Interop;
 
-namespace WindowsDictation;
+namespace Shuo;
 
 public sealed partial class OverlayWindow : Window
 {

@@ -1,7 +1,7 @@
 using System.ComponentModel;
 using System.Runtime.InteropServices;
 
-namespace WindowsDictation.Services;
+namespace Shuo.Services;
 
 internal sealed class GlobalHotkey : IDisposable
 {

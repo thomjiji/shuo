@@ -1,4 +1,4 @@
-# Windows Dictation
+# 说（shuo）
 
 > 本项目仅供我个人使用，它的生命周期直到豆包输入法推出 Windows 版的那一天为止。因为那时候我就跑去用豆包输入法 Windows 版了。
 
@@ -26,7 +26,7 @@ Windows 原生 WinUI 3 本地听写应用。按全局快捷键开始录音，再
 
 ## 配置
 
-配置文件位于 `%LOCALAPPDATA%\WindowsDictation\settings.json`。首次开始听写时，如果该文件不存在，应用会从 `~/.pi/agent/pi-transcribe.json` 导入模型、麦克风、语言和可选的 autocorrect 路径；之后只读取自身配置。
+新安装的配置位于 `%LOCALAPPDATA%\Shuo\settings.json`。如果新文件不存在，应用会继续使用已有的 `%LOCALAPPDATA%\WindowsDictation\settings.json`，保留原有快捷键和偏好。两者都不存在时，首次启动服务会从 `~/.pi/agent/pi-transcribe.json` 导入模型、麦克风、语言和可选的 autocorrect 路径。
 
 GGUF 模型不包含在 EXE 中。没有可导入配置时，按[安装指南](docs/setup.md#3-创建配置)创建配置。
 
@@ -36,8 +36,10 @@ GGUF 模型不包含在 EXE 中。没有可导入配置时，按[安装指南](d
 
 ```powershell
 npm ci
-dotnet run
+dotnet run --project src/Shuo/Shuo.csproj
 ```
+
+项目结构和进程协议见[开发说明](docs/development.md)。
 
 ## 发布
 

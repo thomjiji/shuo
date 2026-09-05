@@ -1,4 +1,4 @@
-namespace WindowsDictation.Services;
+namespace Shuo.Services;
 
 internal readonly record struct HotkeyBinding(uint Modifiers, uint VirtualKey)
 {

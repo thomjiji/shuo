@@ -1,6 +1,6 @@
 using Microsoft.UI.Xaml;
 
-namespace WindowsDictation;
+namespace Shuo;
 
 public partial class App : Application
 {

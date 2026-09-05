@@ -1,20 +1,20 @@
 # 在另一台 Windows PC 上运行
 
-当前 `win-x64` 便携发布会将 .NET 10 Desktop Runtime、Windows App SDK、Node.js runtime、worker 和 `node_modules` 压进一个 `winspeak.exe`。当前构建约 138 MiB，目标电脑不需要 Pi、.NET 或 Node.js；GGUF 模型仍是外部文件。
+当前 `win-x64` 便携发布会将 .NET 10 Desktop Runtime、Windows App SDK、Node.js runtime、worker 和 `node_modules` 压进一个 `shuo.exe`。当前构建约 138 MiB，目标电脑不需要 Pi、.NET 或 Node.js；GGUF 模型仍是外部文件。
 
 ## 1. 在构建电脑生成一个 EXE
 
-构建电脑需要 x64 Windows、.NET SDK 10 和 x64 Node.js 22 或更高版本。先退出正在运行的 Windows Dictation，再执行：
+构建电脑需要 x64 Windows、.NET SDK 10 和 x64 Node.js 22 或更高版本。先退出正在运行的 说，再执行：
 
 ```powershell
-Set-Location "$HOME\git\winspeak"
+Set-Location "$HOME\git\shuo"
 npm ci
 $node = (Get-Command node.exe -ErrorAction Stop).Source
 Remove-Item -Recurse -Force .\publish\win-x64 -ErrorAction SilentlyContinue
-dotnet publish --configuration Release --runtime win-x64 --output .\publish\win-x64 -p:PortableBundle=true "-p:NodeRuntimePath=$node"
+dotnet publish src/Shuo/Shuo.csproj --configuration Release --runtime win-x64 --output .\publish\win-x64 -p:PortableBundle=true "-p:NodeRuntimePath=$node"
 ```
 
-输出目录中只有 `publish\win-x64\winspeak.exe`。将这一个文件复制到目标电脑的本地目录即可；它在首次启动时会自动解压运行所需的原生文件。
+输出目录中只有 `publish\win-x64\shuo.exe`。将这一个文件复制到目标电脑的本地目录即可；它在首次启动时会自动解压运行所需的原生文件。
 
 ## 2. 放置模型
 
@@ -24,10 +24,10 @@ dotnet publish --configuration Release --runtime win-x64 --output .\publish\win-
 
 ## 3. 创建配置
 
-如果目标电脑没有可迁移的旧 Pi Transcribe 配置，请创建 `%LOCALAPPDATA%\WindowsDictation\settings.json`：
+已有旧版配置的电脑会继续使用 `%LOCALAPPDATA%\WindowsDictation\settings.json`。新电脑没有可导入配置时，请创建 `%LOCALAPPDATA%\Shuo\settings.json`：
 
 ```powershell
-$settingsDir = Join-Path $env:LOCALAPPDATA "WindowsDictation"
+$settingsDir = Join-Path $env:LOCALAPPDATA "Shuo"
 New-Item -ItemType Directory -Force $settingsDir
 notepad (Join-Path $settingsDir "settings.json")
 ```
@@ -52,7 +52,7 @@ notepad (Join-Path $settingsDir "settings.json")
 
 ## 4. 启动并验证
 
-双击 `winspeak.exe`。首次启动可能比后续启动慢，因为 app 会自动解压内置运行时。Windows 需要允许桌面应用访问默认麦克风。
+双击 `shuo.exe`。首次启动可能比后续启动慢，因为 app 会自动解压内置运行时。Windows 需要允许桌面应用访问默认麦克风。
 
 启动后，可点击“录音触发快捷键”右侧的铅笔图标修改快捷键；默认 `Ctrl+Alt+\`。在普通权限的文本输入框中按一次已设置的快捷键开始录音，再按一次停止并转写。完成后文字会粘贴到原先的前台输入框。
 
@@ -61,11 +61,11 @@ notepad (Join-Path $settingsDir "settings.json")
 | 现象 | 处理方式 |
 | --- | --- |
 | 双击后无法启动或马上退出 | 确认是 x64 Windows，并将 EXE 复制到本地目录后再试。目标电脑不需要安装 .NET 或 Node.js。 |
-| 状态显示无法启动听写服务 | 重新复制完整的 EXE；可用 `WINDOWS_DICTATION_NODE` 指向其他 `node.exe` 进行排错，但正常发布不需要它。 |
-| 状态提示模型文件缺失 | 检查 `%LOCALAPPDATA%\WindowsDictation\settings.json` 中的 `model.path`，以及 JSON 转义后的实际路径。 |
+| 状态显示无法启动听写服务 | 重新复制完整的 EXE；可用 `SHUO_NODE` 指向其他 `node.exe` 进行排错，但正常发布不需要它。 |
+| 状态提示模型文件缺失 | 检查当前配置文件中的 `model.path`，以及 JSON 转义后的实际路径。 |
 | 没有听到声音 | 在 Windows 设置中确认系统默认输入设备和麦克风隐私权限；配置默认使用系统默认麦克风。 |
 | 文字没有粘贴进管理员权限应用 | 听写 app 与目标应用需要相同权限级别。普通权限 app 不能向管理员权限窗口发送粘贴操作。 |
 
 ## 更新
 
-右键托盘图标选择“退出”后，用新的 `winspeak.exe` 覆盖旧文件即可。关闭主窗口只会隐藏窗口，应用仍在运行。用户配置和模型位于 EXE 之外，不会被覆盖。
+右键托盘图标选择“退出”后，用新的 `shuo.exe` 覆盖旧文件即可。关闭主窗口只会隐藏窗口，应用仍在运行。用户配置和模型位于 EXE 之外，不会被覆盖。

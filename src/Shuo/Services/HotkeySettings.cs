@@ -1,11 +1,11 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
 
-namespace WindowsDictation.Services;
+namespace Shuo.Services;
 
 internal static class HotkeySettings
 {
-    private const string SettingsOverride = "WINDOWS_DICTATION_SETTINGS";
+    private const string SettingsOverride = "SHUO_SETTINGS";
 
     internal static HotkeyBinding? Load()
     {
@@ -52,14 +52,19 @@ internal static class HotkeySettings
         File.WriteAllText(path, root.ToJsonString(new JsonSerializerOptions { WriteIndented = true }) + Environment.NewLine);
     }
 
-    internal static string GetPath()
-    {
-        var configured = Environment.GetEnvironmentVariable(SettingsOverride);
-        if (!string.IsNullOrWhiteSpace(configured)) return Path.GetFullPath(configured);
+    internal static string GetPath() => ResolvePath(
+        Environment.GetEnvironmentVariable(SettingsOverride),
+        Environment.GetEnvironmentVariable("WINDOWS_DICTATION_SETTINGS"),
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+        File.Exists);
 
-        return Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "WindowsDictation",
-            "settings.json");
+    internal static string ResolvePath(string? configured, string? legacyConfigured, string localAppData, Func<string, bool> fileExists)
+    {
+        var overridePath = string.IsNullOrWhiteSpace(configured) ? legacyConfigured : configured;
+        if (!string.IsNullOrWhiteSpace(overridePath)) return Path.GetFullPath(overridePath.Trim());
+
+        var current = Path.Combine(localAppData, "Shuo", "settings.json");
+        var previous = Path.Combine(localAppData, "WindowsDictation", "settings.json");
+        return fileExists(current) || !fileExists(previous) ? current : previous;
     }
 }

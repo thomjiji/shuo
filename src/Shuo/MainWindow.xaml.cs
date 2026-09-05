@@ -401,9 +401,11 @@ public sealed partial class MainWindow : Window
             case "partial":
                 LiveTranscript.Text = message.Text ?? "";
                 LiveTranscript.Visibility = Visibility.Visible;
+                _overlay.UpdateTranscript(message.Text);
                 break;
             case "connecting":
                 _dictationActive = true;
+                _overlay.Begin(true, true);
                 CloudStatus.Text = "正在连接豆包...";
                 LiveTranscript.Text = "";
                 LiveTranscript.Visibility = Visibility.Collapsed;
@@ -413,17 +415,18 @@ public sealed partial class MainWindow : Window
                 _recordingCleanupOptions = _cleanupOptions;
                 if (_cloudOptions.Enabled) CloudStatus.Text = "正在录音并转录...";
                 _togglePending = false;
-                _overlay.Show();
+                _overlay.Recording(_cloudOptions.Enabled);
                 break;
             case "transcribing":
                 _dictationActive = true;
                 _togglePending = false;
-                _overlay.Hide();
+                _overlay.Transcribing();
                 break;
             case "transcript":
                 if (_cloudOptions.Enabled) { LiveTranscript.Text = message.Text ?? ""; CloudStatus.Text = "转录完成。"; }
                 _dictationActive = false;
                 _togglePending = false;
+                _overlay.Pasting(message.Text);
                 _ = PasteTranscriptAsync(message.Text);
                 break;
             case "busy":

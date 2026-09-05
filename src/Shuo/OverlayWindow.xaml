@@ -3,12 +3,44 @@
     x:Class="Shuo.OverlayWindow"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
-    <Grid Background="{ThemeResource CardBackgroundFillColorDefaultBrush}">
-        <ProgressRing
-            Width="28"
-            Height="28"
-            HorizontalAlignment="Center"
-            VerticalAlignment="Center"
-            IsActive="True" />
-    </Grid>
+    <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+            BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+            BorderThickness="1" CornerRadius="12" Padding="20,16">
+        <Grid RowSpacing="10" IsHitTestVisible="False">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+            <Grid ColumnSpacing="10">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <Grid Width="20" Height="20">
+                    <FontIcon x:Name="MicrophoneIcon" FontFamily="Segoe MDL2 Assets"
+                              Glyph="&#xE720;" FontSize="18"
+                              Foreground="{ThemeResource SystemControlHighlightAccentBrush}" />
+                    <ProgressRing x:Name="BusyRing" Width="18" Height="18"
+                                  IsActive="False" Visibility="Collapsed" />
+                </Grid>
+                <TextBlock x:Name="StatusLabel" Grid.Column="1"
+                           Text="正在聆听" FontSize="13" FontWeight="SemiBold"
+                           VerticalAlignment="Center" />
+                <TextBlock x:Name="ShortcutHint" Grid.Column="2"
+                           Text="再按快捷键结束" FontSize="12" VerticalAlignment="Center"
+                           Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+            </Grid>
+            <ScrollViewer x:Name="TranscriptScroll" Grid.Row="1"
+                          HorizontalScrollBarVisibility="Disabled"
+                          VerticalScrollBarVisibility="Hidden"
+                          HorizontalScrollMode="Disabled" VerticalScrollMode="Enabled"
+                          IsTabStop="False" ZoomMode="Disabled">
+                <TextBlock x:Name="TranscriptText" Text="请开始说话..."
+                           FontSize="18" LineHeight="26" TextWrapping="Wrap"
+                           Foreground="{ThemeResource TextFillColorPrimaryBrush}"
+                           SizeChanged="TranscriptText_SizeChanged" />
+            </ScrollViewer>
+        </Grid>
+    </Border>
 </Window>

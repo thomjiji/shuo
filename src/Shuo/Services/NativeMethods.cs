@@ -125,6 +125,18 @@ internal static class NativeMethods
         SetLayeredWindowAttributes(window, 0, 0, alpha);
     }
 
+    [DllImport("user32.dll")]
+    internal static extern uint GetDpiForWindow(IntPtr window);
+
+    [DllImport("dwmapi.dll")]
+    private static extern int DwmSetWindowAttribute(IntPtr window, uint attribute, ref int value, uint size);
+
+    internal static void RoundWindowCorners(IntPtr window)
+    {
+        var preference = 2; // DWMWCP_ROUND; ignored on systems without this attribute.
+        DwmSetWindowAttribute(window, 33, ref preference, sizeof(int));
+    }
+
     internal static void MakeNoActivateToolWindow(IntPtr window)
     {
         var exStyle = GetWindowLongPtr(window, GwlExstyle).ToInt64();

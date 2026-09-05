@@ -13,12 +13,12 @@
             </Grid.ColumnDefinitions>
             <Grid Width="10" Height="10" VerticalAlignment="Center">
                 <Grid x:Name="VoiceIndicator">
-                    <Ellipse x:Name="RippleOne" Width="10" Height="10" StrokeThickness="1"
+                    <Ellipse x:Name="RippleOne" Width="10" Height="10" StrokeThickness="1.25"
                              Stroke="{ThemeResource SystemControlHighlightAccentBrush}"
                              Opacity="0" RenderTransformOrigin="0.5,0.5">
                         <Ellipse.RenderTransform><ScaleTransform x:Name="RippleOneScale" /></Ellipse.RenderTransform>
                     </Ellipse>
-                    <Ellipse x:Name="RippleTwo" Width="10" Height="10" StrokeThickness="1"
+                    <Ellipse x:Name="RippleTwo" Width="10" Height="10" StrokeThickness="1.25"
                              Stroke="{ThemeResource SystemControlHighlightAccentBrush}"
                              Opacity="0" RenderTransformOrigin="0.5,0.5">
                         <Ellipse.RenderTransform><ScaleTransform x:Name="RippleTwoScale" /></Ellipse.RenderTransform>
@@ -38,6 +38,12 @@
                 </Canvas.Clip>
                 <TextBlock x:Name="TranscriptText" FontSize="14" LineHeight="22"
                            TextWrapping="NoWrap">
+                    <TextBlock.Foreground>
+                        <LinearGradientBrush x:Name="TranscriptInk" MappingMode="Absolute" StartPoint="0,0" EndPoint="18,0">
+                            <GradientStop x:Name="FadeStart" Offset="0" Color="{ThemeResource TextFillColorPrimary}" />
+                            <GradientStop x:Name="FadeEnd" Offset="1" Color="{ThemeResource TextFillColorPrimary}" />
+                        </LinearGradientBrush>
+                    </TextBlock.Foreground>
                     <TextBlock.RenderTransform>
                         <TranslateTransform x:Name="TextOffset" />
                     </TextBlock.RenderTransform>

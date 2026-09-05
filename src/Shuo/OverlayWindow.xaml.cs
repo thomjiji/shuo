@@ -114,7 +114,7 @@ public sealed partial class OverlayWindow : Window
 
     internal void UpdateAudioLevel(double level)
     {
-        if (_visible && !_busy) _targetLevel = Math.Clamp(level, 0, 1);
+        if (_visible && !_busy) _targetLevel = Math.Clamp(Math.Pow(Math.Max(0, level), 0.75) * 1.8, 0, 1);
     }
 
     private void OnVoiceRendering(object? sender, object args)
@@ -124,7 +124,7 @@ public sealed partial class OverlayWindow : Window
         _voiceFrame = now;
         var response = _targetLevel > _displayLevel ? 24 : 9;
         _displayLevel += (_targetLevel - _displayLevel) * (1 - Math.Exp(-response * elapsed));
-        DotScale.ScaleX = DotScale.ScaleY = 1 + _displayLevel * 0.35;
+        DotScale.ScaleX = DotScale.ScaleY = 1 + _displayLevel * 0.5;
         var phase = now % 0.9 / 0.9;
         DrawRipple(RippleOne, RippleOneScale, phase);
         DrawRipple(RippleTwo, RippleTwoScale, (phase + 0.5) % 1);
@@ -132,8 +132,8 @@ public sealed partial class OverlayWindow : Window
 
     private void DrawRipple(Microsoft.UI.Xaml.Shapes.Ellipse ripple, ScaleTransform scale, double phase)
     {
-        scale.ScaleX = scale.ScaleY = 0.8 + phase * (0.5 + _displayLevel * 1.1);
-        ripple.Opacity = _displayLevel * (1 - phase) * 0.8;
+        scale.ScaleX = scale.ScaleY = 0.9 + phase * (0.7 + _displayLevel * 1.2);
+        ripple.Opacity = Math.Min(1, _displayLevel * 1.25) * (1 - phase);
     }
 
     private void StopVoiceAnimation()
@@ -154,6 +154,7 @@ public sealed partial class OverlayWindow : Window
         if (Math.Abs(_slideTo - _slideFrom) < 0.1)
         {
             TextOffset.X = _slideTo;
+            UpdateTextFade();
             return;
         }
         _clock.Restart();
@@ -165,7 +166,19 @@ public sealed partial class OverlayWindow : Window
         var progress = Math.Min(_clock.Elapsed.TotalSeconds / SlideSeconds, 1);
         var eased = 1 - Math.Pow(1 - progress, 3);
         TextOffset.X = _slideFrom + (_slideTo - _slideFrom) * eased;
+        UpdateTextFade();
         if (progress >= 1) StopScrolling();
+    }
+
+    private void UpdateTextFade()
+    {
+        // Keep the fade fixed to the viewport while the text itself moves.
+        var left = -TextOffset.X;
+        TranscriptInk.StartPoint = new Point(left, 0);
+        TranscriptInk.EndPoint = new Point(left + 18, 0);
+        var color = FadeEnd.Color;
+        color.A = (byte)Math.Round(color.A * (1 - Math.Clamp(left / 18, 0, 1)));
+        FadeStart.Color = color;
     }
 
     private void TextViewport_SizeChanged(object sender, SizeChangedEventArgs args)

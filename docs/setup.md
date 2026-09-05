@@ -48,6 +48,8 @@ notepad (Join-Path $settingsDir "settings.json")
 }
 ```
 
+启动后可在“转录模型”中选择其他模型。普通文件夹只列出当前模型同层的 `.gguf` 文件；pi-transcribe 使用 Hugging Face 缓存时，会列出同一缓存根目录下各模型快照中的 `.gguf` 文件，不扫描其他位置。下载完成后点击刷新；Fun-ASR Nano Multilingual 对应的文件名为 `Fun-ASR-MLT-Nano-2512-*.gguf`。shuo 只保存自己的选择，不修改 pi-transcribe 配置，也不负责下载模型。
+
 `autocorrectPath` 是可选项，用于中英文排版整理。口水词过滤和末尾句号选项可在主界面设置，不依赖 autocorrect。
 
 ## 4. 启动并验证

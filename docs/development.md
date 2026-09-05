@@ -31,11 +31,15 @@ dotnet build Shuo.slnx --configuration Debug
 
 ## 进程协议
 
-宿主向 worker 的标准输入逐行发送 `toggle` 或 `shutdown`；worker 的标准输出只发送 JSONL 事件，诊断写入标准错误。
+宿主向 worker 的标准输入逐行发送 `toggle`、`shutdown` 或用于刷新模型列表的 `models`。切换模型使用 JSON 行 `{"type":"select-model","path":"模型绝对路径"}`。worker 的标准输出只发送 JSONL 事件，诊断写入标准错误。
 
 | 事件 | 含义 |
 | --- | --- |
 | `ready` | 服务已准备好，携带模型标识和可选的 `autocorrectPath`。 |
+| `models` | 可选模型位于 `models` 数组，当前路径位于 `modelPath`。 |
+| `model-changed` | 模型已加载并保存，返回当前 `model` 和 `modelPath`。 |
+| `model-error` | 切换失败，`message` 说明原因，`modelPath` 仍指向原选择。 |
+| `model-list-error` | 模型目录无法读取。 |
 | `recording` | 已开始录音。 |
 | `transcribing` | 录音结束，正在转写。 |
 | `transcript` | 最终文本位于 `text`，可粘贴。 |
@@ -43,6 +47,8 @@ dotnet build Shuo.slnx --configuration Debug
 | `busy` | 当前操作尚未结束。 |
 | `error` | 失败原因位于 `message`。 |
 | `stopped` | worker 已完成关闭。 |
+
+`worker/models.mjs` 从当前模型路径确定扫描范围，识别 Hugging Face 的仓库与快照层级，不遍历缓存 blobs 或其他目录。切换命令再次检查候选列表；先释放旧模型，再加载新模型，成功后以临时文件替换配置，仅更新 `model` 字段。失败时保留原配置，下次听写重新加载原模型。命令队列与界面状态共同避免录音、转录和切换重叠。
 
 模型在多次听写间复用，当前流程不提供实时文字。宿主退出时会等待 worker，超过五秒则终止子进程。
 

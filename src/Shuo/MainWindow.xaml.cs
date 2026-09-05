@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Microsoft.UI.Text;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
@@ -38,6 +39,11 @@ public sealed partial class MainWindow : Window
     private bool _daemonReady;
     private string? _startupError;
     private bool _closed;
+    private bool _dictationActive;
+    private bool _modelChanging;
+    private bool _loadingModels = true;
+    private bool _updatingModelPicker;
+    private string? _selectedModelPath;
 
     public MainWindow()
     {
@@ -100,6 +106,70 @@ public sealed partial class MainWindow : Window
         AppWindow.Hide();
     }
 
+    private void UpdateModelControls()
+    {
+        var idle = _daemonReady && !_dictationActive && !_togglePending && !_modelChanging && !_loadingModels;
+        ModelPicker.IsEnabled = idle && ModelPicker.Items.Count > 0;
+        RefreshModelsButton.IsEnabled = _daemonReady && !_dictationActive && !_togglePending && !_modelChanging && !_loadingModels;
+        EditShortcutButton.IsEnabled = !_modelChanging;
+        RemoveFillerWordsToggle.IsEnabled = !_modelChanging;
+        TrimTrailingPeriodToggle.IsEnabled = !_modelChanging;
+    }
+
+    private void SelectCurrentModel()
+    {
+        _updatingModelPicker = true;
+        ModelPicker.SelectedItem = ModelPicker.Items.OfType<LocalModel>().FirstOrDefault(
+            model => string.Equals(model.Path, _selectedModelPath, StringComparison.OrdinalIgnoreCase));
+        ToolTipService.SetToolTip(ModelPicker, _selectedModelPath);
+        _updatingModelPicker = false;
+    }
+
+    private async void RefreshModelsButton_Click(object sender, RoutedEventArgs args)
+    {
+        _loadingModels = true;
+        ModelStatus.Text = "正在读取模型...";
+        UpdateModelControls();
+        try
+        {
+            await _daemon.SendAsync("models");
+        }
+        catch (Exception error)
+        {
+            _loadingModels = false;
+            ModelStatus.Text = "无法读取模型列表，请重试。";
+            ShowError("无法读取模型列表", error.Message);
+            UpdateModelControls();
+        }
+    }
+
+    private async void ModelPicker_SelectionChanged(object sender, SelectionChangedEventArgs args)
+    {
+        if (_updatingModelPicker || ModelPicker.SelectedItem is not LocalModel selected) return;
+        if (string.Equals(selected.Path, _selectedModelPath, StringComparison.OrdinalIgnoreCase)) return;
+        if (_dictationActive || _togglePending || _modelChanging || !_daemonReady)
+        {
+            SelectCurrentModel();
+            return;
+        }
+        if (_shortcutEditorOpen) CloseShortcutEditor(false);
+        _modelChanging = true;
+        ModelStatus.Text = "正在加载模型...";
+        UpdateModelControls();
+        try
+        {
+            await _daemon.SendAsync(JsonSerializer.Serialize(new { type = "select-model", path = selected.Path }));
+        }
+        catch (Exception error)
+        {
+            _modelChanging = false;
+            SelectCurrentModel();
+            ModelStatus.Text = "切换失败，仍使用原模型。";
+            ShowError("无法切换模型", error.Message);
+            UpdateModelControls();
+        }
+    }
+
     private void UpdateCleanupControls()
     {
         _updatingCleanupControls = true;
@@ -150,8 +220,9 @@ public sealed partial class MainWindow : Window
     private async Task ToggleAsync()
     {
         if (_exiting || _closed) return;
-        if (_togglePending) return;
+        if (_togglePending || _modelChanging) return;
         _togglePending = true;
+        UpdateModelControls();
         try
         {
             await StartAsync();
@@ -162,6 +233,7 @@ public sealed partial class MainWindow : Window
             _togglePending = false;
             ShowError("听写服务不可用", error.Message);
             _overlay.Hide();
+            UpdateModelControls();
         }
     }
 
@@ -186,7 +258,13 @@ public sealed partial class MainWindow : Window
         {
             if (_exiting || _closed) return;
             _started = false;
+            _daemonReady = false;
             _togglePending = false;
+            _dictationActive = false;
+            _modelChanging = false;
+            _loadingModels = false;
+            SelectCurrentModel();
+            UpdateModelControls();
             _overlay.Hide();
             if (_closed) return;
             var startupError = _startupError;
@@ -208,17 +286,48 @@ public sealed partial class MainWindow : Window
         {
             case "ready":
                 _autocorrectPath = message.AutocorrectPath;
+                _selectedModelPath = message.ModelPath;
+                _loadingModels = true;
+                break;
+            case "models":
+                _updatingModelPicker = true;
+                ModelPicker.ItemsSource = message.Models ?? [];
+                _updatingModelPicker = false;
+                _selectedModelPath = message.ModelPath;
+                _loadingModels = false;
+                SelectCurrentModel();
+                ModelStatus.Text = ModelPicker.Items.Count == 0
+                    ? "没有找到模型。用 pi-transcribe 下载后，点击刷新。"
+                    : "用 pi-transcribe 下载模型后，点击刷新。";
+                break;
+            case "model-list-error":
+                _loadingModels = false;
+                ModelStatus.Text = "无法读取模型列表，请重试。";
+                ShowError("无法读取模型列表", message.Error ?? "未知错误。");
+                break;
+            case "model-changed":
+            case "model-error":
+                _modelChanging = false;
+                _selectedModelPath = message.ModelPath;
+                SelectCurrentModel();
+                ModelStatus.Text = message.Type == "model-changed"
+                    ? "模型已切换，下次听写生效。"
+                    : "切换失败，仍使用原模型。";
+                if (message.Type == "model-error") ShowError("无法切换模型", message.Error ?? "未知错误。");
                 break;
             case "recording":
+                _dictationActive = true;
                 _recordingCleanupOptions = _cleanupOptions;
                 _togglePending = false;
                 _overlay.Show();
                 break;
             case "transcribing":
+                _dictationActive = true;
                 _togglePending = false;
                 _overlay.Hide();
                 break;
             case "transcript":
+                _dictationActive = false;
                 _togglePending = false;
                 _ = PasteTranscriptAsync(message.Text);
                 break;
@@ -228,11 +337,13 @@ public sealed partial class MainWindow : Window
             case "empty":
             case "error":
             case "stopped":
+                _dictationActive = false;
                 _togglePending = false;
                 _overlay.Hide();
                 break;
         }
 
+        UpdateModelControls();
         if (message.Type == "error") ShowError("听写失败", message.Error ?? "未知错误。");
     }
 

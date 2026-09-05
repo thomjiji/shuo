@@ -162,6 +162,37 @@
                     </StackPanel>
                 </Border>
 
+                <Border
+                    Padding="18"
+                    Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                    BorderThickness="1"
+                    CornerRadius="8">
+                    <StackPanel Spacing="8">
+                        <TextBlock FontSize="16" FontWeight="SemiBold" Text="转录模型" />
+                        <Grid ColumnSpacing="8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <ComboBox x:Name="ModelPicker" HorizontalAlignment="Stretch"
+                                      IsEnabled="False" PlaceholderText="正在读取模型..."
+                                      DisplayMemberPath="Name" MaxDropDownHeight="320"
+                                      automation:AutomationProperties.Name="转录模型"
+                                      SelectionChanged="ModelPicker_SelectionChanged" />
+                            <Button x:Name="RefreshModelsButton" Grid.Column="1" IsEnabled="False"
+                                    automation:AutomationProperties.Name="刷新模型列表"
+                                    ToolTipService.ToolTip="刷新模型列表"
+                                    Click="RefreshModelsButton_Click">
+                                <FontIcon FontFamily="Segoe MDL2 Assets" FontSize="14" Glyph="&#xE72C;" />
+                            </Button>
+                        </Grid>
+                        <TextBlock x:Name="ModelStatus" FontSize="12" TextWrapping="Wrap"
+                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                   Text="用 pi-transcribe 下载模型后，点击刷新。" />
+                    </StackPanel>
+                </Border>
+
                 <TextBlock Margin="0,4,0,0" FontSize="16" FontWeight="SemiBold" Text="文本整理" />
                 <Border
                     Padding="18"

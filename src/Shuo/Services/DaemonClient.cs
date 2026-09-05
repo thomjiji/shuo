@@ -4,12 +4,16 @@ using System.Text.Json;
 
 namespace Shuo.Services;
 
+internal sealed record LocalModel(string Id, string Name, string Path);
+
 internal sealed record DaemonMessage(
     string Type,
     string? Text = null,
     string? Error = null,
     string? Model = null,
-    string? AutocorrectPath = null);
+    string? AutocorrectPath = null,
+    string? ModelPath = null,
+    LocalModel[]? Models = null);
 
 internal sealed class DaemonClient : IAsyncDisposable
 {
@@ -86,7 +90,9 @@ internal sealed class DaemonClient : IAsyncDisposable
                     GetString(root, "text"),
                     GetString(root, "message"),
                     GetString(root, "model"),
-                    GetString(root, "autocorrectPath")));
+                    GetString(root, "autocorrectPath"),
+                    GetString(root, "modelPath"),
+                    GetModels(root)));
             }
             catch (JsonException)
             {
@@ -94,6 +100,14 @@ internal sealed class DaemonClient : IAsyncDisposable
             }
         }
     }
+
+    private static LocalModel[]? GetModels(JsonElement root) =>
+        root.TryGetProperty("models", out var models) && models.ValueKind == JsonValueKind.Array
+            ? models.EnumerateArray().Select(model => new LocalModel(
+                GetString(model, "id") ?? "",
+                GetString(model, "name") ?? "",
+                GetString(model, "path") ?? "")).ToArray()
+            : null;
 
     private static string? GetString(JsonElement element, string propertyName) =>
         element.TryGetProperty(propertyName, out var property) && property.ValueKind == JsonValueKind.String

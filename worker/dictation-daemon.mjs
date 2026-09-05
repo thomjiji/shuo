@@ -4,6 +4,8 @@ import { dirname, join, resolve } from "node:path";
 import { createInterface } from "node:readline";
 import { fileURLToPath } from "node:url";
 
+import { findLocalModels, saveModelSelection } from "./models.mjs";
+
 const SAMPLE_RATE = 16_000;
 const FRAME_LENGTH = 512;
 const STARTUP_GUARD_MS = 250;
@@ -191,8 +193,9 @@ async function loadRuntime() {
   };
 }
 
-class DictationDaemon {
-  constructor(settings, runtime) {
+export class DictationDaemon {
+  constructor(settings, runtime, settingsPath = getSettingsPath()) {
+    this.settingsPath = settingsPath;
     this.settings = settings;
     this.runtime = runtime;
     this.format = createFormatter(runtime.OpenCC, settings.chineseOutput);
@@ -247,6 +250,34 @@ class DictationDaemon {
     } catch (error) {
       emit("error", { message: errorMessage(error) });
     } finally {
+      this.state = "idle";
+    }
+  }
+
+  async selectModel(path) {
+    if (this.state !== "idle") throw new Error("请等待当前听写完成后再切换模型。");
+    this.state = "switching";
+    try {
+      const candidates = await findLocalModels(this.settings.model.path);
+      const selected = candidates.find((model) => model.path === path);
+      if (!selected) throw new Error("模型不在当前目录的可用列表中，请刷新后重试。");
+      if (selected.path === this.settings.model.path) return;
+      await this.modelLoading?.catch(() => undefined);
+      // Release the previous model first so a switch does not require twice the RAM/VRAM.
+      this.model?.dispose();
+      this.model = undefined;
+      this.modelLoading = undefined;
+      const next = await this.runtime.TranscribeModel.load(selected.path);
+      try {
+        saveModelSelection(this.settingsPath, selected);
+      } catch (error) {
+        next.dispose();
+        throw error;
+      }
+      this.model = next;
+      this.settings.model = { id: selected.id, path: selected.path };
+    } finally {
+      // On failure the saved selection is unchanged and is lazily reloaded next time.
       this.state = "idle";
     }
   }
@@ -345,6 +376,7 @@ async function main() {
   const input = createInterface({ input: process.stdin });
   let queue = Promise.resolve();
   let toggleQueued = false;
+  let modelChangeQueued = false;
   let shuttingDown = false;
 
   const shutdown = async () => {
@@ -358,10 +390,30 @@ async function main() {
     queue = queue.then(task, task).catch((error) => emit("error", { message: errorMessage(error) }));
   };
 
+  const sendModels = async () => {
+    try {
+      emit("models", {
+        models: await findLocalModels(daemon.settings.model.path),
+        modelPath: daemon.settings.model.path,
+      });
+    } catch (error) {
+      emit("model-list-error", { message: errorMessage(error) });
+    }
+  };
+
   input.on("line", (line) => {
-    switch (line.trim()) {
+    if (shuttingDown) return;
+    let command;
+    try {
+      command = line.trim().startsWith("{") ? JSON.parse(line) : { type: line.trim() };
+      if (!isRecord(command)) throw new Error("Invalid command");
+    } catch (error) {
+      emit("error", { message: errorMessage(error) });
+      return;
+    }
+    switch (command.type) {
       case "toggle":
-        if (toggleQueued || daemon.state === "transcribing") {
+        if (toggleQueued || modelChangeQueued || daemon.state === "transcribing") {
           emit("busy");
           break;
         }
@@ -371,6 +423,26 @@ async function main() {
             await daemon.toggle();
           } finally {
             toggleQueued = false;
+          }
+        });
+        break;
+      case "models":
+        enqueue(sendModels);
+        break;
+      case "select-model":
+        if (toggleQueued || modelChangeQueued || daemon.state !== "idle") {
+          emit("model-error", { message: "请等待当前操作完成后再切换模型。", modelPath: daemon.settings.model.path });
+          break;
+        }
+        modelChangeQueued = true;
+        enqueue(async () => {
+          try {
+            await daemon.selectModel(command.path);
+            emit("model-changed", { model: daemon.settings.model.id, modelPath: daemon.settings.model.path });
+          } catch (error) {
+            emit("model-error", { message: errorMessage(error), modelPath: daemon.settings.model.path });
+          } finally {
+            modelChangeQueued = false;
           }
         });
         break;
@@ -391,7 +463,9 @@ async function main() {
   emit("ready", {
     model: daemon.settings.model.id,
     autocorrectPath: daemon.settings.autocorrectPath,
+    modelPath: daemon.settings.model.path,
   });
+  enqueue(sendModels);
 }
 
 const invokedDirectly = process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url);

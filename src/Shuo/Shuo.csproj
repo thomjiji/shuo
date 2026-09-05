@@ -33,7 +33,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <None Include="..\..\worker\dictation-daemon.mjs" Link="worker\dictation-daemon.mjs">
+    <None Include="..\..\worker\*.mjs" Link="worker\%(Filename)%(Extension)">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
     </None>

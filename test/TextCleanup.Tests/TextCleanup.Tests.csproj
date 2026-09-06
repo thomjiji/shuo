@@ -10,5 +10,6 @@
     <Compile Include="../../src/Shuo/Services/TextCleanupSettings.cs" Link="TextCleanupSettings.cs" />
     <Compile Include="../../src/Shuo/Services/HotkeySettings.cs" Link="HotkeySettings.cs" />
     <Compile Include="../../src/Shuo/Services/HotkeyBinding.cs" Link="HotkeyBinding.cs" />
+    <Compile Include="../../src/Shuo/Services/TranscriptHistory.cs" Link="TranscriptHistory.cs" />
   </ItemGroup>
 </Project>

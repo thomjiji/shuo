@@ -8,10 +8,14 @@ internal static partial class TranscriptPaster
 {
     private static readonly Regex Cjk = CjkRegex();
 
-    internal static async Task PasteAsync(string text, string? autocorrectPath, TextCleanupOptions options, CancellationToken cancellationToken = default)
+    internal static async Task<string> PrepareAsync(string text, string? autocorrectPath, TextCleanupOptions options)
     {
         var formatted = await FormatAsync(text, autocorrectPath);
-        formatted = TextCleanup.Apply(formatted, options);
+        return TextCleanup.Apply(formatted, options);
+    }
+
+    internal static void Paste(string formatted, CancellationToken cancellationToken = default)
+    {
         cancellationToken.ThrowIfCancellationRequested();
         if (string.IsNullOrWhiteSpace(formatted)) return;
         var package = new DataPackage();

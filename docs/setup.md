@@ -64,7 +64,7 @@ notepad (Join-Path $settingsDir "settings.json")
 
 在火山引擎开通[流式语音识别](https://www.volcengine.com/product/asr)，从语音控制台获取 API Key。打开 shuo，在“转录服务”中选择“豆包云端”，填写 API Key 后点击“保存并测试”。默认资源 ID 为流式识别 2.0 小时版的 `volc.seedasr.sauc.duration`；其他套餐须在展开项中填写对应资源 ID。旧版控制台可填写 App ID 和 Access Token，API Key 留空。
 
-凭据保存在当前 Windows 用户的凭据管理器中，配置文件仅记录服务选择和资源 ID。云端模式需要联网，录音会上传到火山引擎并按用量计费。录音时主窗口显示实时文字，停止后等待最终结果，再执行本地文本整理和粘贴。详细协议见[官方文档](https://www.volcengine.com/docs/6561/1354869)。
+凭据保存在当前 Windows 用户的凭据管理器中，配置文件仅记录服务选择和资源 ID。云端模式需要联网，录音会上传到火山引擎并按用量计费。录音时屏幕底部指示条显示实时文字，停止后等待最终结果，再执行本地文本整理、保存历史和粘贴。完成的文字可在“转录历史”页查看、复制。历史保存在这台电脑的 `%LOCALAPPDATA%\Shuo\history.jsonl`，更新 EXE 后保留，不随 EXE 同步到其他电脑。详细协议见[官方文档](https://www.volcengine.com/docs/6561/1354869)。
 
 ## 4. 启动并验证
 

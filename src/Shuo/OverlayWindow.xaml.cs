@@ -85,6 +85,7 @@ public sealed partial class OverlayWindow : Window
         _workArea = NativeMethods.GetForegroundWorkArea();
         _hasText = false;
         _panelWidth = 36;
+        OverlaySurface.Padding = new Thickness(5, 0, 5, 0);
         TrackGrid.ColumnSpacing = 0;
         LeftFade.Opacity = 0;
         TranscriptText.Text = "";
@@ -110,7 +111,9 @@ public sealed partial class OverlayWindow : Window
         TranscriptText.Measure(new Size(double.PositiveInfinity, 22));
         _textWidth = TranscriptText.DesiredSize.Width;
         TrackGrid.ColumnSpacing = _hasText ? 8 : 0;
-        var width = _hasText ? Math.Min(OverlayWidth, Math.Ceiling(_textWidth) + 44) : 36;
+        // The 6 px dot is centered in a 24 px slot: its left inset is 5 + 9 px.
+        OverlaySurface.Padding = new Thickness(5, 0, _hasText ? 14 : 5, 0);
+        var width = _hasText ? Math.Min(OverlayWidth, Math.Ceiling(_textWidth) + 53) : 36;
         if (_panelWidth != width)
         {
             _panelWidth = width;

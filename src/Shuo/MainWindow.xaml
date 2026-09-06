@@ -29,6 +29,7 @@
             <NavigationView.MenuItems>
                 <NavigationViewItem x:Name="GeneralNavigationItem" Content="常规" Tag="general" Icon="Setting" />
                 <NavigationViewItem x:Name="TranscriptionNavigationItem" Content="转录服务" Tag="transcription" Icon="Microphone" />
+                <NavigationViewItem Content="转录历史" Tag="history" Icon="Clock" />
                 <NavigationViewItem Content="文本整理" Tag="cleanup" Icon="Edit" />
             </NavigationView.MenuItems>
             <Grid x:Name="PageViewport" SizeChanged="PageViewport_SizeChanged">
@@ -39,6 +40,39 @@
                                 Margin="0,24,0,24" Spacing="12">
                         <TextBlock x:Name="PageTitle" Text="转录服务" FontSize="28"
                                    FontWeight="SemiBold" Margin="0,0,0,8" />
+                        <StackPanel x:Name="HistoryPage" Spacing="12" Visibility="Collapsed">
+                            <TextBlock Text="完成转录后自动保存最终文字。记录仅保存在这台电脑上，重启后仍可查看。"
+                                       TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                            <StackPanel Orientation="Horizontal" Spacing="12">
+                                <Button Content="刷新" Click="RefreshHistory_Click" />
+                                <TextBlock x:Name="HistoryCount" VerticalAlignment="Center" />
+                            </StackPanel>
+                            <TextBlock x:Name="HistoryNotice" TextWrapping="Wrap" />
+                            <TextBlock x:Name="HistoryEmpty" Text="还没有转录记录。完成一次听写后会显示在这里。" TextWrapping="Wrap" />
+                            <ItemsControl x:Name="HistoryItems">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border Padding="18" Margin="0,0,0,12" CornerRadius="8" BorderThickness="1"
+                                                Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                                                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}">
+                                            <StackPanel Spacing="12">
+                                                <Grid ColumnSpacing="12">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*" />
+                                                        <ColumnDefinition Width="Auto" />
+                                                    </Grid.ColumnDefinitions>
+                                                    <TextBlock Text="{Binding Description}" VerticalAlignment="Center" TextWrapping="Wrap"
+                                                               Foreground="{ThemeResource TextFillColorSecondaryBrush}" FontSize="12" />
+                                                    <Button Grid.Column="1" Content="复制" Tag="{Binding Text}" Click="CopyHistory_Click" />
+                                                </Grid>
+                                                <TextBlock Text="{Binding Text}" TextWrapping="Wrap" IsTextSelectionEnabled="True" />
+                                            </StackPanel>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                            <Button x:Name="MoreHistoryButton" Content="加载更多" Click="MoreHistory_Click" Visibility="Collapsed" />
+                        </StackPanel>
                         <StackPanel x:Name="GeneralPage" Spacing="12" Visibility="Collapsed">
                             <Border
                                 Padding="18"
@@ -206,8 +240,6 @@
                                         <Button x:Name="SaveCloudButton" Content="保存并测试" Click="SaveCloudButton_Click" />
                                     </StackPanel>
                                     <TextBlock x:Name="CloudStatus" Text="当前使用本地模型。" FontSize="12" TextWrapping="Wrap" />
-                                    <TextBlock x:Name="LiveTranscript" TextWrapping="Wrap" MaxHeight="100"
-                                               IsTextSelectionEnabled="True" Visibility="Collapsed" />
                                 </StackPanel>
                             </Border>
                             <Border x:Name="LocalModelCard"

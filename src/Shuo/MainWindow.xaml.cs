@@ -1,3 +1,4 @@
+using Windows.ApplicationModel.DataTransfer;
 using System.Text.Json;
 using Microsoft.UI.Text;
 using Microsoft.UI.Windowing;
@@ -44,6 +45,10 @@ public sealed partial class MainWindow : Window
     private bool _loadingModels = true;
     private bool _updatingModelPicker;
     private string? _selectedModelPath;
+
+    private readonly TranscriptHistory _history = new(TranscriptHistory.DefaultPath);
+    private List<TranscriptEntry>? _historyEntries;
+    private int _historyVisibleCount = 50;
 
     public MainWindow()
     {
@@ -125,7 +130,9 @@ public sealed partial class MainWindow : Window
         GeneralPage.Visibility = section == "general" ? Visibility.Visible : Visibility.Collapsed;
         TranscriptionPage.Visibility = section == "transcription" ? Visibility.Visible : Visibility.Collapsed;
         CleanupPage.Visibility = section == "cleanup" ? Visibility.Visible : Visibility.Collapsed;
-        PageTitle.Text = section switch { "general" => "常规", "cleanup" => "文本整理", _ => "转录服务" };
+        HistoryPage.Visibility = section == "history" ? Visibility.Visible : Visibility.Collapsed;
+        if (section == "history" && _historyEntries is null) LoadHistory();
+        PageTitle.Text = section switch { "general" => "常规", "cleanup" => "文本整理", "history" => "转录历史", _ => "转录服务" };
         PageScroll.ChangeView(null, 0, null, disableAnimation: true);
     }
 
@@ -422,16 +429,12 @@ public sealed partial class MainWindow : Window
                 _overlay.UpdateAudioLevel(message.Level ?? 0);
                 return;
             case "partial":
-                LiveTranscript.Text = message.Text ?? "";
-                LiveTranscript.Visibility = Visibility.Visible;
                 _overlay.UpdateTranscript(message.Text);
                 break;
             case "connecting":
                 _dictationActive = true;
                 _overlay.Begin(true);
                 CloudStatus.Text = "正在连接豆包...";
-                LiveTranscript.Text = "";
-                LiveTranscript.Visibility = Visibility.Collapsed;
                 break;
             case "recording":
                 _dictationActive = true;
@@ -446,7 +449,7 @@ public sealed partial class MainWindow : Window
                 _overlay.Transcribing();
                 break;
             case "transcript":
-                if (_cloudOptions.Enabled) { LiveTranscript.Text = message.Text ?? ""; CloudStatus.Text = "转录完成。"; }
+                if (_cloudOptions.Enabled) CloudStatus.Text = "转录完成。";
                 _dictationActive = false;
                 _togglePending = false;
                 _overlay.Pasting(message.Text);
@@ -471,9 +474,30 @@ public sealed partial class MainWindow : Window
     private async Task PasteTranscriptAsync(string? text)
     {
         if (string.IsNullOrWhiteSpace(text)) return;
+        var completedAt = DateTimeOffset.Now;
+        var provider = _cloudOptions.Enabled ? "豆包云端" : "本地模型";
         try
         {
-            await TranscriptPaster.PasteAsync(text, _autocorrectPath, _recordingCleanupOptions, _shutdown.Token);
+            var formatted = await TranscriptPaster.PrepareAsync(text, _autocorrectPath, _recordingCleanupOptions);
+            if (!string.IsNullOrWhiteSpace(formatted))
+            {
+                try
+                {
+                    var entry = new TranscriptEntry(completedAt, formatted, provider);
+                    _history.Append(entry);
+                    if (_historyEntries is not null)
+                    {
+                        _historyEntries.Insert(0, entry);
+                        RenderHistory();
+                    }
+                }
+                catch (Exception error)
+                {
+                    HistoryNotice.Text = "无法保存本次转录记录：" + error.Message;
+                    CloudStatus.Text = HistoryNotice.Text;
+                }
+            }
+            TranscriptPaster.Paste(formatted, _shutdown.Token);
             _overlay.Hide();
         }
         catch (OperationCanceledException) when (_shutdown.IsCancellationRequested)
@@ -485,6 +509,53 @@ public sealed partial class MainWindow : Window
             ShowError("粘贴失败", error.Message);
             _overlay.Hide();
         }
+    }
+
+    private void LoadHistory()
+    {
+        try
+        {
+            _historyEntries = _history.Load(out var skipped).ToList();
+            HistoryNotice.Text = skipped == 0 ? "" : $"有 {skipped} 条损坏记录无法读取，其余记录正常显示。";
+            _historyVisibleCount = 50;
+            RenderHistory();
+        }
+        catch (Exception error)
+        {
+            HistoryEmpty.Visibility = Visibility.Collapsed;
+            HistoryNotice.Text = "无法读取转录历史，请点击刷新重试：" + error.Message;
+        }
+    }
+
+    private void RenderHistory()
+    {
+        if (_historyEntries is null) return;
+        HistoryItems.ItemsSource = _historyEntries.Take(_historyVisibleCount).ToArray();
+        HistoryCount.Text = $"共 {_historyEntries.Count} 条";
+        HistoryEmpty.Visibility = _historyEntries.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+        MoreHistoryButton.Visibility = _historyEntries.Count > _historyVisibleCount ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private void RefreshHistory_Click(object sender, RoutedEventArgs args) => LoadHistory();
+
+    private void MoreHistory_Click(object sender, RoutedEventArgs args)
+    {
+        _historyVisibleCount += 50;
+        RenderHistory();
+    }
+
+    private void CopyHistory_Click(object sender, RoutedEventArgs args)
+    {
+        if (sender is not Button { Tag: string text }) return;
+        try
+        {
+            var package = new DataPackage();
+            package.SetText(text);
+            Clipboard.SetContent(package);
+            Clipboard.Flush();
+            HistoryNotice.Text = "已复制到剪贴板。";
+        }
+        catch (Exception error) { HistoryNotice.Text = "复制失败：" + error.Message; }
     }
 
     private void EditShortcutButton_Click(object sender, RoutedEventArgs eventArgs)

@@ -112,3 +112,39 @@ Assert(HotkeySettings.ResolvePath(primaryOverride, legacyOverride, localSettings
 Assert(HotkeySettings.ResolvePath(null, legacyOverride, localSettingsDirectory, NoDefaultLookup) == legacyOverride, "The previous environment variable remains compatible.");
 Assert(HotkeySettings.ResolvePath("  ", legacyOverride, localSettingsDirectory, NoDefaultLookup) == legacyOverride, "An empty new override does not hide a legacy override.");
 Console.WriteLine("Passed Shuo settings path compatibility checks.");
+
+var historyDirectory = Path.Combine(Path.GetTempPath(), "shuo-history-tests-" + Guid.NewGuid().ToString("N"));
+var historyPath = Path.Combine(historyDirectory, "history.jsonl");
+try
+{
+    var history = new TranscriptHistory(historyPath);
+    Assert(history.Load(out var skipped).Count == 0 && skipped == 0, "A fresh install has no history.");
+    var first = new TranscriptEntry(DateTimeOffset.Parse("2026-09-06T09:00:00+08:00"), "第一行\n第二行 \"quoted\" \\ path", "豆包云端");
+    history.Append(first);
+    history.Append(first);
+    var restored = new TranscriptHistory(historyPath).Load(out skipped);
+    Assert(restored.Count == 2 && restored.All(item => item == first), "Restart preserves Unicode, newlines, timestamps, and repeated dictations.");
+    File.AppendAllText(historyPath, "{\"CreatedAt\":");
+    var latest = new TranscriptEntry(first.CreatedAt.AddMinutes(1), "本地模型最终文本", "本地模型");
+    history.Append(latest);
+    restored = history.Load(out skipped);
+    Assert(restored.Count == 3 && restored[0] == latest && skipped == 1, "An interrupted write cannot swallow the next record; latest entries appear first.");
+    var sizeBeforeEmpty = new FileInfo(historyPath).Length;
+    history.Append(latest with { Text = "  " });
+    Assert(new FileInfo(historyPath).Length == sizeBeforeEmpty, "Empty results do not create history.");
+    for (var index = 0; index < 110; index++) history.Append(latest with { Text = $"Record {index}" });
+    Assert(history.Load(out skipped).Count == 113, "History is not truncated at the UI page size.");
+    using (var locked = new FileStream(historyPath, FileMode.Open, FileAccess.ReadWrite, FileShare.None))
+    {
+        var failed = false;
+        try { history.Append(latest); } catch (IOException) { failed = true; }
+        Assert(failed, "Persistence failures are reported to the caller.");
+    }
+    Assert(history.Load(out skipped).Count == 113, "Failed writes leave saved records intact.");
+    Console.WriteLine("Passed transcript history persistence and recovery checks.");
+}
+finally
+{
+    if (File.Exists(historyPath)) File.Delete(historyPath);
+    if (Directory.Exists(historyDirectory)) Directory.Delete(historyDirectory);
+}

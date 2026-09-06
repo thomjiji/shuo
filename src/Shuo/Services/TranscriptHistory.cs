@@ -24,6 +24,7 @@ internal sealed class TranscriptHistory(string path)
         skipped = 0;
         var entries = new List<TranscriptEntry>();
         if (!File.Exists(path)) return entries;
+        MakeReadable();
         foreach (var line in File.ReadLines(path))
         {
             if (string.IsNullOrWhiteSpace(line)) continue;
@@ -37,6 +38,51 @@ internal sealed class TranscriptHistory(string path)
         }
         entries.Reverse();
         return entries;
+    }
+
+    private void MakeReadable()
+    {
+        var temporary = path + "." + Guid.NewGuid().ToString("N") + ".tmp";
+        var changed = false;
+        try
+        {
+            using (var reader = new StreamReader(path, Encoding.UTF8))
+            using (var writer = new StreamWriter(temporary, false, new UTF8Encoding(false)))
+            {
+                while (reader.ReadLine() is { } line)
+                {
+                    var readable = line;
+                    if (line.Contains("\\u", StringComparison.Ordinal))
+                    {
+                        try
+                        {
+                            using var document = JsonDocument.Parse(line);
+                            readable = JsonSerializer.Serialize(document.RootElement, JsonOptions);
+                        }
+                        catch (JsonException) { } // Preserve damaged lines for recovery.
+                    }
+                    changed |= readable != line;
+                    writer.WriteLine(readable);
+                }
+            }
+            if (changed)
+                File.Replace(temporary, path, path + "." + Guid.NewGuid().ToString("N") + ".bak");
+        }
+        finally { if (File.Exists(temporary)) File.Delete(temporary); }
+    }
+
+    internal static string ModelName(bool cloud, string? resourceId, string? localPath)
+    {
+        if (!cloud)
+            return string.IsNullOrWhiteSpace(localPath) ? "本地模型（模型名称未提供）" : Path.GetFileNameWithoutExtension(localPath);
+        var resource = string.IsNullOrWhiteSpace(resourceId) ? "volc.seedasr.sauc.duration" : resourceId;
+        var name = resource switch
+        {
+            "volc.seedasr.sauc.duration" or "volc.seedasr.sauc.concurrent" => "豆包流式语音识别模型 2.0",
+            "volc.bigasr.sauc.duration" or "volc.bigasr.sauc.concurrent" => "豆包流式语音识别模型 1.0",
+            _ => "豆包语音识别（模型版本未提供）"
+        };
+        return $"{name} [{resource}]";
     }
 
     internal string ExportText(out int skipped)

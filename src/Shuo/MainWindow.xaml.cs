@@ -475,7 +475,7 @@ public sealed partial class MainWindow : Window
     {
         if (string.IsNullOrWhiteSpace(text)) return;
         var completedAt = DateTimeOffset.Now;
-        var provider = _cloudOptions.Enabled ? "豆包云端" : "本地模型";
+        var provider = TranscriptHistory.ModelName(_cloudOptions.Enabled, _cloudOptions.ResourceId, _selectedModelPath);
         try
         {
             var formatted = await TranscriptPaster.PrepareAsync(text, _autocorrectPath, _recordingCleanupOptions);

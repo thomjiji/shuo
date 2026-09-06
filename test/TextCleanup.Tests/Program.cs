@@ -135,6 +135,13 @@ try
     Assert(exported.Contains(first.Text) && exported.Contains(latest.Text) && exportSkipped == 1, "Text export includes decoded multiline text and reports damaged rows.");
     File.AppendAllText(historyPath, "\n" + JsonSerializer.Serialize(first) + "\n");
     Assert(File.ReadAllText(history.ExportText(out _)).Contains(first.Text), "Legacy escaped records remain readable in text exports.");
+    Assert(!File.ReadAllText(historyPath).Contains("\\u7B2C"), "Loading converts legacy Unicode escapes in the journal itself.");
+    Assert(File.ReadAllText(historyPath).Contains("{\"CreatedAt\":"), "Unreadable original rows are retained.");
+    Assert(Directory.GetFiles(historyDirectory, "*.bak").Length > 0, "Conversion keeps an original backup.");
+    Assert(TranscriptHistory.ModelName(false, null, "Qwen3-ASR-0.6B-Q8_0.gguf") == "Qwen3-ASR-0.6B-Q8_0", "Local history identifies the model and quantization.");
+    Assert(TranscriptHistory.ModelName(true, "volc.seedasr.sauc.duration", null).Contains("2.0"), "Cloud history identifies the configured model generation.");
+    Assert(TranscriptHistory.ModelName(true, "volc.bigasr.sauc.duration", null).Contains("1.0"), "Legacy cloud models are not mislabeled as 2.0.");
+    Assert(TranscriptHistory.ModelName(true, "custom-resource", null).Contains("custom-resource"), "Unknown cloud resources are preserved without inventing a version.");
     var sizeBeforeEmpty = new FileInfo(historyPath).Length;
     history.Append(latest with { Text = "  " });
     Assert(new FileInfo(historyPath).Length == sizeBeforeEmpty, "Empty results do not create history.");
@@ -153,5 +160,9 @@ finally
 {
     if (File.Exists(Path.ChangeExtension(historyPath, ".txt"))) File.Delete(Path.ChangeExtension(historyPath, ".txt"));
     if (File.Exists(historyPath)) File.Delete(historyPath);
-    if (Directory.Exists(historyDirectory)) Directory.Delete(historyDirectory);
+    if (Directory.Exists(historyDirectory))
+    {
+        foreach (var backup in Directory.GetFiles(historyDirectory, "*.bak")) File.Delete(backup);
+        Directory.Delete(historyDirectory);
+    }
 }

@@ -530,10 +530,47 @@ public sealed partial class MainWindow : Window
     private void RenderHistory()
     {
         if (_historyEntries is null) return;
-        HistoryItems.ItemsSource = _historyEntries.Take(_historyVisibleCount).ToArray();
-        HistoryCount.Text = $"共 {_historyEntries.Count} 条";
-        HistoryEmpty.Visibility = _historyEntries.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
-        MoreHistoryButton.Visibility = _historyEntries.Count > _historyVisibleCount ? Visibility.Visible : Visibility.Collapsed;
+        var query = HistorySearch.Text.Trim();
+        var matches = _historyEntries.Where(entry =>
+            entry.Text.Contains(query, StringComparison.OrdinalIgnoreCase) ||
+            entry.Description.Contains(query, StringComparison.OrdinalIgnoreCase)).ToArray();
+        HistoryItems.ItemsSource = matches.Take(_historyVisibleCount).ToArray();
+        HistoryCount.Text = query.Length == 0 ? $"共 {_historyEntries.Count} 条" : $"找到 {matches.Length} 条 / 共 {_historyEntries.Count} 条";
+        HistoryEmpty.Text = query.Length == 0 ? "还没有转录记录。完成一次听写后会显示在这里。" : "没有匹配的记录。";
+        HistoryEmpty.Visibility = matches.Length == 0 ? Visibility.Visible : Visibility.Collapsed;
+        MoreHistoryButton.Visibility = matches.Length > _historyVisibleCount ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private void HistorySearch_TextChanged(object sender, TextChangedEventArgs args)
+    {
+        _historyVisibleCount = 50;
+        RenderHistory();
+    }
+
+    private async void OpenHistory_Click(object sender, RoutedEventArgs args)
+    {
+        try
+        {
+            var path = TranscriptHistory.DefaultPath;
+            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+            using (var stream = new FileStream(path, FileMode.OpenOrCreate, FileAccess.Write, FileShare.ReadWrite)) { }
+            var file = await Windows.Storage.StorageFile.GetFileFromPathAsync(path);
+            var opened = await Launcher.LaunchFileAsync(file, new LauncherOptions { DisplayApplicationPicker = true });
+            if (!opened) HistoryNotice.Text = "未打开文件。历史文件：" + path;
+        }
+        catch (Exception error) { HistoryNotice.Text = "无法打开历史文件：" + error.Message; }
+    }
+
+    private async void ExportHistory_Click(object sender, RoutedEventArgs args)
+    {
+        try
+        {
+            var path = _history.ExportText(out var skipped);
+            HistoryNotice.Text = skipped == 0 ? "已导出全部记录。每次导出都会更新文本文件。" : $"已导出可读取的记录，跳过 {skipped} 条损坏记录。";
+            var file = await Windows.Storage.StorageFile.GetFileFromPathAsync(path);
+            await Launcher.LaunchFileAsync(file, new LauncherOptions { DisplayApplicationPicker = true });
+        }
+        catch (Exception error) { HistoryNotice.Text = "无法导出或打开文本：" + error.Message; }
     }
 
     private void RefreshHistory_Click(object sender, RoutedEventArgs args) => LoadHistory();

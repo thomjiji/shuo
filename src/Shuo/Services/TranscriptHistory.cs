@@ -11,6 +11,11 @@ public sealed record TranscriptEntry(DateTimeOffset CreatedAt, string Text, stri
 
 internal sealed class TranscriptHistory(string path)
 {
+    private static readonly JsonSerializerOptions JsonOptions = new()
+    {
+        Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping
+    };
+
     internal static string DefaultPath => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Shuo", "history.jsonl");
 
@@ -34,12 +39,23 @@ internal sealed class TranscriptHistory(string path)
         return entries;
     }
 
+    internal string ExportText(out int skipped)
+    {
+        var entries = Load(out skipped);
+        var exportPath = Path.ChangeExtension(path, ".txt");
+        Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(exportPath))!);
+        var text = string.Join(Environment.NewLine + Environment.NewLine,
+            entries.Select(entry => entry.Description + Environment.NewLine + entry.Text));
+        File.WriteAllText(exportPath, text, new UTF8Encoding(false));
+        return exportPath;
+    }
+
     internal void Append(TranscriptEntry entry)
     {
         if (string.IsNullOrWhiteSpace(entry.Text)) return;
         Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(path))!);
         // A fresh line isolates an incomplete record left by an interrupted write.
-        var bytes = Encoding.UTF8.GetBytes("\n" + JsonSerializer.Serialize(entry) + "\n");
+        var bytes = Encoding.UTF8.GetBytes("\n" + JsonSerializer.Serialize(entry, JsonOptions) + "\n");
         using var stream = new FileStream(path, FileMode.Append, FileAccess.Write, FileShare.Read);
         stream.Write(bytes);
         stream.Flush(flushToDisk: true);

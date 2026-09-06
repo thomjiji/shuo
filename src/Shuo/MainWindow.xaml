@@ -43,7 +43,11 @@
                         <StackPanel x:Name="HistoryPage" Spacing="12" Visibility="Collapsed">
                             <TextBlock Text="完成转录后自动保存最终文字。记录仅保存在这台电脑上，重启后仍可查看。"
                                        TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                            <TextBox x:Name="HistorySearch" PlaceholderText="搜索全部记录的文字、日期或服务"
+                                     automation:AutomationProperties.Name="搜索转录历史" TextChanged="HistorySearch_TextChanged" />
                             <StackPanel Orientation="Horizontal" Spacing="12">
+                                <Button Content="打开历史文件" Click="OpenHistory_Click" />
+                                <Button Content="导出并打开文本" Click="ExportHistory_Click" />
                                 <Button Content="刷新" Click="RefreshHistory_Click" />
                                 <TextBlock x:Name="HistoryCount" VerticalAlignment="Center" />
                             </StackPanel>

@@ -121,6 +121,7 @@ try
     Assert(history.Load(out var skipped).Count == 0 && skipped == 0, "A fresh install has no history.");
     var first = new TranscriptEntry(DateTimeOffset.Parse("2026-09-06T09:00:00+08:00"), "第一行\n第二行 \"quoted\" \\ path", "豆包云端");
     history.Append(first);
+    Assert(File.ReadAllText(historyPath).Contains("第一行"), "New history stores directly searchable Unicode.");
     history.Append(first);
     var restored = new TranscriptHistory(historyPath).Load(out skipped);
     Assert(restored.Count == 2 && restored.All(item => item == first), "Restart preserves Unicode, newlines, timestamps, and repeated dictations.");
@@ -129,22 +130,28 @@ try
     history.Append(latest);
     restored = history.Load(out skipped);
     Assert(restored.Count == 3 && restored[0] == latest && skipped == 1, "An interrupted write cannot swallow the next record; latest entries appear first.");
+    var exportedPath = history.ExportText(out var exportSkipped);
+    var exported = File.ReadAllText(exportedPath);
+    Assert(exported.Contains(first.Text) && exported.Contains(latest.Text) && exportSkipped == 1, "Text export includes decoded multiline text and reports damaged rows.");
+    File.AppendAllText(historyPath, "\n" + JsonSerializer.Serialize(first) + "\n");
+    Assert(File.ReadAllText(history.ExportText(out _)).Contains(first.Text), "Legacy escaped records remain readable in text exports.");
     var sizeBeforeEmpty = new FileInfo(historyPath).Length;
     history.Append(latest with { Text = "  " });
     Assert(new FileInfo(historyPath).Length == sizeBeforeEmpty, "Empty results do not create history.");
     for (var index = 0; index < 110; index++) history.Append(latest with { Text = $"Record {index}" });
-    Assert(history.Load(out skipped).Count == 113, "History is not truncated at the UI page size.");
+    Assert(history.Load(out skipped).Count == 114, "History is not truncated at the UI page size.");
     using (var locked = new FileStream(historyPath, FileMode.Open, FileAccess.ReadWrite, FileShare.None))
     {
         var failed = false;
         try { history.Append(latest); } catch (IOException) { failed = true; }
         Assert(failed, "Persistence failures are reported to the caller.");
     }
-    Assert(history.Load(out skipped).Count == 113, "Failed writes leave saved records intact.");
+    Assert(history.Load(out skipped).Count == 114, "Failed writes leave saved records intact.");
     Console.WriteLine("Passed transcript history persistence and recovery checks.");
 }
 finally
 {
+    if (File.Exists(Path.ChangeExtension(historyPath, ".txt"))) File.Delete(Path.ChangeExtension(historyPath, ".txt"));
     if (File.Exists(historyPath)) File.Delete(historyPath);
     if (Directory.Exists(historyDirectory)) Directory.Delete(historyDirectory);
 }

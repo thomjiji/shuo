@@ -452,7 +452,7 @@ public sealed partial class MainWindow : Window
                 if (_cloudOptions.Enabled) CloudStatus.Text = "转录完成。";
                 _dictationActive = false;
                 _togglePending = false;
-                _overlay.Pasting(message.Text);
+                if (_cloudOptions.Enabled) _overlay.Pasting(message.Text);
                 _ = PasteTranscriptAsync(message.Text);
                 break;
             case "busy":

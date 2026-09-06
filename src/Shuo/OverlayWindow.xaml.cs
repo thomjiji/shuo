@@ -4,6 +4,8 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Media;
 using Windows.Foundation;
 using Windows.Graphics;
+using Windows.UI;
+using Windows.UI.ViewManagement;
 using Shuo.Services;
 using WinRT.Interop;
 
@@ -15,6 +17,8 @@ public sealed partial class OverlayWindow : Window
     private const int OverlayHeight = 36;
     private const double SlideSeconds = 0.16;
     private readonly IntPtr _handle;
+    private readonly UISettings _themeSettings = new();
+    private bool _closed;
     private readonly Stopwatch _clock = new();
     private RectInt32 _workArea;
     private bool _visible;
@@ -43,7 +47,36 @@ public sealed partial class OverlayWindow : Window
         }
         NativeMethods.MakeNoActivateToolWindow(_handle);
         NativeMethods.RoundWindowCorners(_handle);
+        _themeSettings.ColorValuesChanged += OnSystemColorsChanged;
+        Closed += (_, _) =>
+        {
+            _closed = true;
+            _themeSettings.ColorValuesChanged -= OnSystemColorsChanged;
+            StopScrolling();
+            StopVoiceAnimation();
+        };
+        ApplySystemTheme();
         Hide();
+    }
+
+    private void OnSystemColorsChanged(UISettings sender, object args) =>
+        DispatcherQueue.TryEnqueue(() =>
+        {
+            if (!_closed) ApplySystemTheme();
+        });
+
+    private void ApplySystemTheme()
+    {
+        var systemColor = _themeSettings.GetColorValue(UIColorType.Background);
+        var light = systemColor.R * 299 + systemColor.G * 587 + systemColor.B * 114 >= 128000;
+        OverlaySurface.RequestedTheme = light ? ElementTheme.Light : ElementTheme.Dark;
+        var surface = light ? Color.FromArgb(255, 250, 250, 250) : Color.FromArgb(255, 12, 12, 12);
+        SurfaceBrush.Color = surface;
+        SurfaceBorderBrush.Color = light ? Color.FromArgb(255, 208, 208, 208) : Color.FromArgb(255, 48, 48, 48);
+        TranscriptBrush.Color = light ? Color.FromArgb(255, 22, 22, 22) : Color.FromArgb(255, 245, 245, 245);
+        FadeOpaqueStop.Color = surface;
+        surface.A = 0;
+        FadeTransparentStop.Color = surface;
     }
 
     internal void Begin(bool busy)

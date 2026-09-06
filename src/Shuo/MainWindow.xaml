@@ -21,263 +21,272 @@
             </TitleBar.IconSource>
         </TitleBar>
 
-        <ScrollViewer Grid.Row="1" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
-            <StackPanel
-                MaxWidth="920"
-                HorizontalAlignment="Stretch"
-                Padding="32,24,32,24"
-                Spacing="12">
-                <Border Padding="18"
-                        Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                        BorderThickness="1" CornerRadius="8">
-                    <StackPanel Spacing="10">
-                        <TextBlock FontSize="16" FontWeight="SemiBold" Text="转录服务" />
-                        <StackPanel x:Name="CloudControls" Spacing="10">
-                            <ComboBox x:Name="ProviderPicker" SelectedIndex="0" HorizontalAlignment="Stretch"
-                                      SelectionChanged="ProviderPicker_SelectionChanged">
-                                <ComboBoxItem Content="本地模型" />
-                                <ComboBoxItem Content="豆包云端 · 流式识别 2.0" />
-                            </ComboBox>
-                            <StackPanel x:Name="CloudFields" Spacing="8" Visibility="Collapsed">
-                                <TextBlock Text="录音会上传到火山引擎，并按音频时长计费。凭据保存在 Windows 凭据管理器中。"
-                                           FontSize="12" TextWrapping="Wrap"
-                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                                <PasswordBox x:Name="CloudApiKey" Header="语音控制台 API Key" />
-                                <Expander Header="旧版控制台凭据与资源设置" HorizontalAlignment="Stretch"
-                                          HorizontalContentAlignment="Stretch">
-                                    <StackPanel Spacing="8">
-                                        <TextBox x:Name="CloudAppId" Header="App ID（旧版控制台）" />
-                                        <PasswordBox x:Name="CloudAccessToken" Header="Access Token（旧版控制台）" />
-                                        <TextBox x:Name="CloudResourceId" Header="资源 ID"
-                                                 Text="volc.seedasr.sauc.duration" />
-                                    </StackPanel>
-                                </Expander>
-                            </StackPanel>
-                            <Button x:Name="SaveCloudButton" Content="保存并测试" Click="SaveCloudButton_Click" />
-                        </StackPanel>
-                        <TextBlock x:Name="CloudStatus" Text="当前使用本地模型。" FontSize="12" TextWrapping="Wrap" />
-                        <TextBlock x:Name="LiveTranscript" TextWrapping="Wrap" MaxHeight="100"
-                                   IsTextSelectionEnabled="True" Visibility="Collapsed" />
-                    </StackPanel>
-                </Border>
+        <NavigationView x:Name="SettingsNavigation" Grid.Row="1"
+                        PaneDisplayMode="Auto" OpenPaneLength="200"
+                        CompactModeThresholdWidth="0" ExpandedModeThresholdWidth="1040"
+                        IsSettingsVisible="False" IsBackButtonVisible="Collapsed"
+                        AlwaysShowHeader="False" SelectionChanged="SettingsNavigation_SelectionChanged">
+            <NavigationView.MenuItems>
+                <NavigationViewItem x:Name="GeneralNavigationItem" Content="常规" Tag="general" Icon="Setting" />
+                <NavigationViewItem x:Name="TranscriptionNavigationItem" Content="转录服务" Tag="transcription" Icon="Microphone" />
+                <NavigationViewItem Content="文本整理" Tag="cleanup" Icon="Edit" />
+            </NavigationView.MenuItems>
+            <Grid x:Name="PageViewport" SizeChanged="PageViewport_SizeChanged">
+                <ScrollViewer x:Name="PageScroll" HorizontalScrollMode="Disabled"
+                              HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto"
+                              HorizontalContentAlignment="Stretch">
+                    <StackPanel x:Name="SettingsContent" Width="640" HorizontalAlignment="Center"
+                                Margin="0,24,0,24" Spacing="12">
+                        <TextBlock x:Name="PageTitle" Text="转录服务" FontSize="28"
+                                   FontWeight="SemiBold" Margin="0,0,0,8" />
+                        <StackPanel x:Name="GeneralPage" Spacing="12" Visibility="Collapsed">
+                            <Border
+                                Padding="18"
+                                Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                                BorderThickness="1"
+                                CornerRadius="8">
+                                <StackPanel>
+                                    <Grid ColumnSpacing="16">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
 
-                <TextBlock FontSize="16" FontWeight="SemiBold" Text="快捷方式" />
+                                        <FontIcon
+                                            VerticalAlignment="Center"
+                                            FontFamily="Segoe MDL2 Assets"
+                                            FontSize="24"
+                                            Glyph="&#xE720;" />
 
-                <Border
-                    Padding="18"
-                    Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                    BorderThickness="1"
-                    CornerRadius="8">
-                    <StackPanel>
-                        <Grid ColumnSpacing="16">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="Auto" />
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
+                                        <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
+                                            <TextBlock FontSize="16" FontWeight="SemiBold" Text="录音触发快捷键" />
+                                            <TextBlock
+                                                FontSize="12"
+                                                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                                Text="开始或停止听写。" />
+                                        </StackPanel>
 
-                            <FontIcon
-                                VerticalAlignment="Center"
-                                FontFamily="Segoe MDL2 Assets"
-                                FontSize="24"
-                                Glyph="&#xE720;" />
-
-                            <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
-                                <TextBlock FontSize="16" FontWeight="SemiBold" Text="录音触发快捷键" />
-                                <TextBlock
-                                    FontSize="12"
-                                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                    Text="开始或停止听写。" />
-                            </StackPanel>
-
-                            <StackPanel
-                                x:Name="HotkeyPreview"
-                                Grid.Column="2"
-                                VerticalAlignment="Center"
-                                Orientation="Horizontal"
-                                Spacing="6" />
-
-                            <Button
-                                x:Name="EditShortcutButton"
-                                Grid.Column="3"
-                                Margin="6,0,0,0"
-                                Padding="8"
-                                automation:AutomationProperties.Name="编辑录音触发快捷键"
-                                Click="EditShortcutButton_Click">
-                                <FontIcon FontFamily="Segoe MDL2 Assets" FontSize="14" Glyph="&#xE70F;" />
-                            </Button>
-                        </Grid>
-
-                        <Border
-                            x:Name="ShortcutEditorPanel"
-                            Margin="0,14,0,0"
-                            Padding="0,14,0,0"
-                            BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                            BorderThickness="0,1,0,0"
-                            Visibility="Collapsed">
-                            <StackPanel Spacing="10">
-                                <TextBlock
-                                    FontSize="12"
-                                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                    Text="按下新的组合键，或选择重置、清除。" />
-
-                                <Button
-                                    x:Name="ShortcutCaptureSurface"
-                                    MinHeight="48"
-                                    HorizontalAlignment="Stretch"
-                                    HorizontalContentAlignment="Center"
-                                    VerticalContentAlignment="Center"
-                                    automation:AutomationProperties.Name="快捷键捕获区域"
-                                    KeyDown="ShortcutCaptureSurface_KeyDown">
-                                    <Grid>
-                                        <TextBlock
-                                            x:Name="ShortcutEditorPlaceholder"
-                                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                            Text="按下新的快捷键" />
                                         <StackPanel
-                                            x:Name="ShortcutEditorKeys"
-                                            HorizontalAlignment="Center"
+                                            x:Name="HotkeyPreview"
+                                            Grid.Column="2"
                                             VerticalAlignment="Center"
                                             Orientation="Horizontal"
                                             Spacing="6" />
+
+                                        <Button
+                                            x:Name="EditShortcutButton"
+                                            Grid.Column="3"
+                                            Margin="6,0,0,0"
+                                            Padding="8"
+                                            automation:AutomationProperties.Name="编辑录音触发快捷键"
+                                            Click="EditShortcutButton_Click">
+                                            <FontIcon FontFamily="Segoe MDL2 Assets" FontSize="14" Glyph="&#xE70F;" />
+                                        </Button>
                                     </Grid>
-                                </Button>
 
-                                <Grid ColumnSpacing="12">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="Auto" />
-                                    </Grid.ColumnDefinitions>
-                                    <StackPanel Orientation="Horizontal" Spacing="8">
-                                        <Button
-                                            Padding="8,4"
-                                            automation:AutomationProperties.Name="重置快捷键"
-                                            Click="ResetShortcutButton_Click">
-                                            <StackPanel Orientation="Horizontal" Spacing="6">
-                                                <FontIcon FontFamily="Segoe MDL2 Assets" FontSize="12" Glyph="&#xE72C;" />
-                                                <TextBlock FontSize="12" Text="重置" />
-                                            </StackPanel>
-                                        </Button>
-                                        <Button
-                                            Padding="8,4"
-                                            automation:AutomationProperties.Name="清除快捷键"
-                                            Click="ClearShortcutButton_Click">
-                                            <StackPanel Orientation="Horizontal" Spacing="6">
-                                                <FontIcon FontFamily="Segoe MDL2 Assets" FontSize="12" Glyph="&#xE711;" />
-                                                <TextBlock FontSize="12" Text="清除" />
-                                            </StackPanel>
-                                        </Button>
-                                    </StackPanel>
-                                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
-                                        <Button
-                                            x:Name="SaveShortcutButton"
-                                            MinWidth="80"
-                                            MinHeight="32"
-                                            Click="SaveShortcutButton_Click"
-                                            Content="保存"
-                                            Style="{StaticResource AccentButtonStyle}" />
-                                        <Button
-                                            MinWidth="80"
-                                            MinHeight="32"
-                                            Click="CancelShortcutButton_Click"
-                                            Content="取消" />
-                                    </StackPanel>
-                                </Grid>
+                                    <Border
+                                        x:Name="ShortcutEditorPanel"
+                                        Margin="0,14,0,0"
+                                        Padding="0,14,0,0"
+                                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                                        BorderThickness="0,1,0,0"
+                                        Visibility="Collapsed">
+                                        <StackPanel Spacing="10">
+                                            <TextBlock
+                                                FontSize="12"
+                                                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                                Text="按下新的组合键，或选择重置、清除。" />
 
-                                <TextBlock
-                                    x:Name="ShortcutEditorValidation"
-                                    FontSize="12"
-                                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                    TextWrapping="Wrap" />
-                            </StackPanel>
-                        </Border>
-                    </StackPanel>
-                </Border>
+                                            <Button
+                                                x:Name="ShortcutCaptureSurface"
+                                                MinHeight="48"
+                                                HorizontalAlignment="Stretch"
+                                                HorizontalContentAlignment="Center"
+                                                VerticalContentAlignment="Center"
+                                                automation:AutomationProperties.Name="快捷键捕获区域"
+                                                KeyDown="ShortcutCaptureSurface_KeyDown">
+                                                <Grid>
+                                                    <TextBlock
+                                                        x:Name="ShortcutEditorPlaceholder"
+                                                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                                        Text="按下新的快捷键" />
+                                                    <StackPanel
+                                                        x:Name="ShortcutEditorKeys"
+                                                        HorizontalAlignment="Center"
+                                                        VerticalAlignment="Center"
+                                                        Orientation="Horizontal"
+                                                        Spacing="6" />
+                                                </Grid>
+                                            </Button>
 
-                <Border
-                    Padding="18"
-                    Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                    BorderThickness="1"
-                    CornerRadius="8">
-                    <StackPanel Spacing="8">
-                        <TextBlock FontSize="16" FontWeight="SemiBold" Text="转录模型" />
-                        <Grid ColumnSpacing="8">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-                            <ComboBox x:Name="ModelPicker" HorizontalAlignment="Stretch"
-                                      IsEnabled="False" PlaceholderText="正在读取模型..."
-                                      DisplayMemberPath="Name" MaxDropDownHeight="320"
-                                      automation:AutomationProperties.Name="转录模型"
-                                      SelectionChanged="ModelPicker_SelectionChanged" />
-                            <Button x:Name="RefreshModelsButton" Grid.Column="1" IsEnabled="False"
-                                    automation:AutomationProperties.Name="刷新模型列表"
-                                    ToolTipService.ToolTip="刷新模型列表"
-                                    Click="RefreshModelsButton_Click">
-                                <FontIcon FontFamily="Segoe MDL2 Assets" FontSize="14" Glyph="&#xE72C;" />
-                            </Button>
-                        </Grid>
-                        <TextBlock x:Name="ModelStatus" FontSize="12" TextWrapping="Wrap"
-                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                   Text="用 pi-transcribe 下载模型后，点击刷新。" />
-                    </StackPanel>
-                </Border>
+                                            <Grid ColumnSpacing="12">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                </Grid.ColumnDefinitions>
+                                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                                    <Button
+                                                        Padding="8,4"
+                                                        automation:AutomationProperties.Name="重置快捷键"
+                                                        Click="ResetShortcutButton_Click">
+                                                        <StackPanel Orientation="Horizontal" Spacing="6">
+                                                            <FontIcon FontFamily="Segoe MDL2 Assets" FontSize="12" Glyph="&#xE72C;" />
+                                                            <TextBlock FontSize="12" Text="重置" />
+                                                        </StackPanel>
+                                                    </Button>
+                                                    <Button
+                                                        Padding="8,4"
+                                                        automation:AutomationProperties.Name="清除快捷键"
+                                                        Click="ClearShortcutButton_Click">
+                                                        <StackPanel Orientation="Horizontal" Spacing="6">
+                                                            <FontIcon FontFamily="Segoe MDL2 Assets" FontSize="12" Glyph="&#xE711;" />
+                                                            <TextBlock FontSize="12" Text="清除" />
+                                                        </StackPanel>
+                                                    </Button>
+                                                </StackPanel>
+                                                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+                                                    <Button
+                                                        x:Name="SaveShortcutButton"
+                                                        MinWidth="80"
+                                                        MinHeight="32"
+                                                        Click="SaveShortcutButton_Click"
+                                                        Content="保存"
+                                                        Style="{StaticResource AccentButtonStyle}" />
+                                                    <Button
+                                                        MinWidth="80"
+                                                        MinHeight="32"
+                                                        Click="CancelShortcutButton_Click"
+                                                        Content="取消" />
+                                                </StackPanel>
+                                            </Grid>
 
-                <TextBlock Margin="0,4,0,0" FontSize="16" FontWeight="SemiBold" Text="文本整理" />
-                <Border
-                    Padding="18"
-                    Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                    BorderThickness="1"
-                    CornerRadius="8">
-                    <StackPanel Spacing="16">
-                        <Grid ColumnSpacing="24">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-                            <StackPanel VerticalAlignment="Center" Spacing="4">
-                                <TextBlock FontSize="16" FontWeight="SemiBold" Text="去除口水词" />
+                                            <TextBlock
+                                                x:Name="ShortcutEditorValidation"
+                                                FontSize="12"
+                                                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                                TextWrapping="Wrap" />
+                                        </StackPanel>
+                                    </Border>
+                                </StackPanel>
+                            </Border>
                                 <TextBlock FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                           Text="清除停顿中的“嗯、呃”等填充音，尽量保留有意义的语气。" TextWrapping="Wrap" />
-                            </StackPanel>
-                            <ToggleSwitch x:Name="RemoveFillerWordsToggle" Grid.Column="1" VerticalAlignment="Center"
-                                          OffContent="" OnContent="" MinWidth="0"
-                                          automation:AutomationProperties.Name="去除口水词"
-                                          Toggled="TextCleanupToggle_Toggled" />
-                        </Grid>
-                        <Border Height="1" Background="{ThemeResource CardStrokeColorDefaultBrush}" />
-                        <Grid ColumnSpacing="24">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-                            <StackPanel VerticalAlignment="Center" Spacing="4">
-                                <TextBlock FontSize="16" FontWeight="SemiBold" Text="去掉末尾句号" />
-                                <TextBlock FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                           Text="保留句中标点、问号和感叹号。" TextWrapping="Wrap" />
-                            </StackPanel>
-                            <ToggleSwitch x:Name="TrimTrailingPeriodToggle" Grid.Column="1" VerticalAlignment="Center"
-                                          OffContent="" OnContent="" MinWidth="0"
-                                          automation:AutomationProperties.Name="去掉末尾句号"
-                                          Toggled="TextCleanupToggle_Toggled" />
-                        </Grid>
+                                           Text="关闭窗口后仍在托盘运行。右键托盘图标可退出。" TextWrapping="Wrap" />
+                        </StackPanel>
+                        <StackPanel x:Name="TranscriptionPage" Spacing="12">
+                            <Border Padding="18"
+                                    Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                                    BorderThickness="1" CornerRadius="8">
+                                <StackPanel Spacing="10">
+                                    <TextBlock FontSize="16" FontWeight="SemiBold" Text="转录服务" />
+                                    <StackPanel x:Name="CloudControls" Spacing="10">
+                                        <ComboBox x:Name="ProviderPicker" SelectedIndex="0" HorizontalAlignment="Stretch"
+                                                  SelectionChanged="ProviderPicker_SelectionChanged">
+                                            <ComboBoxItem Content="本地模型" />
+                                            <ComboBoxItem Content="豆包云端 · 流式识别 2.0" />
+                                        </ComboBox>
+                                        <StackPanel x:Name="CloudFields" Spacing="8" Visibility="Collapsed">
+                                            <TextBlock Text="录音会上传到火山引擎，并按音频时长计费。凭据保存在 Windows 凭据管理器中。"
+                                                       FontSize="12" TextWrapping="Wrap"
+                                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                            <PasswordBox x:Name="CloudApiKey" Header="语音控制台 API Key" />
+                                            <Expander Header="旧版控制台凭据与资源设置" HorizontalAlignment="Stretch"
+                                                      HorizontalContentAlignment="Stretch">
+                                                <StackPanel Spacing="8">
+                                                    <TextBox x:Name="CloudAppId" Header="App ID（旧版控制台）" />
+                                                    <PasswordBox x:Name="CloudAccessToken" Header="Access Token（旧版控制台）" />
+                                                    <TextBox x:Name="CloudResourceId" Header="资源 ID"
+                                                             Text="volc.seedasr.sauc.duration" />
+                                                </StackPanel>
+                                            </Expander>
+                                        </StackPanel>
+                                        <Button x:Name="SaveCloudButton" Content="保存并测试" Click="SaveCloudButton_Click" />
+                                    </StackPanel>
+                                    <TextBlock x:Name="CloudStatus" Text="当前使用本地模型。" FontSize="12" TextWrapping="Wrap" />
+                                    <TextBlock x:Name="LiveTranscript" TextWrapping="Wrap" MaxHeight="100"
+                                               IsTextSelectionEnabled="True" Visibility="Collapsed" />
+                                </StackPanel>
+                            </Border>
+                            <Border x:Name="LocalModelCard"
+                                Padding="18"
+                                Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                                BorderThickness="1"
+                                CornerRadius="8">
+                                <StackPanel Spacing="8">
+                                    <TextBlock FontSize="16" FontWeight="SemiBold" Text="本地模型" />
+                                    <Grid ColumnSpacing="8">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <ComboBox x:Name="ModelPicker" HorizontalAlignment="Stretch"
+                                                  IsEnabled="False" PlaceholderText="正在读取模型..."
+                                                  DisplayMemberPath="Name" MaxDropDownHeight="320"
+                                                  automation:AutomationProperties.Name="转录模型"
+                                                  SelectionChanged="ModelPicker_SelectionChanged" />
+                                        <Button x:Name="RefreshModelsButton" Grid.Column="1" IsEnabled="False"
+                                                automation:AutomationProperties.Name="刷新模型列表"
+                                                ToolTipService.ToolTip="刷新模型列表"
+                                                Click="RefreshModelsButton_Click">
+                                            <FontIcon FontFamily="Segoe MDL2 Assets" FontSize="14" Glyph="&#xE72C;" />
+                                        </Button>
+                                    </Grid>
+                                    <TextBlock x:Name="ModelStatus" FontSize="12" TextWrapping="Wrap"
+                                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                               Text="用 pi-transcribe 下载模型后，点击刷新。" />
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+                        <StackPanel x:Name="CleanupPage" Spacing="12" Visibility="Collapsed">
+                            <Border
+                                Padding="18"
+                                Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                                BorderThickness="1"
+                                CornerRadius="8">
+                                <StackPanel Spacing="16">
+                                    <Grid ColumnSpacing="24">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel VerticalAlignment="Center" Spacing="4">
+                                            <TextBlock FontSize="16" FontWeight="SemiBold" Text="去除口水词" />
+                                            <TextBlock FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                                       Text="清除停顿中的“嗯、呃”等填充音，尽量保留有意义的语气。" TextWrapping="Wrap" />
+                                        </StackPanel>
+                                        <ToggleSwitch x:Name="RemoveFillerWordsToggle" Grid.Column="1" VerticalAlignment="Center"
+                                                      OffContent="" OnContent="" MinWidth="0"
+                                                      automation:AutomationProperties.Name="去除口水词"
+                                                      Toggled="TextCleanupToggle_Toggled" />
+                                    </Grid>
+                                    <Border Height="1" Background="{ThemeResource CardStrokeColorDefaultBrush}" />
+                                    <Grid ColumnSpacing="24">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel VerticalAlignment="Center" Spacing="4">
+                                            <TextBlock FontSize="16" FontWeight="SemiBold" Text="去掉末尾句号" />
+                                            <TextBlock FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                                       Text="保留句中标点、问号和感叹号。" TextWrapping="Wrap" />
+                                        </StackPanel>
+                                        <ToggleSwitch x:Name="TrimTrailingPeriodToggle" Grid.Column="1" VerticalAlignment="Center"
+                                                      OffContent="" OnContent="" MinWidth="0"
+                                                      automation:AutomationProperties.Name="去掉末尾句号"
+                                                      Toggled="TextCleanupToggle_Toggled" />
+                                    </Grid>
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+                        <InfoBar x:Name="ErrorInfo" IsClosable="True" IsOpen="False" Severity="Error" />
                     </StackPanel>
-                </Border>
-                <TextBlock FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                           Text="关闭窗口后仍在托盘运行。右键托盘图标可退出。" TextWrapping="Wrap" />
-
-                <InfoBar
-                    x:Name="ErrorInfo"
-                    IsClosable="True"
-                    IsOpen="False"
-                    Severity="Error" />
-            </StackPanel>
-        </ScrollViewer>
+                </ScrollViewer>
+            </Grid>
+        </NavigationView>
     </Grid>
 </Window>

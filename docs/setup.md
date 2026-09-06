@@ -56,7 +56,7 @@ notepad (Join-Path $settingsDir "settings.json")
 }
 ```
 
-启动后可在“转录模型”中选择其他模型。普通文件夹只列出当前模型同层的 `.gguf` 文件；pi-transcribe 使用 Hugging Face 缓存时，会列出同一缓存根目录下各模型快照中的 `.gguf` 文件，不扫描其他位置。下载完成后点击刷新；Fun-ASR Nano Multilingual 对应的文件名为 `Fun-ASR-MLT-Nano-2512-*.gguf`。shuo 只保存自己的选择，不修改 pi-transcribe 配置，也不负责下载模型。
+启动后，在“转录服务”页选择“本地模型”并保存，可选择其他模型。普通文件夹只列出当前模型同层的 `.gguf` 文件；pi-transcribe 使用 Hugging Face 缓存时，会列出同一缓存根目录下各模型快照中的 `.gguf` 文件，不扫描其他位置。下载完成后点击刷新；Fun-ASR Nano Multilingual 对应的文件名为 `Fun-ASR-MLT-Nano-2512-*.gguf`。shuo 只保存自己的选择，不修改 pi-transcribe 配置，也不负责下载模型。
 
 `autocorrectPath` 是可选项，用于中英文排版整理。口水词过滤和末尾句号选项可在主界面设置，不依赖 autocorrect。
 
@@ -70,7 +70,7 @@ notepad (Join-Path $settingsDir "settings.json")
 
 双击 `shuo.exe`。首次启动可能比后续启动慢，因为 app 会自动解压内置运行时。Windows 需要允许桌面应用访问默认麦克风。
 
-启动后，可点击“录音触发快捷键”右侧的铅笔图标修改快捷键；默认 `Ctrl+Alt+\`。在普通权限的文本输入框中按一次已设置的快捷键开始录音，再按一次停止并转写。完成后文字会粘贴到原先的前台输入框。
+启动后，可在“常规”页点击“录音触发快捷键”右侧的铅笔图标修改快捷键；默认 `Ctrl+Alt+\`。在普通权限的文本输入框中按一次已设置的快捷键开始录音，再按一次停止并转写。完成后文字会粘贴到原先的前台输入框。
 
 ## 常见问题
 

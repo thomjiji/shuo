@@ -48,6 +48,7 @@ public sealed partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        SettingsNavigation.SelectedItem = TranscriptionNavigationItem;
         ExtendsContentIntoTitleBar = true;
         SetTitleBar(AppTitleBar);
         _window = WindowNative.GetWindowHandle(this);
@@ -116,6 +117,24 @@ public sealed partial class MainWindow : Window
         AppWindow.Hide();
     }
 
+    private void SettingsNavigation_SelectionChanged(NavigationView sender, NavigationViewSelectionChangedEventArgs args)
+    {
+        if (GeneralPage is null || TranscriptionPage is null || CleanupPage is null) return;
+        if (_shortcutEditorOpen) CloseShortcutEditor(false);
+        var section = (args.SelectedItem as NavigationViewItem)?.Tag as string ?? "transcription";
+        GeneralPage.Visibility = section == "general" ? Visibility.Visible : Visibility.Collapsed;
+        TranscriptionPage.Visibility = section == "transcription" ? Visibility.Visible : Visibility.Collapsed;
+        CleanupPage.Visibility = section == "cleanup" ? Visibility.Visible : Visibility.Collapsed;
+        PageTitle.Text = section switch { "general" => "常规", "cleanup" => "文本整理", _ => "转录服务" };
+        PageScroll.ChangeView(null, 0, null, disableAnimation: true);
+    }
+
+    private void PageViewport_SizeChanged(object sender, SizeChangedEventArgs args)
+    {
+        if (SettingsContent is not null)
+            SettingsContent.Width = Math.Max(0, Math.Min(920, args.NewSize.Width - 48));
+    }
+
     private CloudOptions _cloudOptions = new();
     private bool _cloudTesting;
     private bool _backendConfigured;
@@ -124,6 +143,7 @@ public sealed partial class MainWindow : Window
     {
         if (CloudFields is null || SaveCloudButton is null) return;
         CloudFields.Visibility = ProviderPicker.SelectedIndex == 1 ? Visibility.Visible : Visibility.Collapsed;
+        if (LocalModelCard is not null) LocalModelCard.Visibility = ProviderPicker.SelectedIndex == 0 ? Visibility.Visible : Visibility.Collapsed;
         SaveCloudButton.Content = ProviderPicker.SelectedIndex == 1 ? "保存并测试" : "保存";
     }
 

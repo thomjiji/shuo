@@ -226,10 +226,11 @@ export class DictationDaemon {
   configureBackend(command) {
     if (this.state !== "idle") throw new Error("请等待当前听写结束。");
     if (!["local", "doubao", "qwen"].includes(command.provider)) throw new Error("未知转录服务。");
-    if (command.provider === "doubao") doubaoHeaders(command.config || {});
-    if (command.provider === "qwen") qwenConnection(command.config || {});
+    // Replace retained credentials even when the new settings are incomplete.
     this.provider = command.provider;
     this.cloudConfig = command.config || {};
+    if (command.provider === "doubao") doubaoHeaders(this.cloudConfig);
+    if (command.provider === "qwen") qwenConnection(this.cloudConfig);
   }
 
   createCloudStream(onPartial) {
@@ -321,7 +322,7 @@ export class DictationDaemon {
     if (this.state !== "idle") throw new Error("请等待当前听写完成后再切换模型。");
     this.state = "switching";
     try {
-      const candidates = await findLocalModels(this.settings.model.path);
+      const candidates = await findLocalModels(this.settings.model.path, join(dirname(this.settingsPath), "models"));
       const selected = candidates.find((model) => model.path === path);
       if (!selected) throw new Error("模型不在当前目录的可用列表中，请刷新后重试。");
       if (selected.path === this.settings.model.path) return;
@@ -355,7 +356,7 @@ export class DictationDaemon {
   }
 
   async loadModel() {
-    if (!this.settings.model.path) throw new Error("请先配置云端转录服务，或在设置文件中指定本地模型。");
+    if (!this.settings.model.path) throw new Error("请先在转录服务页下载并选择本地模型，或配置云端服务。");
     if (this.model) return this.model;
     if (!this.modelLoading) {
       this.modelLoading = this.runtime.TranscribeModel.load(this.settings.model.path).then((model) => {
@@ -479,7 +480,7 @@ async function main() {
   const sendModels = async () => {
     try {
       emit("models", {
-        models: daemon.settings.model.path ? await findLocalModels(daemon.settings.model.path) : [],
+        models: await findLocalModels(daemon.settings.model.path, join(dirname(daemon.settingsPath), "models")),
         modelPath: daemon.settings.model.path,
       });
     } catch (error) {

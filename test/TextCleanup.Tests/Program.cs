@@ -2,6 +2,8 @@ using Shuo.Services;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 
+await ModelDownloadTests.RunAsync();
+
 var periods = new TextCleanupOptions(TrimTrailingPeriod: true);
 var cases = new (string Input, string Expected, TextCleanupOptions Options)[]
 {

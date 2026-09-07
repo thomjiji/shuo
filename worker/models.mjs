@@ -5,7 +5,7 @@ import { basename, dirname, extname, join, resolve } from "node:path";
 
 export function getModelDirectory(modelPath) {
   const folder = dirname(resolve(modelPath));
-  // pi-transcribe uses <cache>/models--owner--repo/snapshots/<revision>/<file>.
+  // Hugging Face uses <cache>/models--owner--repo/snapshots/<revision>/<file>.
   const snapshots = dirname(folder);
   const repository = dirname(snapshots);
   if (basename(snapshots) === "snapshots" && basename(repository).startsWith("models--")) {
@@ -23,10 +23,10 @@ async function entries(path) {
   }
 }
 
-export async function findLocalModels(currentPath) {
-  const directory = getModelDirectory(currentPath);
-  const folders = [];
-  if (directory.huggingFace) {
+export async function findLocalModels(currentPath, managedDirectory) {
+  const directory = currentPath ? getModelDirectory(currentPath) : undefined;
+  const folders = managedDirectory ? [managedDirectory] : [];
+  if (directory?.huggingFace) {
     for (const repository of await entries(directory.path)) {
       if (!repository.isDirectory() || !repository.name.startsWith("models--")) continue;
       const snapshots = join(directory.path, repository.name, "snapshots");
@@ -34,14 +34,15 @@ export async function findLocalModels(currentPath) {
         if (revision.isDirectory()) folders.push(join(snapshots, revision.name));
       }
     }
-  } else {
+  } else if (directory) {
     folders.push(directory.path);
   }
 
   const candidates = [];
-  for (const folder of folders) {
+  for (const folder of new Set(folders)) {
     for (const file of await entries(folder)) {
       if (extname(file.name).toLowerCase() !== ".gguf" || (!file.isFile() && !file.isSymbolicLink())) continue;
+      if (/^fun-?asr(?:[-_.]|$)/i.test(file.name)) continue;
       const path = join(folder, file.name);
       try {
         const info = await stat(path);

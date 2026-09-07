@@ -55,7 +55,7 @@ dotnet build Shuo.slnx --configuration Debug
 
 `configure-backend` JSON 命令携带 `provider`（`local`、`doubao` 或 `qwen`）及内存中的 `config`，返回 `backend-configured` 或 `backend-error`。`test-cloud` 检查云端调用并返回 `cloud-tested` 或 `cloud-test-error`。百炼的配置使用 `apiKey` 和 `region`，豆包使用原有凭据与资源字段，固定发送 enable_ddc=true、enable_itn=true 和 enable_punc=true；旧 semanticSmoothing 字段不再读取，保存设置时移除；`transcriptionProvider` 保存当前服务，未设置时按旧版 `doubao.enabled` 读取。云端连接期间发送 `connecting`，界面禁止更改服务。凭据由 WinUI 宿主从 Windows PasswordVault 读取，经 worker 标准输入传递，不写入命令行、配置文件或事件输出。
 
-`worker/models.mjs` 从当前模型路径确定扫描范围，识别 Hugging Face 的仓库与快照层级，不遍历缓存 blobs 或其他目录。切换命令再次检查候选列表；先释放旧模型，再加载新模型，成功后以临时文件替换配置，仅更新 `model` 字段。失败时保留原配置，下次听写重新加载原模型。命令队列与界面状态共同避免录音、转录和切换重叠。
+`LocalModelDownload` 从固定 Hugging Face 修订下载 Qwen3-ASR-0.6B Q8_0，使用系统代理，在临时文件中校验长度与 SHA-256 后替换目标；取消和失败会移除临时文件。`worker/models.mjs` 始终扫描配置文件旁的 `models` 目录，并从当前模型路径确定额外扫描范围，识别 Hugging Face 的仓库与快照层级，不遍历缓存 blobs 或其他目录。切换命令再次检查候选列表；先释放旧模型，再加载新模型，成功后以临时文件替换配置，仅更新 `model` 字段。失败时保留原配置，下次听写重新加载原模型。命令队列与界面状态共同避免录音、转录和切换重叠。
 
 本地模型在多次听写间复用，停止录音后执行转写。豆包模式通过 `worker/doubao.mjs` 建立双向流式 WebSocket，每 200 ms 发送一包 16 kHz、16-bit 单声道 PCM。`partial` 事件携带当前完整预览文本；最后一个音频包带结束标记，收到服务端最终包才发送 `transcript`。断线或超时不提交未确认文本。宿主退出时会等待 worker，超过五秒则终止子进程。
 
@@ -80,3 +80,5 @@ WinUI 的 XBF 和 PRI 资源通过项目中的发布 targets 纳入输出。调�
 标签版本传给 MSBuild 的 `Version` 和 Velopack 的包版本，安装器文件名包含同一版本。Release 同时上传安装器、`releases.win.json` 和完整 `.nupkg`；更新客户端下载完整包，不依赖历史版本或额外服务。`assets.win.json` 是打包工具内部索引，不上传。未配置代码签名，安装器会显示未知发布者。
 
 更新源验证：`dotnet run --project test/Update.Tests/Update.Tests.csproj -- <releases目录> <版本> ShuoDesktop`，检查版本发现、真实包下载校验、待重启状态和禁止降级。发布工作流在上传前运行它。
+
+转录服务选择通过 `CloudSettings.SaveProvider` 单独持久化，不要求先填写凭据。凭据和地域修改时立即持久化，停止输入 500 ms 后配置 worker。宿主随后配置 worker；缺少凭据时阻止听写并提示填写。清空凭据会同步清除已保存值。本地和云端共用听写试用区。

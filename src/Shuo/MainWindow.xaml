@@ -267,9 +267,6 @@
                                             <ComboBoxItem Content="阿里云百炼 - fun-asr-realtime" />
                                         </ComboBox>
                                         <StackPanel x:Name="CloudFields" Spacing="8" Visibility="Collapsed">
-                                            <TextBlock Text="录音会上传到火山引擎，并按音频时长计费。凭据保存在 Windows 凭据管理器中。"
-                                                       FontSize="12" TextWrapping="Wrap"
-                                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                                             <PasswordBox x:Name="CloudApiKey" Header="语音控制台 API Key" />
                                             <Expander Header="旧版控制台凭据与资源设置" HorizontalAlignment="Stretch"
                                                       HorizontalContentAlignment="Stretch">
@@ -280,14 +277,8 @@
                                                              Text="volc.seedasr.sauc.duration" />
                                                 </StackPanel>
                                             </Expander>
-                                            <TextBlock Text="自动整理停顿词、口吃和重复表达，并规范数字和标点。"
-                                                       FontSize="12" TextWrapping="Wrap"
-                                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                                         </StackPanel>
                                         <StackPanel x:Name="QwenFields" Spacing="8" Visibility="Collapsed">
-                                            <TextBlock Text="音频上传至阿里云，按音频时长计费。API Key 保存在 Windows 凭据管理器中。"
-                                                       FontSize="12" TextWrapping="Wrap"
-                                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                                             <PasswordBox x:Name="QwenApiKey" Header="百炼 API Key"
                                                          automation:AutomationProperties.Name="百炼 API Key" />
                                             <ComboBox x:Name="QwenRegionPicker" Header="服务地域" SelectedIndex="0"
@@ -295,65 +286,45 @@
                                                 <ComboBoxItem Content="北京" />
                                                 <ComboBoxItem Content="新加坡" />
                                             </ComboBox>
-                                            <TextBlock Text="请选择创建 API Key 时使用的地域。模型：fun-asr-realtime，内置语气词过滤、数字规范化和标点预测。"
-                                                       FontSize="12" TextWrapping="Wrap"
-                                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                                         </StackPanel>
                                     </StackPanel>
-                                    <Grid ColumnSpacing="16" Margin="0,8,0,0">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*" />
-                                            <ColumnDefinition Width="Auto" />
-                                        </Grid.ColumnDefinitions>
-                                        <TextBlock x:Name="CloudStatus" Text="当前使用本地模型。" FontSize="12"
-                                                   TextWrapping="Wrap" VerticalAlignment="Center" />
-                                        <Button x:Name="SaveCloudButton" Grid.Column="1" Content="保存并测试"
-                                                Style="{StaticResource AccentButtonStyle}" HorizontalAlignment="Right"
-                                                VerticalAlignment="Center" Click="SaveCloudButton_Click" />
-                                    </Grid>
+                                    <StackPanel x:Name="LocalModelCard" Spacing="8">
+                                        <TextBlock Text="模型" />
+                                        <Grid RowSpacing="6">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <Grid.RowDefinitions>
+                                                <RowDefinition Height="Auto" />
+                                                <RowDefinition Height="Auto" />
+                                            </Grid.RowDefinitions>
+                                            <ComboBox x:Name="ModelPicker" HorizontalAlignment="Stretch"
+                                                      IsEnabled="False" PlaceholderText="正在读取模型..."
+                                                      DisplayMemberPath="Name" MaxDropDownHeight="320"
+                                                      automation:AutomationProperties.Name="转录模型"
+                                                      SelectionChanged="ModelPicker_SelectionChanged" />
+                                            <Button x:Name="DownloadModelButton" Grid.Column="1" Content="下载" Margin="8,0,0,0"
+                                                    Visibility="Collapsed" VerticalAlignment="Top"
+                                                    ToolTipService.ToolTip="下载 Qwen3-ASR-0.6B Q8_0，约 811 MB"
+                                                    Click="DownloadModelButton_Click" />
+                                            <ProgressBar x:Name="ModelDownloadProgress" Grid.Row="1"
+                                                         Visibility="Collapsed" Maximum="100" />
+                                        </Grid>
+                                        <TextBlock x:Name="ModelDownloadStatus" Visibility="Collapsed" FontSize="12" TextWrapping="Wrap"
+                                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                    </StackPanel>
+                                    <TextBlock x:Name="CloudStatus" Visibility="Collapsed" FontSize="12"
+                                               Margin="0,8,0,0" TextWrapping="Wrap" />
                                 </StackPanel>
                             </Border>
-                            <Border x:Name="LocalModelCard"
-                                Padding="18"
-                                Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                                BorderThickness="1"
-                                CornerRadius="8">
-                                <StackPanel Spacing="8">
-                                    <TextBlock FontSize="16" FontWeight="SemiBold" Text="本地模型" />
-                                    <Grid ColumnSpacing="8">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*" />
-                                            <ColumnDefinition Width="Auto" />
-                                        </Grid.ColumnDefinitions>
-                                        <ComboBox x:Name="ModelPicker" HorizontalAlignment="Stretch"
-                                                  IsEnabled="False" PlaceholderText="正在读取模型..."
-                                                  DisplayMemberPath="Name" MaxDropDownHeight="320"
-                                                  automation:AutomationProperties.Name="转录模型"
-                                                  SelectionChanged="ModelPicker_SelectionChanged" />
-                                        <Button x:Name="RefreshModelsButton" Grid.Column="1" IsEnabled="False"
-                                                automation:AutomationProperties.Name="刷新模型列表"
-                                                ToolTipService.ToolTip="刷新模型列表"
-                                                Click="RefreshModelsButton_Click">
-                                            <FontIcon FontFamily="Segoe MDL2 Assets" FontSize="14" Glyph="&#xE72C;" />
-                                        </Button>
-                                    </Grid>
-                                    <TextBlock x:Name="ModelStatus" FontSize="12" TextWrapping="Wrap"
-                                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                               Text="用 pi-transcribe 下载模型后，点击刷新。" />
-                                </StackPanel>
-                            </Border>
-                            <Border x:Name="DictationTrialCard" Visibility="Collapsed" Padding="18" CornerRadius="8"
+                            <Border x:Name="DictationTrialCard" Padding="18" CornerRadius="8"
                                     Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
                                     BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1">
                                 <StackPanel Spacing="12">
                                     <TextBlock Text="试用听写" FontSize="16" FontWeight="SemiBold" />
-                                    <TextBlock Text="先保存并测试连接，再点击下方输入框。按听写快捷键读出示例，再按一次结束，识别结果会填入输入框。"
-                                               FontSize="12" TextWrapping="Wrap"
-                                               Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                                    <TextBlock Text="今天的天气不错，我们来试试语音输入。" TextWrapping="Wrap" />
                                     <TextBox MinHeight="100" AcceptsReturn="True" TextWrapping="Wrap"
-                                             PlaceholderText="点击这里，然后使用听写快捷键"
+                                             PlaceholderText="今天的天气不错，我们来试试语音输入。"
                                              automation:AutomationProperties.Name="听写试用输入框" />
                                 </StackPanel>
                             </Border>

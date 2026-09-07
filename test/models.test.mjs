@@ -30,8 +30,8 @@ test("Hugging Face discovery finds sibling model snapshots, not blobs or other c
   file("outside", "outside.gguf");
   assert.deepEqual(getModelDirectory(qwen), { path: join(root, "hub"), huggingFace: true });
   const models = await findLocalModels(qwen);
-  assert.deepEqual(models.map((model) => model.path).sort(), [qwen, fun].sort());
-  assert.equal(models.find((model) => model.path === fun).id, "Fun-ASR-MLT-Nano-2512");
+  assert.deepEqual(models.map((model) => model.path).sort(), [qwen].sort());
+  assert.equal(models.some((model) => model.path === fun), false);
   assert.deepEqual(await findLocalModels(fun), models);
 });
 
@@ -132,4 +132,24 @@ test("recording, transcribing and out-of-directory selections never load or save
   await assert.rejects(daemon.selectModel(outsidePath), /不在/);
   assert.equal(readFileSync(settingsPath, "utf8"), before);
   assert.equal(daemon.state, "idle");
+});
+
+test("managed downloads are discoverable on a fresh PC and alongside an imported cache", async (t) => {
+  const { root, file } = fixture(t);
+  const managed = join(root, "models");
+  const downloaded = file("models", "Qwen3-ASR-0.6B-Q8_0.gguf");
+  file("models", "unfinished.gguf.partial");
+  assert.deepEqual((await findLocalModels("", managed)).map(model => model.path), [downloaded]);
+  const imported = file("hub", "models--other", "snapshots", "rev", "Fun-Q8_0.gguf");
+  assert.deepEqual((await findLocalModels(imported, managed)).map(model => model.path).sort(), [downloaded, imported].sort());
+  assert.equal((await findLocalModels(downloaded, managed)).length, 1);
+});
+
+test("a fresh PC can select a downloaded model without a legacy config", async (t) => {
+  const { daemon, settingsPath } = daemonFixture(t, async () => ({ dispose() {} }));
+  daemon.settings.model = { id: "", path: "" };
+  const path = join(settingsPath, "..", "models", "Qwen-Q8_0.gguf");
+  await daemon.selectModel(path);
+  assert.equal(daemon.settings.model.path, path);
+  assert.equal(JSON.parse(readFileSync(settingsPath)).model.path, path);
 });

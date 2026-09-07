@@ -168,6 +168,8 @@ test("provider switching selects the matching stream and refuses invalid or busy
   qwen.close();
   assert.throws(() => daemon.configureBackend({ provider: "qwen", config: {} }), /API Key/);
   assert.equal(daemon.provider, "qwen");
+  assert.deepEqual(daemon.cloudConfig, {});
+  await assert.rejects(daemon.createCloudStream().connect(), /API Key/);
   daemon.state = "recording";
   assert.throws(() => daemon.configureBackend({ provider: "local" }), /听写结束/);
   daemon.state = "idle";

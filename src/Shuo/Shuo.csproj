@@ -5,6 +5,8 @@
     <TargetPlatformMinVersion>10.0.17763.0</TargetPlatformMinVersion>
     <RootNamespace>Shuo</RootNamespace>
     <AssemblyName>shuo</AssemblyName>
+    <Version>0.4.0</Version>
+    <DefineConstants>$(DefineConstants);DISABLE_XAML_GENERATED_MAIN</DefineConstants>
     <Title>说</Title>
     <Product>说</Product>
     <ApplicationIcon>Assets\AppIcon.ico</ApplicationIcon>
@@ -32,7 +34,15 @@
     <EnableMsixTooling>true</EnableMsixTooling>
   </PropertyGroup>
 
+  <PropertyGroup Condition="'$(InstallerBundle)' == 'true'">
+    <SelfContained>true</SelfContained>
+    <PublishSingleFile>false</PublishSingleFile>
+    <DebugType>none</DebugType>
+    <DebugSymbols>false</DebugSymbols>
+  </PropertyGroup>
+
   <ItemGroup>
+    <Content Include="Assets\AppIcon.ico" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <None Include="..\..\worker\*.mjs" Link="worker\%(Filename)%(Extension)">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
@@ -47,7 +57,7 @@
     </None>
   </ItemGroup>
 
-  <ItemGroup Condition="'$(PortableBundle)' == 'true' and '$(NodeRuntimePath)' != ''">
+  <ItemGroup Condition="('$(PortableBundle)' == 'true' or '$(InstallerBundle)' == 'true') and '$(NodeRuntimePath)' != ''">
     <None Include="$(NodeRuntimePath)">
       <Link>node.exe</Link>
       <TargetPath>node.exe</TargetPath>
@@ -64,9 +74,10 @@
     <PackageReference Include="Microsoft.WindowsAppSDK.WinUI" Version="2.3.6" />
     <PackageReference Include="Microsoft.WindowsAppSDK.InteractiveExperiences" Version="2.1.6" />
     <PackageReference Include="Microsoft.Windows.SDK.BuildTools.MSIX" Version="1.7.251221100" />
+    <PackageReference Include="Velopack" Version="1.2.0" />
   </ItemGroup>
 
-  <Target Name="RequireNodeRuntime" BeforeTargets="PrepareForPublish" Condition="'$(PortableBundle)' == 'true' and !Exists('$(NodeRuntimePath)')">
+  <Target Name="RequireNodeRuntime" BeforeTargets="PrepareForPublish" Condition="('$(PortableBundle)' == 'true' or '$(InstallerBundle)' == 'true') and !Exists('$(NodeRuntimePath)')">
     <Error Text="PortableBundle requires NodeRuntimePath to point to an x64 node.exe." />
   </Target>
 

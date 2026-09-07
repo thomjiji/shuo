@@ -104,6 +104,7 @@ public sealed partial class MainWindow : Window
             CloudResourceId.Text = _cloudOptions.ResourceId;
         }
         catch (Exception cloudError) { CloudStatus.Text = cloudError.Message; }
+        InitializeUpdates();
     }
 
     internal void ShowSettings()
@@ -190,8 +191,9 @@ public sealed partial class MainWindow : Window
 
     private void UpdateModelControls()
     {
-        var idle = _daemonReady && !_dictationActive && !_togglePending && !_modelChanging && !_loadingModels;
-        var cloudIdle = _daemonReady && !_dictationActive && !_togglePending && !_modelChanging;
+        UpdateInstallControls();
+        var idle = !_installingUpdate && _daemonReady && !_dictationActive && !_togglePending && !_modelChanging && !_loadingModels;
+        var cloudIdle = !_installingUpdate && _daemonReady && !_dictationActive && !_togglePending && !_modelChanging;
         foreach (var control in new Control[] { ProviderPicker, CloudApiKey, CloudAppId, CloudAccessToken, CloudResourceId, SaveCloudButton }) control.IsEnabled = cloudIdle;
         ModelPicker.IsEnabled = idle && !_cloudOptions.Enabled && ModelPicker.Items.Count > 0;
         RefreshModelsButton.IsEnabled = _daemonReady && !_dictationActive && !_togglePending && !_modelChanging && !_loadingModels;
@@ -306,7 +308,7 @@ public sealed partial class MainWindow : Window
 
     private async Task ToggleAsync()
     {
-        if (_exiting || _closed) return;
+        if (_exiting || _closed || _installingUpdate) return;
         if (_togglePending || _modelChanging) return;
         _togglePending = true;
         UpdateModelControls();
@@ -474,6 +476,8 @@ public sealed partial class MainWindow : Window
     private async Task PasteTranscriptAsync(string? text)
     {
         if (string.IsNullOrWhiteSpace(text)) return;
+        _pendingPastes++;
+        UpdateInstallControls();
         var completedAt = DateTimeOffset.Now;
         var provider = TranscriptHistory.ModelName(_cloudOptions.Enabled, _cloudOptions.ResourceId, _selectedModelPath);
         try
@@ -508,6 +512,11 @@ public sealed partial class MainWindow : Window
         {
             ShowError("粘贴失败", error.Message);
             _overlay.Hide();
+        }
+        finally
+        {
+            _pendingPastes--;
+            UpdateInstallControls();
         }
     }
 
@@ -819,6 +828,7 @@ public sealed partial class MainWindow : Window
     {
         if (_exiting) return;
         _exiting = true;
+        _updateTimer?.Stop();
         _shutdown.Cancel();
         _tray.Dispose();
         _hotkey?.Dispose();

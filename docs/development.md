@@ -19,7 +19,7 @@ dotnet run --project test/TextCleanup.Tests/TextCleanup.Tests.csproj
 dotnet build Shuo.slnx --configuration Debug
 ```
 
-便携发布命令见[安装指南](setup.md#1-在构建电脑生成一个-exe)。发布前从托盘退出应用，以释放 EXE；避免同时运行多个实例争用快捷键。
+安装器构建命令见[安装指南](setup.md#1-在构建电脑生成安装包)。`scripts/package.mjs` 固定使用 `.config/dotnet-tools.json` 中的 Velopack CLI，应用依赖与 CLI 版本必须一致。独立输出目录避免旧版本文件混入新包。
 
 ## 输入流程
 
@@ -65,6 +65,16 @@ dotnet build Shuo.slnx --configuration Debug
 
 应用与 worker 必须采用相同的配置路径优先级。设置保存保留不属于当前界面的字段；文本整理选项按每次录音快照使用。
 
-项目显式链接仓库根目录的 worker、node_modules 和配置样例，发布时保持它们相对于 EXE 的路径。便携 EXE 包含 .NET、所需的 Windows App SDK 组件和 Node，运行时自动解压；模型仍是外部文件。
+项目显式链接仓库根目录的 worker、node_modules 和配置样例，发布时保持它们相对于 EXE 的路径。安装包包含 .NET、所需的 Windows App SDK 组件和 Node；模型仍是外部文件。
 
-WinUI 的 XBF 和 PRI 资源通过项目中的发布 targets 纳入输出。调整这些规则后，应从新的解压目录启动单文件 EXE，确认界面和包内 Node worker 都能启动。
+WinUI 的 XBF 和 PRI 资源通过项目中的发布 targets 纳入输出。调整这些规则后，应从新的安装目录启动程序，确认界面和包内 Node worker 都能启动。
+
+## 安装与应用内更新
+
+`Program.Main` 在 WinUI 初始化前调用 `VelopackApp.Run()`，安装和更新钩子因此不会启动窗口或 worker。普通启动再初始化 WinUI 的 COM 包装器、应用线程和同步上下文，创建 `App`。安装标识为 `ShuoDesktop`，与 `%LOCALAPPDATA%\Shuo` 数据目录分开；配置路径和凭据键保持原有规则。
+
+`MainWindow.Updates.cs` 从公开 GitHub Releases 的稳定版本读取更新清单，启动及每 6 小时检查。用户点击后才下载，Velopack 校验包完整性，再启动等待当前进程退出的更新器；现有退出流程停止 worker 后退出，更新器完成文件替换并重启。启动时自动应用已下载更新被禁用，始终由用户点击。检查和安装各自防止重入，录音、转录、粘贴及模型切换期间不允许安装。
+
+标签版本传给 MSBuild 的 `Version` 和 Velopack 的包版本，安装器文件名包含同一版本。Release 同时上传安装器、`releases.win.json` 和完整 `.nupkg`；更新客户端下载完整包，不依赖历史版本或额外服务。`assets.win.json` 是打包工具内部索引，不上传。未配置代码签名，安装器会显示未知发布者。
+
+更新源验证：`dotnet run --project test/Update.Tests/Update.Tests.csproj -- <releases目录> <版本> ShuoDesktop`，检查版本发现、真实包下载校验、待重启状态和禁止降级。发布工作流在上传前运行它。

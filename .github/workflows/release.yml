@@ -21,6 +21,8 @@ jobs:
       RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 10.0.x
@@ -31,20 +33,28 @@ jobs:
       - run: npm ci
       - run: npm test
       - run: dotnet run --project test/TextCleanup.Tests/TextCleanup.Tests.csproj --configuration Release
-      - name: Publish portable EXE
+      - name: Build installer and update feed
         shell: pwsh
         run: |
-          $node = (Get-Command node.exe -ErrorAction Stop).Source
-          dotnet publish src/Shuo/Shuo.csproj --configuration Release --runtime win-x64 --output publish\win-x64 -p:PortableBundle=true "-p:NodeRuntimePath=$node"
-      - name: Upload GitHub Release asset
+          $releaseVersion = $env:RELEASE_TAG -replace '^v', ''
+          node scripts/package.mjs $releaseVersion artifacts/installer
+          if ($LASTEXITCODE -ne 0) { throw "Installer packaging failed" }
+      - name: Verify update feed
+        shell: pwsh
+        run: |
+          $releaseVersion = $env:RELEASE_TAG -replace '^v', ''
+          dotnet run --project test/Update.Tests/Update.Tests.csproj --configuration Release -- artifacts/installer/releases $releaseVersion ShuoDesktop
+          if ($LASTEXITCODE -ne 0) { throw "Update feed verification failed" }
+      - name: Publish GitHub Release
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          $asset = "publish\win-x64\shuo.exe"
+          $assets = Get-ChildItem artifacts/installer/releases -File | Where-Object { $_.Extension -ne '.zip' -and $_.Name -ne 'assets.win.json' } | ForEach-Object FullName
           gh release view $env:RELEASE_TAG *> $null
           if ($LASTEXITCODE -eq 0) {
-            gh release upload $env:RELEASE_TAG $asset --clobber
+            gh release upload $env:RELEASE_TAG @assets --clobber
           } else {
-            gh release create $env:RELEASE_TAG $asset --generate-notes --title "shuo $env:RELEASE_TAG"
+            gh release create $env:RELEASE_TAG @assets --generate-notes --title "shuo $env:RELEASE_TAG"
           }
+          if ($LASTEXITCODE -ne 0) { throw "Release upload failed" }

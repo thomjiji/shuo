@@ -13,6 +13,7 @@
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
         <TitleBar x:Name="AppTitleBar" Title="说">
@@ -78,6 +79,20 @@
                             <Button x:Name="MoreHistoryButton" Content="加载更多" Click="MoreHistory_Click" Visibility="Collapsed" />
                         </StackPanel>
                         <StackPanel x:Name="GeneralPage" Spacing="12" Visibility="Collapsed">
+                            <Border Padding="18" CornerRadius="8" BorderThickness="1"
+                                    Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}">
+                                <StackPanel Spacing="10">
+                                    <TextBlock Text="版本与更新" FontSize="16" FontWeight="SemiBold" />
+                                    <TextBlock x:Name="AppVersionLabel" IsTextSelectionEnabled="True" />
+                                    <TextBlock x:Name="UpdateStatus" TextWrapping="Wrap" />
+                                    <StackPanel Orientation="Horizontal" Spacing="12">
+                                        <Button x:Name="CheckUpdateButton" Content="检查更新" Click="CheckUpdate_Click" />
+                                        <Button x:Name="InstallUpdateButton" Content="更新并重启" Click="InstallUpdate_Click" Visibility="Collapsed" />
+                                    </StackPanel>
+                                    <ProgressBar x:Name="UpdateProgress" Minimum="0" Maximum="100" Visibility="Collapsed" />
+                                </StackPanel>
+                            </Border>
                             <Border
                                 Padding="18"
                                 Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
@@ -324,5 +339,11 @@
                 </ScrollViewer>
             </Grid>
         </NavigationView>
+        <InfoBar x:Name="UpdateBanner" Grid.Row="2" Margin="12,0,12,12" IsOpen="False"
+                 IsClosable="True" Severity="Informational" Title="有新版本可用">
+            <InfoBar.ActionButton>
+                <Button x:Name="BannerUpdateButton" Content="更新并重启" Click="InstallUpdate_Click" />
+            </InfoBar.ActionButton>
+        </InfoBar>
     </Grid>
 </Window>

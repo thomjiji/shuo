@@ -21,6 +21,7 @@ internal sealed class TrayIcon : IDisposable
             Text = "说",
             Visible = true
         };
+        _notification.BalloonTipClicked += (_, _) => openSettings();
         _notification.MouseClick += (_, args) =>
         {
             if (args.Button == Forms.MouseButtons.Left) openSettings();
@@ -30,6 +31,12 @@ internal sealed class TrayIcon : IDisposable
                 _menu.DispatcherQueue.TryEnqueue(() => _menu.ShowMenu(cursor.X, cursor.Y));
             }
         };
+    }
+
+    internal void NotifyUpdate(string version)
+    {
+        if (!_disposed)
+            _notification.ShowBalloonTip(8000, "说有新版本", $"版本 {version} 已发布，点击打开应用更新。", Forms.ToolTipIcon.Info);
     }
 
     public void Dispose()

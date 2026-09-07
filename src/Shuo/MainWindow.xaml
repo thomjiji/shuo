@@ -339,7 +339,7 @@
                 </ScrollViewer>
             </Grid>
         </NavigationView>
-        <InfoBar x:Name="UpdateBanner" Grid.Row="2" Margin="12,0,12,12" IsOpen="False"
+        <InfoBar x:Name="UpdateBanner" Grid.Row="2" Margin="12,0,12,12" IsOpen="False" Visibility="Collapsed" Closed="UpdateBanner_Closed"
                  IsClosable="True" Severity="Informational" Title="有新版本可用">
             <InfoBar.ActionButton>
                 <Button x:Name="BannerUpdateButton" Content="更新并重启" Click="InstallUpdate_Click" />

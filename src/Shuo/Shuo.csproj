@@ -74,6 +74,7 @@
     <PackageReference Include="Microsoft.WindowsAppSDK.WinUI" Version="2.3.6" />
     <PackageReference Include="Microsoft.WindowsAppSDK.InteractiveExperiences" Version="2.1.6" />
     <PackageReference Include="Microsoft.Windows.SDK.BuildTools.MSIX" Version="1.7.251221100" />
+    <PackageReference Include="System.Net.Http.WinHttpHandler" Version="10.0.0" />
     <PackageReference Include="Velopack" Version="1.2.0" />
   </ItemGroup>
 

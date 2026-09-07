@@ -27,7 +27,7 @@ public sealed partial class MainWindow
         Title = $"说 {version}";
         try
         {
-            _updateManager = new UpdateManager(new GithubSource(ReleaseRepository, null, false));
+            _updateManager = new UpdateManager(new GithubSource(ReleaseRepository, null, false, new SystemProxyDownloader()));
             if (!_updateManager.IsInstalled || _updateManager.IsPortable)
             {
                 UpdateStatus.Text = "当前为便携版。安装后可在应用内接收更新提示并更新。";
@@ -49,6 +49,7 @@ public sealed partial class MainWindow
     {
         UpdateStatus.Text = $"发现新版本 {version}。";
         UpdateBanner.Message = $"版本 {version} 已发布，点击下载并重启。";
+        UpdateBanner.Visibility = Visibility.Visible;
         UpdateBanner.IsOpen = true;
         InstallUpdateButton.Visibility = Visibility.Visible;
         UpdateInstallControls();
@@ -58,6 +59,9 @@ public sealed partial class MainWindow
             _tray.NotifyUpdate(version);
         }
     }
+
+    private void UpdateBanner_Closed(Microsoft.UI.Xaml.Controls.InfoBar sender, Microsoft.UI.Xaml.Controls.InfoBarClosedEventArgs args)
+        => sender.Visibility = Visibility.Collapsed;
 
     private void UpdateInstallControls()
     {

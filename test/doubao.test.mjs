@@ -109,3 +109,25 @@ test("authentication rejection is bounded and does not expose credentials", asyn
     await new Promise((resolve) => server.close(resolve));
   }
 });
+
+test("cloud cleanup stays enabled even with a legacy disabled smoothing setting", async () => {
+  for (const enabled of [undefined, true, false]) {
+    await withServer(socket => {
+      socket.on("message", message => {
+        if ((message[1] >> 4) === 1) {
+          const config = JSON.parse(gunzipSync(message.subarray(8)));
+          assert.equal(config.request.enable_ddc, true);
+          assert.equal(config.request.enable_itn, true);
+          assert.equal(config.request.enable_punc, true);
+        } else if (message[1] & 2) socket.send(response("完成", true));
+      });
+    }, async url => {
+      const stream = new DoubaoStream({ apiKey: "test-only", semanticSmoothing: enabled }, () => {}, { url });
+      try {
+        await stream.connect();
+        stream.feed(new Int16Array(3200));
+        assert.equal((await stream.finish()).text, "完成");
+      } finally { stream.close(); }
+    });
+  }
+});

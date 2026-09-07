@@ -10,10 +10,10 @@ internal sealed class TrayIcon : IDisposable
     private readonly Forms.NotifyIcon _notification;
     private bool _disposed;
 
-    internal TrayIcon(string iconPath, Action openSettings, Action exit)
+    internal TrayIcon(string iconPath, Action openSettings, Action exit, Func<IReadOnlyList<TrayChoice>> providers, Func<IReadOnlyList<TrayChoice>> models)
     {
         _icon = new Icon(iconPath);
-        _menu = new TrayMenuWindow(openSettings, exit);
+        _menu = new TrayMenuWindow(openSettings, exit, providers, models);
 
         _notification = new Forms.NotifyIcon
         {

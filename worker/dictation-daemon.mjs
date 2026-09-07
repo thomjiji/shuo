@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 
 import { findLocalModels, saveModelSelection } from "./models.mjs";
 import { DoubaoStream, doubaoHeaders } from "./doubao.mjs";
+import { QwenStream, qwenConnection } from "./qwen.mjs";
 
 const SAMPLE_RATE = 16_000;
 const FRAME_LENGTH = 512;
@@ -224,16 +225,23 @@ export class DictationDaemon {
 
   configureBackend(command) {
     if (this.state !== "idle") throw new Error("请等待当前听写结束。");
-    if (!["local", "doubao"].includes(command.provider)) throw new Error("未知转录服务。");
+    if (!["local", "doubao", "qwen"].includes(command.provider)) throw new Error("未知转录服务。");
     if (command.provider === "doubao") doubaoHeaders(command.config || {});
+    if (command.provider === "qwen") qwenConnection(command.config || {});
     this.provider = command.provider;
     this.cloudConfig = command.config || {};
   }
 
+  createCloudStream(onPartial) {
+    if (this.provider === "qwen") return new QwenStream(this.cloudConfig, onPartial);
+    if (this.provider === "doubao") return new DoubaoStream(this.cloudConfig, onPartial);
+    throw new Error("请先选择云端转录服务。");
+  }
+
   async testCloud() {
     if (this.state !== "idle") throw new Error("请等待当前听写结束。");
+    const stream = this.createCloudStream();
     this.state = "testing";
-    const stream = new DoubaoStream(this.cloudConfig);
     try {
       await stream.connect();
       stream.feed(new Int16Array(3200));
@@ -347,7 +355,7 @@ export class DictationDaemon {
   }
 
   async loadModel() {
-    if (!this.settings.model.path) throw new Error("请先在转录服务中配置豆包云端，或在设置文件中指定本地模型。");
+    if (!this.settings.model.path) throw new Error("请先配置云端转录服务，或在设置文件中指定本地模型。");
     if (this.model) return this.model;
     if (!this.modelLoading) {
       this.modelLoading = this.runtime.TranscribeModel.load(this.settings.model.path).then((model) => {
@@ -364,10 +372,10 @@ export class DictationDaemon {
   }
 
   async startRecording() {
-    if (this.provider === "doubao") {
+    if (this.provider !== "local") {
       this.state = "connecting";
       emit("connecting");
-      this.cloud = new DoubaoStream(this.cloudConfig, (text) => emit("partial", { text }));
+      this.cloud = this.createCloudStream((text) => emit("partial", { text }));
       try { await this.cloud.connect(); }
       catch (error) { this.cloud.close(); this.cloud = undefined; throw error; }
       this.cloud.result.catch((error) => { void this.abortRecording(error); });

@@ -16,12 +16,14 @@ public sealed record TranscriptEntry(DateTimeOffset CreatedAt, string Text, stri
     {
         get
         {
-            if (Provider.StartsWith("豆包流式语音识别模型 2.0", StringComparison.Ordinal))
-                return "豆包 2.0";
-            if (Provider.StartsWith("豆包流式语音识别模型 1.0", StringComparison.Ordinal))
-                return "豆包 1.0";
-            if (Provider.StartsWith("豆包语音识别", StringComparison.Ordinal))
-                return "豆包";
+            // Earlier cloud records include a display label before the exact API model ID.
+            if (Provider.StartsWith("百炼 Fun-ASR", StringComparison.Ordinal)
+                || Provider.StartsWith("千问 Qwen3 ASR", StringComparison.Ordinal))
+            {
+                var start = Provider.LastIndexOf('[');
+                if (start >= 0 && Provider.EndsWith(']'))
+                    return Provider[(start + 1)..^1];
+            }
             return Provider;
         }
     }
@@ -69,8 +71,9 @@ internal sealed class TranscriptHistory(string path)
             {
                 while (reader.ReadLine() is { } line)
                 {
+                    if (string.IsNullOrWhiteSpace(line)) { changed = true; continue; }
                     var readable = line;
-                    if (line.Contains("\\u", StringComparison.Ordinal))
+                    if (!string.IsNullOrWhiteSpace(line))
                     {
                         try
                         {
@@ -119,8 +122,14 @@ internal sealed class TranscriptHistory(string path)
         if (string.IsNullOrWhiteSpace(entry.Text)) return;
         Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(path))!);
         // A fresh line isolates an incomplete record left by an interrupted write.
-        var bytes = Encoding.UTF8.GetBytes("\n" + JsonSerializer.Serialize(entry, JsonOptions) + "\n");
-        using var stream = new FileStream(path, FileMode.Append, FileAccess.Write, FileShare.Read);
+        var bytes = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(entry, JsonOptions) + "\n");
+        using var stream = new FileStream(path, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.Read);
+        if (stream.Length > 0)
+        {
+            stream.Seek(-1, SeekOrigin.End);
+            if (stream.ReadByte() != '\n') stream.WriteByte((byte)'\n');
+        }
+        stream.Seek(0, SeekOrigin.End);
         stream.Write(bytes);
         stream.Flush(flushToDisk: true);
     }

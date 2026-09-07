@@ -1,17 +1,9 @@
-using System.Text.RegularExpressions;
-
 namespace Shuo.Services;
 
-internal sealed record TextCleanupOptions(bool RemoveFillerWords = false, bool TrimTrailingPeriod = false);
+internal sealed record TextCleanupOptions(bool TrimTrailingPeriod = false);
 
 internal static class TextCleanup
 {
-    // Only isolated hesitation sounds with a following pause are eligible.
-    // Sentence particles (including 啊) and ordinary words are deliberately retained.
-    private static readonly Regex Filler = new(
-        @"(?<boundary>^|[，,。！？!?；;\r\n])[\t ]*[嗯呃]+[，,、…]+[\t ]*",
-        RegexOptions.Compiled);
-
     private static readonly HashSet<string> Abbreviations = new(StringComparer.OrdinalIgnoreCase)
     {
         "Mr", "Mrs", "Ms", "Dr", "Prof", "Sr", "Jr", "St", "vs", "etc", "Inc", "Ltd",
@@ -21,24 +13,8 @@ internal static class TextCleanup
 
     internal static string Apply(string text, TextCleanupOptions options)
     {
-        if (options.RemoveFillerWords) text = RemoveFillers(text);
         if (options.TrimTrailingPeriod) text = TrimPeriod(text);
         return text;
-    }
-
-    private static string RemoveFillers(string text)
-    {
-        // A complete utterance such as “嗯。” may be an acknowledgment.
-        if (!text.Any(c => char.IsLetterOrDigit(c) && c is not ('嗯' or '呃'))) return text;
-
-        while (true)
-        {
-            var original = text;
-            text = Filler.Replace(original, match => IsQuoted(original, match.Index)
-                ? match.Value
-                : match.Groups["boundary"].Value);
-            if (text == original) return text;
-        }
     }
 
     private static bool IsQuoted(string text, int index)

@@ -2,24 +2,10 @@ using Shuo.Services;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 
-var fillers = new TextCleanupOptions(RemoveFillerWords: true);
 var periods = new TextCleanupOptions(TrimTrailingPeriod: true);
-var both = new TextCleanupOptions(true, true);
 var cases = new (string Input, string Expected, TextCleanupOptions Options)[]
 {
     ("我想，呃，明天再试。", "我想，呃，明天再试。", new()),
-    ("我想，呃，明天再试。", "我想，明天再试。", fillers),
-    ("嗯……我再想想。", "我再想想。", fillers),
-    ("嗯，呃，明天。", "明天。", fillers),
-    ("我想，嗯，呃，明天。", "我想，明天。", fillers),
-    ("嗯。", "嗯。", fillers),
-    ("嗯，呃……", "嗯，呃……", fillers),
-    ("好啊。", "好啊。", fillers),
-    ("啊，我知道了。", "啊，我知道了。", fillers),
-    ("然后我们明天出发。", "然后我们明天出发。", fillers),
-    ("嗯我知道了。", "嗯我知道了。", fillers),
-    ("他说：“我想，嗯，再试。”", "他说：“我想，嗯，再试。”", fillers),
-    ("他说：\"我想，呃，再试。\"", "他说：\"我想，呃，再试。\"", fillers),
     ("是。", "是", periods),
     ("是？", "是？", periods),
     ("是！", "是！", periods),
@@ -35,9 +21,9 @@ var cases = new (string Input, string Expected, TextCleanupOptions Options)[]
     ("Version 3.14.", "Version 3.14.", periods),
     ("Visit https://example.com.", "Visit https://example.com.", periods),
     ("user@example.com.", "user@example.com.", periods),
-    ("嗯，明天再试。", "明天再试", both),
-    ("", "", both),
-    ("...", "...", both),
+    ("嗯，明天再试。", "嗯，明天再试", periods),
+    ("", "", periods),
+    ("...", "...", periods),
 };
 
 foreach (var (input, expected, options) in cases)
@@ -55,13 +41,15 @@ Environment.SetEnvironmentVariable("SHUO_SETTINGS", settingsPath);
 try
 {
     Assert(TextCleanupSettings.Load() == new TextCleanupOptions(), "Missing settings default to disabled.");
-    File.WriteAllText(settingsPath, """{"model":"existing-model","hotkey":{"modifiers":3,"virtualKey":220},"custom":{"keep":true}}""");
-    Assert(TextCleanupSettings.Load() == new TextCleanupOptions(), "Missing flags default to disabled.");
-    foreach (var options in new[] { fillers, periods, both, new TextCleanupOptions() })
+    File.WriteAllText(settingsPath, """{"removeFillerWords":true,"model":"existing-model","hotkey":{"modifiers":3,"virtualKey":220},"custom":{"keep":true}}""");
+    Assert(TextCleanupSettings.Load() == new TextCleanupOptions(), "The removed filler option is ignored.");
+    Assert(TextCleanup.Apply("嗯，测试。", TextCleanupSettings.Load()) == "嗯，测试。", "Legacy settings cannot remove filler words.");
+    foreach (var options in new[] { periods, new TextCleanupOptions() })
     {
         TextCleanupSettings.Save(options);
-        Assert(TextCleanupSettings.Load() == options, "Both toggles round-trip independently.");
+        Assert(TextCleanupSettings.Load() == options, "Trailing period option round-trips.");
         var stored = JsonNode.Parse(File.ReadAllText(settingsPath))!;
+        Assert(stored["removeFillerWords"] is null, "Saving removes the obsolete option.");
         Assert(stored["model"]!.GetValue<string>() == "existing-model", "Model is preserved.");
         Assert(stored["hotkey"]!["modifiers"]!.GetValue<int>() == 3
             && stored["hotkey"]!["virtualKey"]!.GetValue<int>() == 220, "Hotkey is preserved.");
@@ -72,7 +60,7 @@ try
     {
         File.WriteAllText(settingsPath, malformed);
         ExpectFailure(() => TextCleanupSettings.Load());
-        ExpectFailure(() => TextCleanupSettings.Save(both));
+        ExpectFailure(() => TextCleanupSettings.Save(periods));
         Assert(File.ReadAllText(settingsPath) == malformed, "Invalid settings remain unchanged.");
     }
     Assert(Directory.GetFiles(temporaryDirectory).Length == 1, "No temporary files remain.");
@@ -154,6 +142,12 @@ try
         Assert(failed, "Persistence failures are reported to the caller.");
     }
     Assert(history.Load(out skipped).Count == 114, "Failed writes leave saved records intact.");
+    var spaced = new TranscriptEntry(first.CreatedAt, "保留  两个空格 and words", "fun-asr-realtime");
+    File.WriteAllText(historyPath, "\n  " + JsonSerializer.Serialize(spaced) + "  \n\n");
+    Assert(history.Load(out skipped).Single() == spaced, "Compaction preserves spaces inside transcript text.");
+    Assert(File.ReadAllLines(historyPath).Length == 1, "Compaction removes blank lines.");
+    history.Append(spaced);
+    Assert(File.ReadAllLines(historyPath).Length == 2, "Appending adds exactly one line without a blank separator.");
     Console.WriteLine("Passed transcript history persistence and recovery checks.");
 }
 finally

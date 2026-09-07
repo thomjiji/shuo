@@ -68,7 +68,7 @@ public sealed partial class MainWindow : Window
         }
         _tray = new TrayIcon(iconPath,
             () => DispatcherQueue.TryEnqueue(ShowSettings),
-            () => DispatcherQueue.TryEnqueue(() => _ = ExitAsync()));
+            () => DispatcherQueue.TryEnqueue(() => _ = ExitAsync()), TrayProviders, TrayModels);
         AppWindow.IsShownInSwitchers = true;
         AppWindow.Closing += OnWindowClosing;
 
@@ -97,13 +97,23 @@ public sealed partial class MainWindow : Window
         try
         {
             _cloudOptions = CloudSettings.Load();
-            ProviderPicker.SelectedIndex = _cloudOptions.Enabled ? 1 : 0;
+            ProviderPicker.SelectedIndex = _cloudOptions.Backend switch { "qwen" => 2, "doubao" => 1, _ => 0 };
+            QwenApiKey.Password = _cloudOptions.QwenApiKey;
+            QwenRegionPicker.SelectedIndex = _cloudOptions.QwenRegion == "ap-southeast-1" ? 1 : 0;
             CloudApiKey.Password = _cloudOptions.ApiKey;
             CloudAppId.Text = _cloudOptions.AppId;
             CloudAccessToken.Password = _cloudOptions.AccessToken;
             CloudResourceId.Text = _cloudOptions.ResourceId;
         }
-        catch (Exception cloudError) { CloudStatus.Text = cloudError.Message; }
+        catch (Exception cloudError) { CloudStatusMessage = cloudError.Message; }
+        _cloudFieldsLoaded = true;
+        CloudApiKey.PasswordChanged += (_, _) => RefreshCloudStatus();
+        CloudAccessToken.PasswordChanged += (_, _) => RefreshCloudStatus();
+        QwenApiKey.PasswordChanged += (_, _) => RefreshCloudStatus();
+        CloudAppId.TextChanged += (_, _) => RefreshCloudStatus();
+        CloudResourceId.TextChanged += (_, _) => RefreshCloudStatus();
+        QwenRegionPicker.SelectionChanged += (_, _) => RefreshCloudStatus();
+        RefreshCloudStatus();
         InitializeUpdates();
     }
 
@@ -143,39 +153,35 @@ public sealed partial class MainWindow : Window
             SettingsContent.Width = Math.Max(0, Math.Min(920, args.NewSize.Width - 48));
     }
 
-    private CloudOptions _cloudOptions = new();
-    private bool _cloudTesting;
-    private bool _backendConfigured;
+    private bool CanSwitchFromTray => _daemonReady && !_dictationActive && !_togglePending
+        && !_modelChanging && !_loadingModels && !_installingUpdate;
 
-    private void ProviderPicker_SelectionChanged(object sender, SelectionChangedEventArgs args)
-    {
-        if (CloudFields is null || SaveCloudButton is null) return;
-        CloudFields.Visibility = ProviderPicker.SelectedIndex == 1 ? Visibility.Visible : Visibility.Collapsed;
-        if (LocalModelCard is not null) LocalModelCard.Visibility = ProviderPicker.SelectedIndex == 0 ? Visibility.Visible : Visibility.Collapsed;
-        SaveCloudButton.Content = ProviderPicker.SelectedIndex == 1 ? "保存并测试" : "保存";
-    }
+    private IReadOnlyList<TrayChoice> TrayProviders() =>
+        new[] { ("local", "本地模型"), ("doubao", "火山引擎"), ("qwen", "阿里云百炼") }
+            .Select(item => new TrayChoice(item.Item2, _cloudOptions.Backend == item.Item1,
+                CanSwitchFromTray, () => _ = SwitchTrayProviderAsync(item.Item1))).ToArray();
 
-    private Task ConfigureBackendAsync() => _daemon.SendAsync(JsonSerializer.Serialize(new
-    {
-        type = "configure-backend",
-        provider = _cloudOptions.Enabled ? "doubao" : "local",
-        config = new { apiKey = _cloudOptions.ApiKey, appId = _cloudOptions.AppId,
-            accessToken = _cloudOptions.AccessToken, resourceId = _cloudOptions.ResourceId }
-    }));
+    private IReadOnlyList<TrayChoice> TrayModels() => ModelPicker.Items.OfType<LocalModel>()
+        .Select(model => new TrayChoice(Path.GetFileNameWithoutExtension(model.Path),
+            string.Equals(model.Path, _selectedModelPath, StringComparison.OrdinalIgnoreCase),
+            CanSwitchFromTray && !_cloudOptions.Enabled,
+            () =>
+            {
+                if (CanSwitchFromTray && !_cloudOptions.Enabled) ModelPicker.SelectedItem = model;
+            })).ToArray();
 
-    private async void SaveCloudButton_Click(object sender, RoutedEventArgs args)
+    private async Task SwitchTrayProviderAsync(string provider)
     {
-        if (_dictationActive || _togglePending || _modelChanging || !_daemonReady) return;
+        if (!CanSwitchFromTray || provider == _cloudOptions.Backend) return;
         try
         {
-            var options = new CloudOptions(ProviderPicker.SelectedIndex == 1,
-                CloudResourceId.Text.Trim(), CloudApiKey.Password.Trim(),
-                CloudAppId.Text.Trim(), CloudAccessToken.Password.Trim());
+            var options = _cloudOptions with { Enabled = provider != "local", Provider = provider == "local" ? "doubao" : provider };
             CloudSettings.Save(options);
             _cloudOptions = options;
+            ProviderPicker.SelectedIndex = provider switch { "qwen" => 2, "doubao" => 1, _ => 0 };
             _modelChanging = true;
             _cloudTesting = options.Enabled;
-            CloudStatus.Text = options.Enabled ? "正在测试豆包连接..." : "正在切换到本地模型...";
+            CloudStatusMessage = options.Enabled ? $"正在测试{options.ServiceName}连接..." : "正在切换到本地模型...";
             UpdateModelControls();
             await ConfigureBackendAsync();
             if (_cloudTesting) await _daemon.SendAsync("test-cloud");
@@ -184,6 +190,79 @@ public sealed partial class MainWindow : Window
         {
             _modelChanging = false;
             _cloudTesting = false;
+            CloudStatusMessage = error.Message;
+            CloudStatus.Text = error.Message;
+            UpdateModelControls();
+            ShowSettings();
+        }
+    }
+    private CloudOptions _cloudOptions = new();
+    private bool _cloudTesting;
+    private bool _backendConfigured;
+    private bool _cloudFieldsLoaded;
+    private string _cloudStatusMessage = "当前使用本地模型。";
+    private string CloudStatusMessage
+    {
+        set
+        {
+            _cloudStatusMessage = value;
+            RefreshCloudStatus();
+        }
+    }
+
+    private CloudOptions ReadCloudOptions() => new(ProviderPicker.SelectedIndex > 0,
+        CloudResourceId.Text.Trim(), CloudApiKey.Password.Trim(),
+        CloudAppId.Text.Trim(), CloudAccessToken.Password.Trim(),
+        Provider: ProviderPicker.SelectedIndex == 2 ? "qwen" : "doubao",
+        QwenApiKey: QwenApiKey.Password.Trim(),
+        QwenRegion: QwenRegionPicker.SelectedIndex == 1 ? "ap-southeast-1" : "cn-beijing");
+
+    private void RefreshCloudStatus()
+    {
+        if (CloudStatus is null) return;
+        CloudStatus.Text = _cloudFieldsLoaded && ReadCloudOptions() != _cloudOptions
+            ? "有未保存的更改" : _cloudStatusMessage;
+    }
+
+    private void ProviderPicker_SelectionChanged(object sender, SelectionChangedEventArgs args)
+    {
+        if (CloudFields is null || SaveCloudButton is null) return;
+        CloudFields.Visibility = ProviderPicker.SelectedIndex == 1 ? Visibility.Visible : Visibility.Collapsed;
+        if (QwenFields is not null) QwenFields.Visibility = ProviderPicker.SelectedIndex == 2 ? Visibility.Visible : Visibility.Collapsed;
+        if (DictationTrialCard is not null) DictationTrialCard.Visibility = ProviderPicker.SelectedIndex > 0 ? Visibility.Visible : Visibility.Collapsed;
+        if (LocalModelCard is not null) LocalModelCard.Visibility = ProviderPicker.SelectedIndex == 0 ? Visibility.Visible : Visibility.Collapsed;
+        SaveCloudButton.Content = ProviderPicker.SelectedIndex > 0 ? "保存并测试" : "保存";
+        RefreshCloudStatus();
+    }
+
+    private Task ConfigureBackendAsync() => _daemon.SendAsync(JsonSerializer.Serialize(new
+    {
+        type = "configure-backend",
+        provider = _cloudOptions.Backend,
+        config = new { apiKey = _cloudOptions.Provider == "qwen" ? _cloudOptions.QwenApiKey : _cloudOptions.ApiKey, region = _cloudOptions.QwenRegion, appId = _cloudOptions.AppId,
+            accessToken = _cloudOptions.AccessToken, resourceId = _cloudOptions.ResourceId }
+    }));
+
+    private async void SaveCloudButton_Click(object sender, RoutedEventArgs args)
+    {
+        if (_dictationActive || _togglePending || _modelChanging || !_daemonReady) return;
+        try
+        {
+            var options = ReadCloudOptions();
+            CloudSettings.Save(options);
+            _cloudOptions = options;
+            _modelChanging = true;
+            _cloudTesting = options.Enabled;
+            CloudStatusMessage = options.Enabled ? $"正在测试{options.ServiceName}连接..." : "正在切换到本地模型...";
+            UpdateModelControls();
+            await ConfigureBackendAsync();
+            if (_cloudTesting) await _daemon.SendAsync("test-cloud");
+        }
+        catch (Exception error)
+        {
+            _modelChanging = false;
+            _cloudTesting = false;
+            CloudStatusMessage = error.Message;
             CloudStatus.Text = error.Message;
             UpdateModelControls();
         }
@@ -194,11 +273,10 @@ public sealed partial class MainWindow : Window
         UpdateInstallControls();
         var idle = !_installingUpdate && _daemonReady && !_dictationActive && !_togglePending && !_modelChanging && !_loadingModels;
         var cloudIdle = !_installingUpdate && _daemonReady && !_dictationActive && !_togglePending && !_modelChanging;
-        foreach (var control in new Control[] { ProviderPicker, CloudApiKey, CloudAppId, CloudAccessToken, CloudResourceId, SaveCloudButton }) control.IsEnabled = cloudIdle;
+        foreach (var control in new Control[] { ProviderPicker, CloudApiKey, CloudAppId, CloudAccessToken, CloudResourceId, QwenApiKey, QwenRegionPicker, SaveCloudButton }) control.IsEnabled = cloudIdle;
         ModelPicker.IsEnabled = idle && !_cloudOptions.Enabled && ModelPicker.Items.Count > 0;
         RefreshModelsButton.IsEnabled = _daemonReady && !_dictationActive && !_togglePending && !_modelChanging && !_loadingModels;
         EditShortcutButton.IsEnabled = !_modelChanging;
-        RemoveFillerWordsToggle.IsEnabled = !_modelChanging;
         TrimTrailingPeriodToggle.IsEnabled = !_modelChanging;
     }
 
@@ -259,7 +337,6 @@ public sealed partial class MainWindow : Window
     private void UpdateCleanupControls()
     {
         _updatingCleanupControls = true;
-        RemoveFillerWordsToggle.IsOn = _cleanupOptions.RemoveFillerWords;
         TrimTrailingPeriodToggle.IsOn = _cleanupOptions.TrimTrailingPeriod;
         _updatingCleanupControls = false;
     }
@@ -267,7 +344,7 @@ public sealed partial class MainWindow : Window
     private void TextCleanupToggle_Toggled(object sender, RoutedEventArgs args)
     {
         if (_updatingCleanupControls) return;
-        var options = new TextCleanupOptions(RemoveFillerWordsToggle.IsOn, TrimTrailingPeriodToggle.IsOn);
+        var options = new TextCleanupOptions(TrimTrailingPeriodToggle.IsOn);
         try
         {
             TextCleanupSettings.Save(options);
@@ -409,23 +486,23 @@ public sealed partial class MainWindow : Window
             case "backend-configured":
                 _backendConfigured = true;
                 if (!_cloudTesting) _modelChanging = false;
-                if (!_cloudTesting) CloudStatus.Text = _cloudOptions.Enabled
-                    ? "当前使用豆包云端。按快捷键开始流式听写。" : "当前使用本地模型。";
+                if (!_cloudTesting) CloudStatusMessage = _cloudOptions.Enabled
+                    ? $"当前使用{_cloudOptions.ServiceName}云端。" : "当前使用本地模型。";
                 break;
             case "backend-error":
                 _modelChanging = false;
                 _cloudTesting = false;
                 // Block dictation until the selected service is successfully applied.
                 _backendConfigured = false;
-                CloudStatus.Text = message.Error ?? "无法配置转录服务。";
+                CloudStatusMessage = message.Error ?? "无法配置转录服务。";
                 break;
             case "cloud-tested":
             case "cloud-test-error":
                 _modelChanging = false;
                 _cloudTesting = false;
-                CloudStatus.Text = message.Type == "cloud-tested"
-                    ? "豆包连接成功。按快捷键开始说话，再按一次结束。"
-                    : message.Error ?? "豆包连接测试失败。";
+                CloudStatusMessage = message.Type == "cloud-tested"
+                    ? $"{_cloudOptions.ServiceName}连接成功，可在下方试用听写。"
+                    : message.Error ?? $"{_cloudOptions.ServiceName}连接测试失败。";
                 break;
             case "audio-level":
                 _overlay.UpdateAudioLevel(message.Level ?? 0);
@@ -436,12 +513,10 @@ public sealed partial class MainWindow : Window
             case "connecting":
                 _dictationActive = true;
                 _overlay.Begin(true);
-                CloudStatus.Text = "正在连接豆包...";
                 break;
             case "recording":
                 _dictationActive = true;
                 _recordingCleanupOptions = _cleanupOptions;
-                if (_cloudOptions.Enabled) CloudStatus.Text = "正在录音并转录...";
                 _togglePending = false;
                 _overlay.Recording();
                 break;
@@ -451,7 +526,6 @@ public sealed partial class MainWindow : Window
                 _overlay.Transcribing();
                 break;
             case "transcript":
-                if (_cloudOptions.Enabled) CloudStatus.Text = "转录完成。";
                 _dictationActive = false;
                 _togglePending = false;
                 if (_cloudOptions.Enabled) _overlay.Pasting(message.Text);
@@ -479,7 +553,8 @@ public sealed partial class MainWindow : Window
         _pendingPastes++;
         UpdateInstallControls();
         var completedAt = DateTimeOffset.Now;
-        var provider = TranscriptHistory.ModelName(_cloudOptions.Enabled, _cloudOptions.ResourceId, _selectedModelPath);
+        var provider = _cloudOptions.Backend == "qwen" ? "fun-asr-realtime"
+            : TranscriptHistory.ModelName(_cloudOptions.Enabled, _cloudOptions.ResourceId, _selectedModelPath);
         try
         {
             var formatted = await TranscriptPaster.PrepareAsync(text, _autocorrectPath, _recordingCleanupOptions);
@@ -498,7 +573,7 @@ public sealed partial class MainWindow : Window
                 catch (Exception error)
                 {
                     HistoryNotice.Text = "无法保存本次转录记录：" + error.Message;
-                    CloudStatus.Text = HistoryNotice.Text;
+                    CloudStatusMessage = HistoryNotice.Text;
                 }
             }
             TranscriptPaster.Paste(formatted, _shutdown.Token);

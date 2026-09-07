@@ -114,7 +114,7 @@ export class DoubaoStream {
     this.send(encodePacket(1, Buffer.from(JSON.stringify({
       user: { uid: "shuo" },
       audio: { format: "pcm", codec: "raw", rate: 16000, bits: 16, channel: 1 },
-      request: { model_name: "bigmodel", enable_itn: true, enable_punc: true, result_type: "full" },
+      request: { model_name: "bigmodel", enable_itn: true, enable_punc: true, enable_ddc: true, result_type: "full" },
     }))));
   }
 

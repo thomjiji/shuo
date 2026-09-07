@@ -12,7 +12,6 @@ internal static class TextCleanupSettings
         var root = JsonNode.Parse(File.ReadAllText(path)) as JsonObject
             ?? throw new InvalidDataException("Dictation settings must be a JSON object.");
         return new(
-            root["removeFillerWords"]?.GetValue<bool>() ?? false,
             root["trimTrailingPeriod"]?.GetValue<bool>() ?? false);
     }
 
@@ -22,7 +21,7 @@ internal static class TextCleanupSettings
         if (!File.Exists(path)) throw new FileNotFoundException("Dictation settings are not ready yet.", path);
         var root = JsonNode.Parse(File.ReadAllText(path)) as JsonObject
             ?? throw new InvalidDataException("Dictation settings must be a JSON object.");
-        root["removeFillerWords"] = options.RemoveFillerWords;
+        root.Remove("removeFillerWords");
         root["trimTrailingPeriod"] = options.TrimTrailingPeriod;
         var temporaryPath = path + "." + Guid.NewGuid().ToString("N") + ".tmp";
         try

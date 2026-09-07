@@ -23,7 +23,7 @@ dotnet build Shuo.slnx --configuration Debug
 
 ## 输入流程
 
-`MainWindow` 注册全局快捷键并启动 Node worker。worker 以 16 kHz 采集音频，停止录音后交给本地 transcribe-cpp 模型转写，按配置转换中文繁简体。宿主收到最终文本后执行可选的中英文排版整理、口水词过滤和末尾句号处理，将最终文字追加到本地历史文件，再通过剪贴板和 Ctrl+V 输入到前台应用。
+`MainWindow` 注册全局快捷键并启动 Node worker。worker 以 16 kHz 采集音频，停止录音后交给本地 transcribe-cpp 模型转写，按配置转换中文繁简体。宿主收到最终文本后执行可选的中英文排版整理和末尾句号处理，将最终文字追加到本地历史文件，再通过剪贴板和 Ctrl+V 输入到前台应用。
 
 `OverlayWindow` 在连接、录音及等待最终转录期间显示，粘贴完成后收起；不激活、不接收焦点。它按前台窗口所在显示器的工作区定位；无法确定显示器时使用主屏。窗口样式中的不激活和工具窗口标志保证浮层不会夺走目标输入框的焦点。
 
@@ -31,7 +31,7 @@ dotnet build Shuo.slnx --configuration Debug
 
 主窗口使用 `NavigationView` 切换常规、转录服务、转录历史和文本整理区域，切换页面时取消未保存的快捷键编辑。内容宽度按右侧视口减去两侧留白计算，最大为 920 DIP，并在右侧区域内居中。浮窗使用桌面亚克力背景，监听 `UISettings.ColorValuesChanged`，在 UI 线程同步更新浅色或深色材质、边框和文字颜色；不支持亚克力时使用纯色背景。浮窗保持不激活，通过背景配置保留亚克力效果；文字通过整体字形遮罩在左侧淡出，并平滑滚动显示最新内容。蓝点随音量缩放，重音触发扩散波纹，安静时缓慢呼吸；关闭系统动画时保持静态。关闭时释放材质控制器并解除监听。
 
-`TranscriptHistory` 将最终文字、完成时间和模型名称追加到 `%LOCALAPPDATA%\Shuo\history.jsonl`，每次写入后刷新到磁盘。读取时先将旧 JSON 行重新序列化为可读 UTF-8，以原子替换和独立备份保留原文件，未知字段和损坏行保持原有内容；随后跳过并报告损坏行；追加前补换行，避免上一次中断留下的残行吞掉新记录。历史页按写入顺序倒序显示，每次增加 50 条，不截断磁盘记录。保存失败会显示错误并继续粘贴；粘贴失败不删除已保存记录。`partial` 只更新浮窗，不进入历史。
+`TranscriptHistory` 将最终文字、完成时间和模型名称追加到 `%LOCALAPPDATA%\Shuo\history.jsonl`，每次写入后刷新到磁盘。读取时跳过空行，将 JSON 行紧凑序列化为可读 UTF-8，保留正文内空格，以原子替换和独立备份保留原文件，未知字段和损坏行保持原有内容；随后跳过并报告损坏行；仅在文件末尾缺少换行时补换行，避免残行吞掉新记录，每次追加恰好一行。历史页按写入顺序倒序显示，每次增加 50 条，不截断磁盘记录。保存失败会显示错误并继续粘贴；粘贴失败不删除已保存记录。`partial` 只更新浮窗，不进入历史。
 
 ## 进程协议
 
@@ -53,11 +53,13 @@ dotnet build Shuo.slnx --configuration Debug
 | `error` | 失败原因位于 `message`。 |
 | `stopped` | worker 已完成关闭。 |
 
-`configure-backend` JSON 命令携带 `provider`（`local` 或 `doubao`）及内存中的 `config`，返回 `backend-configured` 或 `backend-error`。`test-cloud` 检查云端调用并返回 `cloud-tested` 或 `cloud-test-error`。云端连接期间发送 `connecting`，界面禁止更改服务。凭据由 WinUI 宿主从 Windows PasswordVault 读取，经 worker 标准输入传递，不写入命令行、配置文件或事件输出。
+`configure-backend` JSON 命令携带 `provider`（`local`、`doubao` 或 `qwen`）及内存中的 `config`，返回 `backend-configured` 或 `backend-error`。`test-cloud` 检查云端调用并返回 `cloud-tested` 或 `cloud-test-error`。百炼的配置使用 `apiKey` 和 `region`，豆包使用原有凭据与资源字段，固定发送 enable_ddc=true、enable_itn=true 和 enable_punc=true；旧 semanticSmoothing 字段不再读取，保存设置时移除；`transcriptionProvider` 保存当前服务，未设置时按旧版 `doubao.enabled` 读取。云端连接期间发送 `connecting`，界面禁止更改服务。凭据由 WinUI 宿主从 Windows PasswordVault 读取，经 worker 标准输入传递，不写入命令行、配置文件或事件输出。
 
 `worker/models.mjs` 从当前模型路径确定扫描范围，识别 Hugging Face 的仓库与快照层级，不遍历缓存 blobs 或其他目录。切换命令再次检查候选列表；先释放旧模型，再加载新模型，成功后以临时文件替换配置，仅更新 `model` 字段。失败时保留原配置，下次听写重新加载原模型。命令队列与界面状态共同避免录音、转录和切换重叠。
 
 本地模型在多次听写间复用，停止录音后执行转写。豆包模式通过 `worker/doubao.mjs` 建立双向流式 WebSocket，每 200 ms 发送一包 16 kHz、16-bit 单声道 PCM。`partial` 事件携带当前完整预览文本；最后一个音频包带结束标记，收到服务端最终包才发送 `transcript`。断线或超时不提交未确认文本。宿主退出时会等待 worker，超过五秒则终止子进程。
+
+百炼通过 worker/qwen.mjs 调用 fun-asr-realtime，使用 DashScope 双向 WebSocket 协议。发送 run-task 并收到 task-started 后开始采集，每 200 ms 发送一包二进制 PCM。按 sentence_id 排序并更新句子快照，sentence_end 确认句子完成；心跳包不进入文本。停止录音时发送 finish-task，收到 task-finished 且所有句子完成后才提交最终文字。北京和新加坡使用各自端点与凭据；内部 provider 仍为 qwen。测试使用本地 WebSocket 服务验证协议，不调用真实云端。
 
 ## 配置与发布
 

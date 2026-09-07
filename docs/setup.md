@@ -13,7 +13,7 @@
 ## 下载后直接使用豆包
 
 1. 安装并打开“说”。
-2. 在“转录服务”中选择“豆包云端”，填写火山引擎语音控制台的 API Key，点击“保存并测试”。新电脑会自动创建默认配置，不需要先下载本地模型或安装 Pi。
+2. 在“转录服务”中选择“火山引擎 - 豆包流式语音识别模型 2.0”，填写火山引擎语音控制台的 API Key，点击“保存并测试”。新电脑会自动创建默认配置，不需要先下载本地模型或安装 Pi。
 3. 允许桌面应用访问麦克风，在文本输入框按 `Ctrl+Alt+\` 开始说话，再按一次结束并粘贴。
 
 API Key 需要在每台电脑上填写一次，保存在该电脑的 Windows 凭据管理器中。历史记录保存在各自电脑上，不会随安装包或更新同步。
@@ -63,11 +63,11 @@ notepad (Join-Path $settingsDir "settings.json")
 
 启动后，在“转录服务”页选择“本地模型”并保存，可选择其他模型。普通文件夹只列出当前模型同层的 `.gguf` 文件；pi-transcribe 使用 Hugging Face 缓存时，会列出同一缓存根目录下各模型快照中的 `.gguf` 文件，不扫描其他位置。下载完成后点击刷新；Fun-ASR Nano Multilingual 对应的文件名为 `Fun-ASR-MLT-Nano-2512-*.gguf`。shuo 只保存自己的选择，不修改 pi-transcribe 配置，也不负责下载模型。
 
-`autocorrectPath` 是可选项，用于中英文排版整理。口水词过滤和末尾句号选项可在主界面设置，不依赖 autocorrect。
+`autocorrectPath` 是可选项，用于中英文排版整理。末尾句号选项可在主界面设置，不依赖 autocorrect。
 
 ## 豆包云端配置
 
-在火山引擎开通[流式语音识别](https://www.volcengine.com/product/asr)，从语音控制台获取 API Key。打开 shuo，在“转录服务”中选择“豆包云端”，填写 API Key 后点击“保存并测试”。默认资源 ID 为流式识别 2.0 小时版的 `volc.seedasr.sauc.duration`；其他套餐须在展开项中填写对应资源 ID。旧版控制台可填写 App ID 和 Access Token，API Key 留空。
+在火山引擎开通[流式语音识别](https://www.volcengine.com/product/asr)，从语音控制台获取 API Key。打开 shuo，在“转录服务”中选择“火山引擎 - 豆包流式语音识别模型 2.0”，填写 API Key 后点击“保存并测试”。默认资源 ID 为流式识别 2.0 小时版的 `volc.seedasr.sauc.duration`；其他套餐须在展开项中填写对应资源 ID。旧版控制台可填写 App ID 和 Access Token，API Key 留空。
 
 凭据保存在当前 Windows 用户的凭据管理器中，配置文件仅记录服务选择和资源 ID。云端模式需要联网，录音会上传到火山引擎并按用量计费。录音时屏幕底部指示条显示实时文字，停止后等待最终结果，再执行本地文本整理、保存历史和粘贴。完成的文字可在“转录历史”页查看、复制。历史保存在这台电脑的 `%LOCALAPPDATA%\Shuo\history.jsonl`，更新程序后保留，不随安装包同步到其他电脑。详细协议见[官方文档](https://www.volcengine.com/docs/6561/1354869)。
 

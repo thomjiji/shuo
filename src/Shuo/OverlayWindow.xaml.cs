@@ -1,4 +1,9 @@
 using System.Diagnostics;
+using System.Numerics;
+using Microsoft.UI.Xaml.Hosting;
+using Microsoft.UI.Composition;
+using Microsoft.UI.Composition.SystemBackdrops;
+using WinRT;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Media;
@@ -19,6 +24,12 @@ public sealed partial class OverlayWindow : Window
     private readonly IntPtr _handle;
     private readonly UISettings _themeSettings = new();
     private bool _closed;
+    private SpriteVisual? _textVisual;
+    private CompositionLinearGradientBrush? _textGradient;
+    private CompositionColorGradientStop? _fadeStart;
+    private CompositionColorGradientStop? _fadeEnd;
+    private DesktopAcrylicController? _acrylic;
+    private SystemBackdropConfiguration? _backdropConfiguration;
     private readonly Stopwatch _clock = new();
     private RectInt32 _workArea;
     private bool _visible;
@@ -32,6 +43,11 @@ public sealed partial class OverlayWindow : Window
     private double _displayLevel;
     private double _voiceFrame;
     private bool _busy;
+    private readonly double[] _rippleBorn = [-10, -10];
+    private readonly double[] _rippleStrength = [0, 0];
+    private int _nextRipple;
+    private double _lastPulse = -10;
+    private double _previousLevel;
 
     public OverlayWindow()
     {
@@ -51,10 +67,21 @@ public sealed partial class OverlayWindow : Window
         Closed += (_, _) =>
         {
             _closed = true;
+            _acrylic?.Dispose();
+            _acrylic = null;
             _themeSettings.ColorValuesChanged -= OnSystemColorsChanged;
             StopScrolling();
             StopVoiceAnimation();
         };
+        if (DesktopAcrylicController.IsSupported())
+        {
+            // This passive overlay must keep its material while the typing app has focus.
+            _backdropConfiguration = new SystemBackdropConfiguration { IsInputActive = true };
+            _acrylic = new DesktopAcrylicController();
+            _acrylic.SetSystemBackdropConfiguration(_backdropConfiguration);
+            _acrylic.AddSystemBackdropTarget(this.As<ICompositionSupportsSystemBackdrop>());
+        }
+        InitializeTextMask();
         ApplySystemTheme();
         Hide();
     }
@@ -71,12 +98,18 @@ public sealed partial class OverlayWindow : Window
         var light = systemColor.R * 299 + systemColor.G * 587 + systemColor.B * 114 >= 128000;
         OverlaySurface.RequestedTheme = light ? ElementTheme.Light : ElementTheme.Dark;
         var surface = light ? Color.FromArgb(255, 250, 250, 250) : Color.FromArgb(255, 12, 12, 12);
-        SurfaceBrush.Color = surface;
+        SurfaceBrush.Color = _acrylic is null ? surface : Color.FromArgb(0, 0, 0, 0);
+        if (_acrylic is not null && _backdropConfiguration is not null)
+        {
+            _backdropConfiguration.Theme = light ? SystemBackdropTheme.Light : SystemBackdropTheme.Dark;
+            _acrylic.TintColor = surface;
+            _acrylic.TintOpacity = light ? 0.05f : 0.15f;
+            _acrylic.LuminosityOpacity = 0.65f;
+            _acrylic.FallbackColor = surface;
+        }
         SurfaceBorderBrush.Color = light ? Color.FromArgb(255, 208, 208, 208) : Color.FromArgb(255, 48, 48, 48);
         TranscriptBrush.Color = light ? Color.FromArgb(255, 22, 22, 22) : Color.FromArgb(255, 245, 245, 245);
-        FadeOpaqueStop.Color = surface;
-        surface.A = 0;
-        FadeTransparentStop.Color = surface;
+        UpdateTextMask();
     }
 
     internal void Begin(bool busy)
@@ -87,8 +120,10 @@ public sealed partial class OverlayWindow : Window
         _panelWidth = 36;
         OverlaySurface.Padding = new Thickness(5, 0, 5, 0);
         TrackGrid.ColumnSpacing = 0;
-        LeftFade.Opacity = 0;
+        TextOffset.X = 0;
         TranscriptText.Text = "";
+        _textWidth = 0;
+        UpdateTextMask();
         _visible = true;
         SetBusy(busy);
         Position();
@@ -158,32 +193,69 @@ public sealed partial class OverlayWindow : Window
 
     private void OnVoiceRendering(object? sender, object args)
     {
+        if (!_themeSettings.AnimationsEnabled)
+        {
+            RippleOne.Opacity = RippleTwo.Opacity = 0;
+            DotScale.ScaleX = DotScale.ScaleY = 1;
+            HaloScale.ScaleX = HaloScale.ScaleY = 1;
+            VoiceHalo.Opacity = 0.10;
+            return;
+        }
+
         var now = _voiceClock.Elapsed.TotalSeconds;
-        var elapsed = Math.Min(now - _voiceFrame, 0.1);
+        var elapsed = Math.Clamp(now - _voiceFrame, 0, 0.05);
         _voiceFrame = now;
-        var response = _targetLevel > _displayLevel ? 24 : 9;
+        var response = _targetLevel > _displayLevel ? 22 : 7;
         _displayLevel += (_targetLevel - _displayLevel) * (1 - Math.Exp(-response * elapsed));
-        DotScale.ScaleX = DotScale.ScaleY = 1 + _displayLevel * 0.5;
-        var phase = now % 0.9 / 0.9;
-        DrawRipple(RippleOne, RippleOneScale, phase);
-        DrawRipple(RippleTwo, RippleTwoScale, (phase + 0.5) % 1);
+
+        // Accented syllables release a ring; sustained speech gets a slower heartbeat.
+        var rising = _targetLevel - _previousLevel > 0.10;
+        var sincePulse = now - _lastPulse;
+        if (_displayLevel > 0.08 && sincePulse > 0.24 &&
+            (rising || sincePulse > 0.72 - _displayLevel * 0.20))
+        {
+            _rippleBorn[_nextRipple] = now;
+            _rippleStrength[_nextRipple] = _displayLevel;
+            _nextRipple = 1 - _nextRipple;
+            _lastPulse = now;
+        }
+        _previousLevel = _targetLevel;
+
+        var breath = Math.Sin(now * Math.PI * 2 / 2.8);
+        var pulseAge = now - _lastPulse;
+        var bounce = Math.Sin(pulseAge * 24) * Math.Exp(-pulseAge * 9) * _displayLevel;
+        var size = 1 + 0.045 * breath + _displayLevel * 0.45;
+        DotScale.ScaleX = size + bounce * 0.18;
+        DotScale.ScaleY = size - bounce * 0.12;
+        HaloScale.ScaleX = HaloScale.ScaleY = 0.88 + _displayLevel * 0.30 + breath * 0.04;
+        VoiceHalo.Opacity = 0.08 + _displayLevel * 0.10;
+        DrawRipple(RippleOne, RippleOneScale, now - _rippleBorn[0], _rippleStrength[0]);
+        DrawRipple(RippleTwo, RippleTwoScale, now - _rippleBorn[1], _rippleStrength[1]);
     }
 
-    private void DrawRipple(Microsoft.UI.Xaml.Shapes.Ellipse ripple, ScaleTransform scale, double phase)
+    private static void DrawRipple(Microsoft.UI.Xaml.Shapes.Ellipse ripple, ScaleTransform scale,
+        double age, double strength)
     {
-        scale.ScaleX = scale.ScaleY = 0.32 + phase * (0.25 + _displayLevel * 0.35);
-        ripple.Opacity = Math.Min(1, _displayLevel * 1.25) * (1 - phase);
+        var phase = Math.Clamp(age / 0.85, 0, 1);
+        var spread = 1 - Math.Pow(1 - phase, 2);
+        scale.ScaleX = scale.ScaleY = 0.35 + spread * (0.40 + strength * 0.20);
+        ripple.Opacity = (0.18 + strength * 0.40) * Math.Pow(1 - phase, 2);
     }
 
     private void StopVoiceAnimation()
     {
         CompositionTarget.Rendering -= OnVoiceRendering;
         _voiceClock.Stop();
-        _targetLevel = _displayLevel = _voiceFrame = 0;
+        _targetLevel = _displayLevel = _voiceFrame = _previousLevel = 0;
+        _lastPulse = -10;
+        _rippleBorn[0] = _rippleBorn[1] = -10;
+        _rippleStrength[0] = _rippleStrength[1] = 0;
+        _nextRipple = 0;
         RippleOne.Opacity = RippleTwo.Opacity = 0;
         DotScale.ScaleX = DotScale.ScaleY = 1;
+        HaloScale.ScaleX = HaloScale.ScaleY = 1;
+        VoiceHalo.Opacity = 0.10;
     }
-
     private void FollowLatestText()
     {
         if (!_visible || !_hasText) return;
@@ -193,7 +265,7 @@ public sealed partial class OverlayWindow : Window
         if (Math.Abs(_slideTo - _slideFrom) < 0.1)
         {
             TextOffset.X = _slideTo;
-            UpdateTextFade();
+            UpdateTextMask();
             return;
         }
         _clock.Restart();
@@ -205,13 +277,42 @@ public sealed partial class OverlayWindow : Window
         var progress = Math.Min(_clock.Elapsed.TotalSeconds / SlideSeconds, 1);
         var eased = 1 - Math.Pow(1 - progress, 3);
         TextOffset.X = _slideFrom + (_slideTo - _slideFrom) * eased;
-        UpdateTextFade();
+        UpdateTextMask();
         if (progress >= 1) StopScrolling();
     }
 
-    private void UpdateTextFade()
+    private void InitializeTextMask()
     {
-        LeftFade.Opacity = Math.Clamp(-TextOffset.X / 18, 0, 1);
+        var compositor = ElementCompositionPreview.GetElementVisual(TextViewport).Compositor;
+        _textGradient = compositor.CreateLinearGradientBrush();
+        _textGradient.MappingMode = CompositionMappingMode.Absolute;
+        _fadeStart = compositor.CreateColorGradientStop();
+        _fadeEnd = compositor.CreateColorGradientStop();
+        _fadeEnd.Offset = 1;
+        _textGradient.ColorStops.Add(_fadeStart);
+        _textGradient.ColorStops.Add(_fadeEnd);
+        var mask = compositor.CreateMaskBrush();
+        mask.Source = _textGradient;
+        mask.Mask = TranscriptText.GetAlphaMask();
+        _textVisual = compositor.CreateSpriteVisual();
+        _textVisual.Brush = mask;
+        ElementCompositionPreview.SetElementChildVisual(TextViewport, _textVisual);
+        // Render the glyph mask once as a whole, rather than shading individual text runs.
+        ElementCompositionPreview.GetElementVisual(TranscriptText).Opacity = 0;
+    }
+
+    private void UpdateTextMask()
+    {
+        if (_textVisual is null || _textGradient is null || _fadeStart is null || _fadeEnd is null) return;
+        _textVisual.Size = new Vector2((float)_textWidth, 22);
+        _textVisual.Offset = new Vector3((float)TextOffset.X, 0, 0);
+        var color = TranscriptBrush.Color;
+        _fadeEnd.Color = color;
+        color.A = (byte)Math.Round(255 * (1 - Math.Clamp(-TextOffset.X / 18, 0, 1)));
+        _fadeStart.Color = color;
+        var left = (float)Math.Max(0, -TextOffset.X);
+        _textGradient.StartPoint = new Vector2(left, 0);
+        _textGradient.EndPoint = new Vector2(left + 18, 0);
     }
 
     private void TextViewport_SizeChanged(object sender, SizeChangedEventArgs args)

@@ -6,7 +6,25 @@ namespace Shuo.Services;
 public sealed record TranscriptEntry(DateTimeOffset CreatedAt, string Text, string Provider)
 {
     [System.Text.Json.Serialization.JsonIgnore]
-    public string Description => $"{CreatedAt.ToLocalTime():yyyy-MM-dd HH:mm:ss} | {Provider}";
+    public string Description => $"{CreatedAt.ToLocalTime():yyyy-MM-dd HH:mm:ss} | {DisplayProvider}";
+
+    [System.Text.Json.Serialization.JsonIgnore]
+    public string DisplayTime => CreatedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss");
+
+    [System.Text.Json.Serialization.JsonIgnore]
+    public string DisplayProvider
+    {
+        get
+        {
+            if (Provider.StartsWith("豆包流式语音识别模型 2.0", StringComparison.Ordinal))
+                return "豆包 2.0";
+            if (Provider.StartsWith("豆包流式语音识别模型 1.0", StringComparison.Ordinal))
+                return "豆包 1.0";
+            if (Provider.StartsWith("豆包语音识别", StringComparison.Ordinal))
+                return "豆包";
+            return Provider;
+        }
+    }
 }
 
 internal sealed class TranscriptHistory(string path)

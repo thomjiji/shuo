@@ -27,6 +27,26 @@
                         CompactModeThresholdWidth="0" ExpandedModeThresholdWidth="1040"
                         IsSettingsVisible="False" IsBackButtonVisible="Collapsed"
                         AlwaysShowHeader="False" SelectionChanged="SettingsNavigation_SelectionChanged">
+            <NavigationView.Resources>
+                <ResourceDictionary>
+                    <ResourceDictionary.ThemeDictionaries>
+                        <ResourceDictionary x:Key="Default">
+                            <AcrylicBrush x:Key="NavigationViewDefaultPaneBackground"
+                                          TintColor="#202020" TintOpacity="0.10"
+                                          TintLuminosityOpacity="0.65" FallbackColor="#2C2C2C" />
+                        </ResourceDictionary>
+                        <ResourceDictionary x:Key="Light">
+                            <AcrylicBrush x:Key="NavigationViewDefaultPaneBackground"
+                                          TintColor="#FCFCFC" TintOpacity="0.0"
+                                          TintLuminosityOpacity="0.65" FallbackColor="#F9F9F9" />
+                        </ResourceDictionary>
+                        <ResourceDictionary x:Key="HighContrast">
+                            <SolidColorBrush x:Key="NavigationViewDefaultPaneBackground"
+                                             Color="{ThemeResource SystemColorWindowColor}" />
+                        </ResourceDictionary>
+                    </ResourceDictionary.ThemeDictionaries>
+                </ResourceDictionary>
+            </NavigationView.Resources>
             <NavigationView.MenuItems>
                 <NavigationViewItem x:Name="GeneralNavigationItem" Content="常规" Tag="general" Icon="Setting" />
                 <NavigationViewItem x:Name="TranscriptionNavigationItem" Content="转录服务" Tag="transcription" Icon="Microphone" />
@@ -66,8 +86,12 @@
                                                         <ColumnDefinition Width="*" />
                                                         <ColumnDefinition Width="Auto" />
                                                     </Grid.ColumnDefinitions>
-                                                    <TextBlock Text="{Binding Description}" VerticalAlignment="Center" TextWrapping="Wrap"
-                                                               Foreground="{ThemeResource TextFillColorSecondaryBrush}" FontSize="12" />
+                                                    <StackPanel Spacing="4" VerticalAlignment="Center">
+                                                        <TextBlock Text="{Binding DisplayTime}" FontSize="12"
+                                                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                                        <TextBlock Text="{Binding DisplayProvider}" FontSize="12" TextWrapping="Wrap"
+                                                                   Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
+                                                    </StackPanel>
                                                     <Button Grid.Column="1" Content="复制" Tag="{Binding Text}" Click="CopyHistory_Click" />
                                                 </Grid>
                                                 <TextBlock Text="{Binding Text}" TextWrapping="Wrap" IsTextSelectionEnabled="True" />

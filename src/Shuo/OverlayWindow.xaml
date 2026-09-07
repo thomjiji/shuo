@@ -13,12 +13,17 @@
             </Grid.ColumnDefinitions>
             <Grid Width="24" Height="24" VerticalAlignment="Center">
                 <Grid x:Name="VoiceIndicator">
-                    <Ellipse x:Name="RippleOne" Width="24" Height="24" StrokeThickness="1.5"
+                    <Ellipse x:Name="VoiceHalo" Width="14" Height="14" Opacity="0.10"
+                             Fill="{ThemeResource SystemControlHighlightAccentBrush}"
+                             RenderTransformOrigin="0.5,0.5">
+                        <Ellipse.RenderTransform><ScaleTransform x:Name="HaloScale" /></Ellipse.RenderTransform>
+                    </Ellipse>
+                    <Ellipse x:Name="RippleOne" Width="24" Height="24" StrokeThickness="1"
                              Stroke="{ThemeResource SystemControlHighlightAccentBrush}"
                              Opacity="0" RenderTransformOrigin="0.5,0.5">
                         <Ellipse.RenderTransform><ScaleTransform x:Name="RippleOneScale" /></Ellipse.RenderTransform>
                     </Ellipse>
-                    <Ellipse x:Name="RippleTwo" Width="24" Height="24" StrokeThickness="1.5"
+                    <Ellipse x:Name="RippleTwo" Width="24" Height="24" StrokeThickness="1"
                              Stroke="{ThemeResource SystemControlHighlightAccentBrush}"
                              Opacity="0" RenderTransformOrigin="0.5,0.5">
                         <Ellipse.RenderTransform><ScaleTransform x:Name="RippleTwoScale" /></Ellipse.RenderTransform>
@@ -43,15 +48,6 @@
                         <TranslateTransform x:Name="TextOffset" />
                     </TextBlock.RenderTransform>
                 </TextBlock>
-            <Rectangle x:Name="LeftFade" Width="18" Height="22"
-                       HorizontalAlignment="Left" VerticalAlignment="Center" Opacity="0">
-                <Rectangle.Fill>
-                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
-                        <GradientStop x:Name="FadeOpaqueStop" Offset="0" Color="#FF0C0C0C" />
-                        <GradientStop x:Name="FadeTransparentStop" Offset="1" Color="#000C0C0C" />
-                    </LinearGradientBrush>
-                </Rectangle.Fill>
-            </Rectangle>
             </Canvas>
         </Grid>
     </Border>

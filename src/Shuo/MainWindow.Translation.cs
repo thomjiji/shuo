@@ -14,11 +14,11 @@ public sealed partial class MainWindow
     private void InitializeTranslation()
     {
         _overlay.TranslationCloseRequested += () => _translationCancellation?.Cancel();
-        TranslationModelName.Text = "当前模型：" + TranslationSession.Model;
+        Microsoft.UI.Xaml.Controls.ToolTipService.SetToolTip(TranslationModelCard, TranslationSession.Model);
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(TranslationModelCard, "翻译模型：" + TranslationSession.Model);
         try
         {
             var options = TranslationSettings.Load();
-            TranslationRegion.SelectedIndex = options.Region == "ap-southeast-1" ? 1 : 0;
             TranslationWorkspace.Text = options.WorkspaceId;
             TranslationApiKey.Password = TranslationSettings.LoadApiKey();
             TranslationLanguage.SelectedIndex = options.TargetLanguage == "en" ? 1 : 0;
@@ -32,15 +32,15 @@ public sealed partial class MainWindow
         var running = _translationCancellation is not null;
         TranslationButton.Content = running ? "停止翻译" : "开始翻译";
         TranslationButton.IsEnabled = running || CanStartTranslation;
-        TranslationRegion.IsEnabled = TranslationWorkspace.IsEnabled = TranslationApiKey.IsEnabled = TranslationLanguage.IsEnabled = !running;
+        TranslationWorkspace.IsEnabled = TranslationApiKey.IsEnabled = TranslationLanguage.IsEnabled = !running;
     }
 
     private async void TranslationButton_Click(object sender, RoutedEventArgs args)
     {
         if (_translationCancellation is { } active) { TranslationStatus.Text = "正在停止采集并等待最后一段译文..."; active.Cancel(); return; }
         if (!CanStartTranslation) return;
-        var options = new TranslationOptions(TranslationRegion.SelectedIndex == 1 ? "ap-southeast-1" : "cn-beijing",
-            TranslationWorkspace.Text.Trim(), TranslationLanguage.SelectedIndex == 1 ? "en" : "zh");
+        var options = new TranslationOptions(WorkspaceId: TranslationWorkspace.Text.Trim(),
+            TargetLanguage: TranslationLanguage.SelectedIndex == 1 ? "en" : "zh");
         string apiKey;
         try
         {

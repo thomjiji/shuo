@@ -350,16 +350,17 @@
                                     BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}">
                                 <StackPanel Spacing="12">
 
-                                    <TextBlock x:Name="TranslationModelName" TextWrapping="Wrap" IsTextSelectionEnabled="True" />
-
-
-                                    <ComboBox x:Name="TranslationRegion" Header="地域" SelectedIndex="0" HorizontalAlignment="Stretch">
-                                        <ComboBoxItem Content="北京" />
-                                        <ComboBoxItem Content="新加坡" />
-                                    </ComboBox>
+                                    <Border x:Name="TranslationModelCard" Padding="12" CornerRadius="6"
+                                            Background="{ThemeResource ControlFillColorDefaultBrush}">
+                                        <StackPanel Spacing="4">
+                                            <TextBlock Text="翻译模型" FontSize="12"
+                                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                            <TextBlock Text="Qwen3.5 LiveTranslate Flash" FontSize="16" FontWeight="SemiBold"
+                                                       TextWrapping="Wrap" IsTextSelectionEnabled="True" />
+                                        </StackPanel>
+                                    </Border>
                                     <TextBox x:Name="TranslationWorkspace" Header="Workspace ID" PlaceholderText="ws-..." />
-                                    <PasswordBox x:Name="TranslationApiKey" Header="翻译 API Key（可选）" PlaceholderText="留空复用同地域的百炼转录凭据" />
-                                    <TextBlock Text="系统声音将发送到百炼翻译。" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                    <PasswordBox x:Name="TranslationApiKey" Header="翻译 API Key（可选）" PlaceholderText="留空复用北京地域的百炼转录凭据" />
                                     <ComboBox x:Name="TranslationLanguage" Header="字幕语言" SelectedIndex="0" HorizontalAlignment="Stretch">
                                         <ComboBoxItem Content="中文" />
                                         <ComboBoxItem Content="English" />

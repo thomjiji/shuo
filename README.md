@@ -35,7 +35,7 @@ Windows 原生 WinUI 3 听写应用，支持本地模型、自托管服务、豆
 
 ## 实时翻译
 
-在“实时翻译”中配置百炼地域、业务空间和 API Key，即可使用 `qwen3.5-livetranslate-flash-realtime` 将系统播放的声音翻译为中文或英文字幕。音频发送到百炼处理，译文在浮窗中实时更新。使用方法见[实时翻译说明](docs/translation.md)。
+在“实时翻译”中配置百炼北京地域的业务空间和 API Key，即可使用 `qwen3.5-livetranslate-flash-realtime` 将系统播放的声音翻译为中文或英文字幕。音频发送到百炼处理，译文在浮窗中实时更新。使用方法见[实时翻译说明](docs/translation.md)。
 
 ## 文本与历史
 

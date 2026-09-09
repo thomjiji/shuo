@@ -14,8 +14,7 @@ internal static class TranslationSettings
         if (!File.Exists(path)) return new();
         var root = JsonNode.Parse(File.ReadAllText(path)) as JsonObject
             ?? throw new InvalidDataException("Dictation settings must be a JSON object.");
-        return new(root["translation"]?["region"]?.GetValue<string>()
-                ?? root["qwen"]?["region"]?.GetValue<string>() ?? "cn-beijing",
+        return new("cn-beijing",
             root["translation"]?["workspaceId"]?.GetValue<string>() ?? "",
             root["translation"]?["targetLanguage"]?.GetValue<string>() == "en" ? "en" : "zh");
     }
@@ -33,7 +32,7 @@ internal static class TranslationSettings
     {
         if (!string.IsNullOrWhiteSpace(ownKey)) return ownKey.Trim();
         var cloud = CloudSettings.Load();
-        if (cloud.QwenRegion != region) throw new ArgumentException("所选地域与已保存的转录凭据不同，请填写该地域的翻译 API Key。");
+        if (cloud.QwenRegion != region) throw new ArgumentException("转录凭据地域不匹配，请填写翻译服务对应地域的 API Key。");
         return cloud.QwenApiKey;
     }
 

@@ -38,7 +38,7 @@ class Recognizer:
 
 
 def create_app(recognizer, *, model_name="Qwen3-ASR-1.7B-8bit", vad_factory=None,
-               models=None, preview_seconds=1.0, silence_seconds=1.0, max_seconds=30.0, hard_seconds=None,
+               models=None, preview_seconds=1.0, silence_seconds=2.0, max_seconds=30.0, hard_seconds=None,
                idle_timeout=30.0, finish_timeout=60.0):
     if not all(math.isfinite(value) and value > 0 for value in (preview_seconds, silence_seconds, max_seconds)):
         raise ValueError("Segmentation durations must be finite and greater than zero")
@@ -209,7 +209,7 @@ def main():
     parser.add_argument("--small-model", help="Also preload a Qwen3-ASR-0.6B-8bit model directory or repository")
     parser.add_argument("--max-segment-seconds", type=float, default=30.0, help="Soft audio duration; prefer a pause after this point (default: 30)")
     parser.add_argument("--hard-segment-seconds", type=float, default=None, help="Hard duration limit (default: soft limit + 5 seconds)")
-    parser.add_argument("--silence-seconds", type=float, default=1.0, help="Normal endpoint silence (default: 1; short speech waits at least 2)")
+    parser.add_argument("--silence-seconds", type=float, default=2.0, help="Normal endpoint silence (default: 2; short speech waits at least 2)")
     parser.add_argument("--preview-seconds", type=float, default=1.0, help="Interval between partial transcriptions (default: 1)")
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=18765)

@@ -17,7 +17,7 @@ class AudioJob:
 
 class Segmenter:
     def __init__(self, is_speech: Callable[[bytes], bool], *, preview_seconds=1.0,
-                 silence_seconds=1.0, max_seconds=30.0, hard_seconds=None):
+                 silence_seconds=2.0, max_seconds=30.0, hard_seconds=None):
         self.is_speech = is_speech
         self.preview_frames = max(1, round(preview_seconds / .02))
         self.silence_frames = max(1, round(silence_seconds / .02))

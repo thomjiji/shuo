@@ -28,7 +28,7 @@ class SegmentationTests(unittest.TestCase):
 
     def test_pause_confirms_segment_then_next_voice_starts_new_segment(self):
         s = self.segmenter()
-        jobs = s.feed(VOICE * 105 + SILENCE * 55 + VOICE * 65) + s.finish()
+        jobs = s.feed(VOICE * 105 + SILENCE * 105 + VOICE * 65) + s.finish()
         finals = [j for j in jobs if j.kind == "segment"]
         self.assertEqual([j.segment for j in finals], [0, 1])
         self.assertEqual(sum(j.audio.count(VOICE) for j in finals), 170)
@@ -43,13 +43,25 @@ class SegmentationTests(unittest.TestCase):
         self.assertTrue(all(len(j.audio) <= 100 * FRAME_BYTES for j in jobs))
 
     def test_short_hesitation_keeps_context_but_long_silence_releases_it(self):
-        s = self.segmenter()
+        s = self.segmenter(silence_seconds=1)
         jobs = s.feed(VOICE * 40 + SILENCE * 60)
         self.assertFalse(any(j.kind == "segment" for j in jobs))
         jobs += s.feed(VOICE * 40 + SILENCE * 100)
         finals = [j for j in jobs if j.kind == "segment"]
         self.assertEqual(len(finals), 1)
         self.assertEqual(finals[0].audio, VOICE * 40 + SILENCE * 60 + VOICE * 40 + SILENCE * 10)
+
+    def test_hesitation_after_longer_speech_keeps_context_until_stop(self):
+        s = self.segmenter()
+        first = VOICE * 220 + SILENCE * 65
+        jobs = s.feed(first)
+        self.assertTrue(any(j.kind == "preview" for j in jobs))
+        self.assertFalse(any(j.kind == "segment" for j in jobs))
+        jobs += s.feed(VOICE * 150) + s.finish()
+        finals = [j for j in jobs if j.kind == "segment"]
+        self.assertEqual(len(finals), 1)
+        self.assertEqual(finals[0].audio, first + VOICE * 150)
+        self.assertEqual(jobs[-1].kind, "finish")
 
     def test_soft_cap_waits_for_pause_and_preserves_following_voice(self):
         s = self.segmenter()

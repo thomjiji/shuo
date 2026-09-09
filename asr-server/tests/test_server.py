@@ -33,6 +33,7 @@ class ProtocolTests(unittest.TestCase):
         r = Recognizer()
         with self.client(r) as client:
             self.assertTrue(client.get('/health').json()['ready'])
+            self.assertEqual(client.get('/health').json()['segmentation']['silence_seconds'], 2)
             for audio in [bytes(6400), VOICE * 10 + VOICE[:120]]:
                 before = len(r.calls)
                 with client.websocket_connect('/v1/asr') as ws:

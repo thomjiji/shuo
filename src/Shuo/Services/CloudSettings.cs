@@ -6,12 +6,12 @@ namespace Shuo.Services;
 
 internal sealed record CloudOptions(bool Enabled = false, string ResourceId = "volc.seedasr.sauc.duration",
     string ApiKey = "", string AppId = "", string AccessToken = "", string Provider = "doubao",
-    string QwenApiKey = "", string QwenRegion = "cn-beijing")
+    string QwenApiKey = "", string QwenRegion = "cn-beijing", string SelfHostedUrl = "", string SelfHostedModel = "Qwen3-ASR-1.7B-8bit")
 {
     [System.Text.Json.Serialization.JsonIgnore]
     internal string Backend => Enabled ? Provider : "local";
     [System.Text.Json.Serialization.JsonIgnore]
-    internal string ServiceName => Provider == "qwen" ? "阿里云百炼" : "火山引擎";
+    internal string ServiceName => Provider switch { "selfhosted" => "自托管识别", "qwen" => "阿里云百炼", _ => "火山引擎" };
 }
 
 internal static class CloudSettings
@@ -25,13 +25,16 @@ internal static class CloudSettings
         var root = File.Exists(path) ? JsonNode.Parse(File.ReadAllText(path)) : null;
         var provider = root?["transcriptionProvider"]?.GetValue<string>()
             ?? ((root?["doubao"]?["enabled"]?.GetValue<bool>() ?? false) ? "doubao" : "local");
-        if (provider is not ("local" or "doubao" or "qwen"))
+        if (provider is not ("local" or "doubao" or "qwen" or "selfhosted"))
             throw new InvalidDataException("未知转录服务，请重新选择。");
         var options = new CloudOptions(
             provider != "local",
             root?["doubao"]?["resourceId"]?.GetValue<string>() ?? "volc.seedasr.sauc.duration",
             Provider: provider == "local" ? "doubao" : provider,
-            QwenRegion: root?["qwen"]?["region"]?.GetValue<string>() ?? "cn-beijing");
+            QwenRegion: root?["qwen"]?["region"]?.GetValue<string>() ?? "cn-beijing",
+            SelfHostedUrl: root?["selfhosted"]?["url"]?.GetValue<string>() ?? "",
+            SelfHostedModel: root?["selfhosted"]?["model"]?.GetValue<string>() == "Qwen3-ASR-0.6B-8bit"
+                ? "Qwen3-ASR-0.6B-8bit" : "Qwen3-ASR-1.7B-8bit");
         var vault = new PasswordVault();
         var doubao = ReadSecret(vault, VaultResource, path);
         if (doubao is not null)
@@ -60,7 +63,7 @@ internal static class CloudSettings
 
     internal static void SaveProvider(string provider)
     {
-        if (provider is not ("local" or "doubao" or "qwen")) throw new ArgumentException("未知转录服务。");
+        if (provider is not ("local" or "doubao" or "qwen" or "selfhosted")) throw new ArgumentException("未知转录服务。");
         var path = HotkeySettings.GetPath();
         var root = JsonNode.Parse(File.ReadAllText(path)) as JsonObject
             ?? throw new InvalidDataException("无法读取听写设置。");
@@ -82,7 +85,7 @@ internal static class CloudSettings
         var path = HotkeySettings.GetPath();
         var root = JsonNode.Parse(File.ReadAllText(path)) as JsonObject
             ?? throw new InvalidDataException("无法读取听写设置。");
-        if (options.Backend is not ("local" or "doubao" or "qwen"))
+        if (options.Backend is not ("local" or "doubao" or "qwen" or "selfhosted"))
             throw new InvalidDataException("未知转录服务。");
         if (options.QwenRegion is not ("cn-beijing" or "ap-southeast-1"))
             throw new InvalidDataException("请选择百炼服务地域。");
@@ -109,6 +112,10 @@ internal static class CloudSettings
         var qwen = root["qwen"] as JsonObject ?? new JsonObject();
         qwen["region"] = options.QwenRegion;
         if (root["qwen"] is not JsonObject) root["qwen"] = qwen;
+        var selfhosted = root["selfhosted"] as JsonObject ?? new JsonObject();
+        selfhosted["url"] = options.SelfHostedUrl;
+        selfhosted["model"] = options.SelfHostedModel;
+        if (root["selfhosted"] is not JsonObject) root["selfhosted"] = selfhosted;
         var temporary = path + "." + Guid.NewGuid().ToString("N") + ".tmp";
         try
         {

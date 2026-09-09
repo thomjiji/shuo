@@ -97,7 +97,9 @@ public sealed partial class MainWindow : Window
         try
         {
             _cloudOptions = CloudSettings.Load();
-            ProviderPicker.SelectedIndex = _cloudOptions.Backend switch { "qwen" => 2, "doubao" => 1, _ => 0 };
+            ProviderPicker.SelectedIndex = _cloudOptions.Backend switch { "selfhosted" => 3, "qwen" => 2, "doubao" => 1, _ => 0 };
+            SelfHostedUrl.Text = _cloudOptions.SelfHostedUrl;
+            SelfHostedModelPicker.SelectedIndex = _cloudOptions.SelfHostedModel == "Qwen3-ASR-0.6B-8bit" ? 1 : 0;
             QwenApiKey.Password = _cloudOptions.QwenApiKey;
             QwenRegionPicker.SelectedIndex = _cloudOptions.QwenRegion == "ap-southeast-1" ? 1 : 0;
             CloudApiKey.Password = _cloudOptions.ApiKey;
@@ -111,6 +113,8 @@ public sealed partial class MainWindow : Window
         CloudApiKey.PasswordChanged += (_, _) => SaveCloudFields();
         CloudAccessToken.PasswordChanged += (_, _) => SaveCloudFields();
         QwenApiKey.PasswordChanged += (_, _) => SaveCloudFields();
+        SelfHostedUrl.TextChanged += (_, _) => SaveCloudFields();
+        SelfHostedModelPicker.SelectionChanged += (_, _) => SaveCloudFields();
         CloudAppId.TextChanged += (_, _) => SaveCloudFields();
         CloudResourceId.TextChanged += (_, _) => SaveCloudFields();
         QwenRegionPicker.SelectionChanged += (_, _) => SaveCloudFields();
@@ -160,7 +164,7 @@ public sealed partial class MainWindow : Window
         && !_modelChanging && !_loadingModels && !_installingUpdate;
 
     private IReadOnlyList<TrayChoice> TrayProviders() =>
-        new[] { ("local", "本地模型"), ("doubao", "火山引擎"), ("qwen", "阿里云百炼") }
+        new[] { ("local", "本地模型"), ("doubao", "火山引擎"), ("qwen", "阿里云百炼"), ("selfhosted", "自托管识别") }
             .Select(item => new TrayChoice(item.Item2, _cloudOptions.Backend == item.Item1,
                 CanSwitchFromTray, () => _ = SwitchProviderAsync(item.Item1))).ToArray();
 
@@ -182,7 +186,7 @@ public sealed partial class MainWindow : Window
             var options = _cloudOptions with { Enabled = provider != "local", Provider = provider == "local" ? "doubao" : provider };
             CloudSettings.SaveProvider(provider);
             _cloudOptions = options;
-            ProviderPicker.SelectedIndex = provider switch { "qwen" => 2, "doubao" => 1, _ => 0 };
+            ProviderPicker.SelectedIndex = provider switch { "selfhosted" => 3, "qwen" => 2, "doubao" => 1, _ => 0 };
             _modelChanging = true;
             _cloudTesting = false;
             _backendConfigured = false;
@@ -195,7 +199,7 @@ public sealed partial class MainWindow : Window
             _modelChanging = false;
             _cloudTesting = false;
             CloudStatusMessage = error.Message;
-            ProviderPicker.SelectedIndex = _cloudOptions.Backend switch { "qwen" => 2, "doubao" => 1, _ => 0 };
+            ProviderPicker.SelectedIndex = _cloudOptions.Backend switch { "selfhosted" => 3, "qwen" => 2, "doubao" => 1, _ => 0 };
             CloudStatus.Text = error.Message;
             UpdateModelControls();
             ShowSettings();
@@ -218,9 +222,11 @@ public sealed partial class MainWindow : Window
     private CloudOptions ReadCloudOptions() => new(ProviderPicker.SelectedIndex > 0,
         CloudResourceId.Text.Trim(), CloudApiKey.Password.Trim(),
         CloudAppId.Text.Trim(), CloudAccessToken.Password.Trim(),
-        Provider: ProviderPicker.SelectedIndex == 2 ? "qwen" : "doubao",
+        Provider: ProviderPicker.SelectedIndex switch { 3 => "selfhosted", 2 => "qwen", _ => "doubao" },
         QwenApiKey: QwenApiKey.Password.Trim(),
-        QwenRegion: QwenRegionPicker.SelectedIndex == 1 ? "ap-southeast-1" : "cn-beijing");
+        QwenRegion: QwenRegionPicker.SelectedIndex == 1 ? "ap-southeast-1" : "cn-beijing",
+        SelfHostedUrl: SelfHostedUrl.Text.Trim(),
+        SelfHostedModel: SelfHostedModelPicker.SelectedIndex == 1 ? "Qwen3-ASR-0.6B-8bit" : "Qwen3-ASR-1.7B-8bit");
 
     private void RefreshCloudStatus()
     {
@@ -235,9 +241,10 @@ public sealed partial class MainWindow : Window
         if (CloudFields is null) return;
         CloudFields.Visibility = ProviderPicker.SelectedIndex == 1 ? Visibility.Visible : Visibility.Collapsed;
         if (QwenFields is not null) QwenFields.Visibility = ProviderPicker.SelectedIndex == 2 ? Visibility.Visible : Visibility.Collapsed;
+        if (SelfHostedFields is not null) SelfHostedFields.Visibility = ProviderPicker.SelectedIndex == 3 ? Visibility.Visible : Visibility.Collapsed;
         if (LocalModelCard is not null) LocalModelCard.Visibility = ProviderPicker.SelectedIndex == 0 ? Visibility.Visible : Visibility.Collapsed;
         RefreshCloudStatus();
-        var provider = ProviderPicker.SelectedIndex switch { 2 => "qwen", 1 => "doubao", _ => "local" };
+        var provider = ProviderPicker.SelectedIndex switch { 3 => "selfhosted", 2 => "qwen", 1 => "doubao", _ => "local" };
         if (!_cloudFieldsLoaded || provider == _cloudOptions.Backend) return;
         await SwitchProviderAsync(provider);
     }
@@ -247,8 +254,34 @@ public sealed partial class MainWindow : Window
         type = "configure-backend",
         provider = _cloudOptions.Backend,
         config = new { apiKey = _cloudOptions.Provider == "qwen" ? _cloudOptions.QwenApiKey : _cloudOptions.ApiKey, region = _cloudOptions.QwenRegion, appId = _cloudOptions.AppId,
-            accessToken = _cloudOptions.AccessToken, resourceId = _cloudOptions.ResourceId }
+            accessToken = _cloudOptions.AccessToken, resourceId = _cloudOptions.ResourceId, url = _cloudOptions.SelfHostedUrl, model = _cloudOptions.SelfHostedModel }
     }));
+
+    private async void SelfHostedTest_Click(object sender, RoutedEventArgs args)
+    {
+        if (!_daemonReady || _dictationActive || _togglePending || _modelChanging) return;
+        _cloudSaveDelay?.Cancel();
+        try
+        {
+            var options = ReadCloudOptions();
+            CloudSettings.Save(options);
+            _cloudOptions = options;
+            _cloudTesting = true;
+            _modelChanging = true;
+            _backendConfigured = false;
+            CloudStatusMessage = "正在测试自托管服务...";
+            UpdateModelControls();
+            await ConfigureBackendAsync();
+            await _daemon.SendAsync("test-cloud");
+        }
+        catch (Exception error)
+        {
+            _cloudTesting = false;
+            _modelChanging = false;
+            CloudStatusMessage = error.Message;
+            UpdateModelControls();
+        }
+    }
 
     private CancellationTokenSource? _cloudSaveDelay;
 
@@ -292,7 +325,7 @@ public sealed partial class MainWindow : Window
         UpdateInstallControls();
         var idle = !_installingUpdate && _daemonReady && !_dictationActive && !_togglePending && !_modelChanging && !_loadingModels;
         var cloudIdle = !_installingUpdate && _daemonReady && !_dictationActive && !_togglePending && !_modelChanging;
-        foreach (var control in new Control[] { ProviderPicker, CloudApiKey, CloudAppId, CloudAccessToken, CloudResourceId, QwenApiKey, QwenRegionPicker }) control.IsEnabled = cloudIdle;
+        foreach (var control in new Control[] { ProviderPicker, CloudApiKey, CloudAppId, CloudAccessToken, CloudResourceId, QwenApiKey, QwenRegionPicker, SelfHostedUrl, SelfHostedModelPicker, SelfHostedTestButton }) control.IsEnabled = cloudIdle;
         ModelPicker.IsEnabled = idle && !_cloudOptions.Enabled && ModelPicker.Items.Count > 0;
         UpdateModelDownloadControls();
         EditShortcutButton.IsEnabled = !_modelChanging;
@@ -544,7 +577,7 @@ public sealed partial class MainWindow : Window
                 _dictationActive = false;
                 _togglePending = false;
                 if (_cloudOptions.Enabled) _overlay.Pasting(message.Text);
-                _ = PasteTranscriptAsync(message.Text);
+                _ = PasteTranscriptAsync(message.Text, message.Model);
                 break;
             case "busy":
                 _togglePending = false;
@@ -562,13 +595,14 @@ public sealed partial class MainWindow : Window
         if (message.Type == "error") ShowError("听写失败", message.Error ?? "未知错误。");
     }
 
-    private async Task PasteTranscriptAsync(string? text)
+    private async Task PasteTranscriptAsync(string? text, string? model = null)
     {
         if (string.IsNullOrWhiteSpace(text)) return;
         _pendingPastes++;
         UpdateInstallControls();
         var completedAt = DateTimeOffset.Now;
-        var provider = _cloudOptions.Backend == "qwen" ? "fun-asr-realtime"
+        var provider = _cloudOptions.Backend == "selfhosted" ? $"自托管 / {model ?? "Qwen3-ASR"}"
+            : _cloudOptions.Backend == "qwen" ? "fun-asr-realtime"
             : TranscriptHistory.ModelName(_cloudOptions.Enabled, _cloudOptions.ResourceId, _selectedModelPath);
         try
         {

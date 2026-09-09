@@ -7,6 +7,7 @@ import { fileURLToPath } from "node:url";
 import { findLocalModels, saveModelSelection } from "./models.mjs";
 import { DoubaoStream, doubaoHeaders } from "./doubao.mjs";
 import { QwenStream, qwenConnection } from "./qwen.mjs";
+import { SelfHostedStream, selfHostedConnection } from "./selfhosted.mjs";
 
 const SAMPLE_RATE = 16_000;
 const FRAME_LENGTH = 512;
@@ -225,15 +226,17 @@ export class DictationDaemon {
 
   configureBackend(command) {
     if (this.state !== "idle") throw new Error("请等待当前听写结束。");
-    if (!["local", "doubao", "qwen"].includes(command.provider)) throw new Error("未知转录服务。");
+    if (!["local", "doubao", "qwen", "selfhosted"].includes(command.provider)) throw new Error("未知转录服务。");
     // Replace retained credentials even when the new settings are incomplete.
     this.provider = command.provider;
     this.cloudConfig = command.config || {};
     if (command.provider === "doubao") doubaoHeaders(this.cloudConfig);
     if (command.provider === "qwen") qwenConnection(this.cloudConfig);
+    if (command.provider === "selfhosted") selfHostedConnection(this.cloudConfig);
   }
 
   createCloudStream(onPartial) {
+    if (this.provider === "selfhosted") return new SelfHostedStream({ ...this.cloudConfig, language: this.settings.transcriptionLanguage }, onPartial);
     if (this.provider === "qwen") return new QwenStream(this.cloudConfig, onPartial);
     if (this.provider === "doubao") return new DoubaoStream(this.cloudConfig, onPartial);
     throw new Error("请先选择云端转录服务。");
@@ -289,7 +292,7 @@ export class DictationDaemon {
       if (this.cloud) {
         const result = await this.cloud.finish();
         const text = this.format(result.text, result.language, this.settings.transcriptionLanguage);
-        emit(text ? "transcript" : "empty", text ? { text } : {});
+        emit(text ? "transcript" : "empty", text ? { text, ...(result.model ? { model: result.model } : {}) } : {});
         return;
       }
       if (pcm.length === 0) {

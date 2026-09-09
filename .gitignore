@@ -53,3 +53,8 @@ _ReSharper*/
 # Generated files
 Generated\ Files/
 *_wpftmp.csproj
+
+# Python ASR service
+.venv/
+__pycache__/
+*.egg-info/

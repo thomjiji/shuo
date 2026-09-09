@@ -19,6 +19,8 @@ dotnet run --project test/TextCleanup.Tests/TextCleanup.Tests.csproj
 dotnet build Shuo.slnx --configuration Debug
 ```
 
+开发版需要启动环境能找到 Node 22 或以上版本。若直接从文件管理器启动编译输出，可将对应架构的 `node.exe` 复制到 `shuo.exe` 同目录；仅执行 `dotnet build` 不会附带 Node。
+
 安装器构建命令见[安装指南](setup.md#1-在构建电脑生成安装包)。`scripts/package.mjs` 固定使用 `.config/dotnet-tools.json` 中的 Velopack CLI，应用依赖与 CLI 版本必须一致。独立输出目录避免旧版本文件混入新包。
 
 ## 输入流程
@@ -53,13 +55,17 @@ dotnet build Shuo.slnx --configuration Debug
 | `error` | 失败原因位于 `message`。 |
 | `stopped` | worker 已完成关闭。 |
 
-`configure-backend` JSON 命令携带 `provider`（`local`、`doubao` 或 `qwen`）及内存中的 `config`，返回 `backend-configured` 或 `backend-error`。`test-cloud` 检查云端调用并返回 `cloud-tested` 或 `cloud-test-error`。百炼的配置使用 `apiKey` 和 `region`，豆包使用原有凭据与资源字段，固定发送 enable_ddc=true、enable_itn=true 和 enable_punc=true；旧 semanticSmoothing 字段不再读取，保存设置时移除；`transcriptionProvider` 保存当前服务，未设置时按旧版 `doubao.enabled` 读取。云端连接期间发送 `connecting`，界面禁止更改服务。凭据由 WinUI 宿主从 Windows PasswordVault 读取，经 worker 标准输入传递，不写入命令行、配置文件或事件输出。
+`configure-backend` JSON 命令携带 `provider`（`local`、`doubao`、`qwen` 或 `selfhosted`）及内存中的 `config`，返回 `backend-configured` 或 `backend-error`。`test-cloud` 检查云端调用并返回 `cloud-tested` 或 `cloud-test-error`。百炼的配置使用 `apiKey` 和 `region`，豆包使用原有凭据与资源字段，固定发送 enable_ddc=true、enable_itn=true 和 enable_punc=true；旧 semanticSmoothing 字段不再读取，保存设置时移除；`transcriptionProvider` 保存当前服务，未设置时按旧版 `doubao.enabled` 读取。云端连接期间发送 `connecting`，界面禁止更改服务。凭据由 WinUI 宿主从 Windows PasswordVault 读取，经 worker 标准输入传递，不写入命令行、配置文件或事件输出。
 
 `LocalModelDownload` 从固定 Hugging Face 修订下载 Qwen3-ASR-0.6B Q8_0，使用系统代理，在临时文件中校验长度与 SHA-256 后替换目标；取消和失败会移除临时文件。`worker/models.mjs` 始终扫描配置文件旁的 `models` 目录，并从当前模型路径确定额外扫描范围，识别 Hugging Face 的仓库与快照层级，不遍历缓存 blobs 或其他目录。切换命令再次检查候选列表；先释放旧模型，再加载新模型，成功后以临时文件替换配置，仅更新 `model` 字段。失败时保留原配置，下次听写重新加载原模型。命令队列与界面状态共同避免录音、转录和切换重叠。
 
 本地模型在多次听写间复用，停止录音后执行转写。豆包模式通过 `worker/doubao.mjs` 建立双向流式 WebSocket，每 200 ms 发送一包 16 kHz、16-bit 单声道 PCM。`partial` 事件携带当前完整预览文本；最后一个音频包带结束标记，收到服务端最终包才发送 `transcript`。断线或超时不提交未确认文本。宿主退出时会等待 worker，超过五秒则终止子进程。
 
 百炼通过 worker/qwen.mjs 调用 fun-asr-realtime，使用 DashScope 双向 WebSocket 协议。发送 run-task 并收到 task-started 后开始采集，每 200 ms 发送一包二进制 PCM。按 sentence_id 排序并更新句子快照，sentence_end 确认句子完成；心跳包不进入文本。停止录音时发送 finish-task，收到 task-finished 且所有句子完成后才提交最终文字。北京和新加坡使用各自端点与凭据；内部 provider 仍为 qwen。测试使用本地 WebSocket 服务验证协议，不调用真实云端。
+
+自托管模式通过 `worker/selfhosted.mjs` 连接服务根地址对应的 `/v1/asr` WebSocket，`selfhosted.url` 和 `selfhosted.model` 分别保存地址与模型选择。客户端发送 `start`（协议版本 1、16 kHz、`pcm_s16le`、语言和模型），收到 `ready` 后开始录音，每 200 毫秒发一包音频。服务按会话选用预热的模型，客户端校验 `ready.model` 与选择一致。`partial` 是可替换的完整预览；停止时发完尾包，再发送 `finish`，只有收到 `final` 才提交文字。实际模型名称随最终事件传回宿主并写入历史。
+
+`asr-server` 是独立的 macOS Python 服务，通过单个推理线程加载和调用 MLX 模型。WebRTC VAD 将停顿分段，段长上限 20 秒。任务队列合并同段的旧预览，但保留确认段落的顺序；积压超过三个待识别段落时整次听写失败，不丢弃音频后继续提交。服务拒绝同时进行的第二路听写，断线和取消后释放会话。安装、使用及服务端验证见[自托管部署](selfhosted.md)。
 
 ## 配置与发布
 

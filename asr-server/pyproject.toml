@@ -1,0 +1,16 @@
+[build-system]
+requires = ["setuptools>=80,<81"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "shuo-asr"
+version = "0.1.0"
+description = "Private Qwen3-ASR service for Shuo on Apple Silicon"
+requires-python = ">=3.12,<3.13"
+dependencies = ["mlx-audio[server]==0.5.3", "setuptools>=80,<81"]
+
+[project.scripts]
+shuo-asr = "shuo_asr.server:main"
+
+[tool.setuptools.packages.find]
+include = ["shuo_asr*"]

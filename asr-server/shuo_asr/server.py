@@ -4,6 +4,7 @@ import asyncio
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import asynccontextmanager, suppress
 import logging
+import math
 import re
 
 from .segmentation import PendingJobs, Segmenter
@@ -37,9 +38,14 @@ class Recognizer:
 
 
 def create_app(recognizer, *, model_name="Qwen3-ASR-1.7B-8bit", vad_factory=None,
-               models=None, preview_seconds=1.0, silence_seconds=.6, max_seconds=20.0,
+               models=None, preview_seconds=1.0, silence_seconds=1.0, max_seconds=30.0, hard_seconds=None,
                idle_timeout=30.0, finish_timeout=60.0):
+    if not all(math.isfinite(value) and value > 0 for value in (preview_seconds, silence_seconds, max_seconds)):
+        raise ValueError("Segmentation durations must be finite and greater than zero")
     from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+    hard_seconds = max_seconds + 5 if hard_seconds is None else hard_seconds
+    if not math.isfinite(hard_seconds) or hard_seconds < max_seconds:
+        raise ValueError("Hard duration must be finite and at least the soft duration")
     from .segmentation import join_text
 
     if vad_factory is None:
@@ -62,7 +68,10 @@ def create_app(recognizer, *, model_name="Qwen3-ASR-1.7B-8bit", vad_factory=None
 
     @app.get("/health")
     async def health():
-        return {"ready": True, "protocol": 1, "model": model_name, "models": list(available), "busy": busy.locked()}
+        return {"ready": True, "protocol": 1, "model": model_name, "models": list(available), "busy": busy.locked(),
+                "segmentation": {"preview_seconds": preview_seconds, "silence_seconds": silence_seconds, "max_seconds": max_seconds,
+                                 "hard_seconds": hard_seconds, "short_voice_seconds": 2,
+                                 "short_silence_seconds": max(2, silence_seconds), "soft_pause_seconds": .3}}
 
     @app.websocket("/v1/asr")
     async def asr(ws: WebSocket):
@@ -94,7 +103,7 @@ def create_app(recognizer, *, model_name="Qwen3-ASR-1.7B-8bit", vad_factory=None
             vad = vad_factory()
             segmenter = Segmenter(lambda data: vad.is_speech(data, 16000),
                                   preview_seconds=preview_seconds, silence_seconds=silence_seconds,
-                                  max_seconds=max_seconds)
+                                  max_seconds=max_seconds, hard_seconds=hard_seconds)
             jobs = PendingJobs()
             wake = asyncio.Event()
 
@@ -198,12 +207,18 @@ def main():
     parser.add_argument("--model", default="mlx-community/Qwen3-ASR-1.7B-8bit")
     parser.add_argument("--model-name", default="Qwen3-ASR-1.7B-8bit")
     parser.add_argument("--small-model", help="Also preload a Qwen3-ASR-0.6B-8bit model directory or repository")
+    parser.add_argument("--max-segment-seconds", type=float, default=30.0, help="Soft audio duration; prefer a pause after this point (default: 30)")
+    parser.add_argument("--hard-segment-seconds", type=float, default=None, help="Hard duration limit (default: soft limit + 5 seconds)")
+    parser.add_argument("--silence-seconds", type=float, default=1.0, help="Normal endpoint silence (default: 1; short speech waits at least 2)")
+    parser.add_argument("--preview-seconds", type=float, default=1.0, help="Interval between partial transcriptions (default: 1)")
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=18765)
     args = parser.parse_args()
     logging.basicConfig(level=logging.INFO)
     models = {"Qwen3-ASR-0.6B-8bit": Recognizer(args.small_model)} if args.small_model else {}
-    app = create_app(Recognizer(args.model), model_name=args.model_name, models=models)
+    app = create_app(Recognizer(args.model), model_name=args.model_name, models=models,
+                     max_seconds=args.max_segment_seconds, hard_seconds=args.hard_segment_seconds, silence_seconds=args.silence_seconds,
+                     preview_seconds=args.preview_seconds)
     uvicorn.run(app, host=args.host, port=args.port, ws_max_size=32000,
                 ws_max_queue=32, ws_ping_interval=15, ws_ping_timeout=15,
                 timeout_graceful_shutdown=30)

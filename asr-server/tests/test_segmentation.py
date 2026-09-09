@@ -28,19 +28,51 @@ class SegmentationTests(unittest.TestCase):
 
     def test_pause_confirms_segment_then_next_voice_starts_new_segment(self):
         s = self.segmenter()
-        jobs = s.feed(VOICE * 65 + SILENCE * 35 + VOICE * 65) + s.finish()
+        jobs = s.feed(VOICE * 105 + SILENCE * 55 + VOICE * 65) + s.finish()
         finals = [j for j in jobs if j.kind == "segment"]
         self.assertEqual([j.segment for j in finals], [0, 1])
-        self.assertEqual(sum(j.audio.count(VOICE) for j in finals), 130)
+        self.assertEqual(sum(j.audio.count(VOICE) for j in finals), 170)
         self.assertTrue(any(j.kind == "preview" and j.segment == 1 for j in jobs))
 
     def test_continuous_audio_has_bounded_segments_without_lost_or_repeated_pcm(self):
-        s = self.segmenter(max_seconds=2)
+        s = self.segmenter(max_seconds=2, hard_seconds=2)
         jobs = s.feed(VOICE * 315) + s.finish()
         finals = [j for j in jobs if j.kind == "segment"]
         self.assertEqual([len(j.audio) // FRAME_BYTES for j in finals], [100, 100, 100, 15])
         self.assertEqual(b"".join(j.audio for j in finals), VOICE * 315)
         self.assertTrue(all(len(j.audio) <= 100 * FRAME_BYTES for j in jobs))
+
+    def test_short_hesitation_keeps_context_but_long_silence_releases_it(self):
+        s = self.segmenter()
+        jobs = s.feed(VOICE * 40 + SILENCE * 60)
+        self.assertFalse(any(j.kind == "segment" for j in jobs))
+        jobs += s.feed(VOICE * 40 + SILENCE * 100)
+        finals = [j for j in jobs if j.kind == "segment"]
+        self.assertEqual(len(finals), 1)
+        self.assertEqual(finals[0].audio, VOICE * 40 + SILENCE * 60 + VOICE * 40 + SILENCE * 10)
+
+    def test_soft_cap_waits_for_pause_and_preserves_following_voice(self):
+        s = self.segmenter()
+        jobs = s.feed(VOICE * 1510)
+        self.assertFalse(any(j.kind == "segment" for j in jobs))
+        jobs += s.feed(SILENCE * 14)
+        self.assertFalse(any(j.kind == "segment" for j in jobs))
+        jobs += s.feed(SILENCE + VOICE * 20) + s.finish()
+        finals = [j for j in jobs if j.kind == "segment"]
+        self.assertEqual([j.segment for j in finals], [0, 1])
+        self.assertEqual([j.audio.count(VOICE) for j in finals], [1510, 20])
+        self.assertEqual(finals[0].audio, VOICE * 1510 + SILENCE * 10)
+
+    def test_default_hard_cap_and_stop_between_caps_preserve_exact_pcm(self):
+        for count, lengths in [(1625, [1625]), (3607, [1750, 1750, 107])]:
+            with self.subTest(count=count):
+                s = self.segmenter()
+                audio = b"".join(i.to_bytes(2, 'little') * 320 for i in range(1, count + 1))
+                jobs = s.feed(audio) + s.finish()
+                finals = [j for j in jobs if j.kind == "segment"]
+                self.assertEqual([len(j.audio) // FRAME_BYTES for j in finals], lengths)
+                self.assertEqual(b"".join(j.audio for j in finals), audio)
+                self.assertTrue(all(len(j.audio) <= 1750 * FRAME_BYTES for j in jobs))
 
     def test_packet_boundaries_do_not_change_segmentation(self):
         audio = SILENCE * 11 + VOICE * 81 + SILENCE * 35 + VOICE * 10

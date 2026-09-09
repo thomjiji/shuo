@@ -115,6 +115,20 @@ class ProtocolTests(unittest.TestCase):
                     ws.send_json(dict(START, model=invalid))
                     self.assertEqual(ws.receive_json()['type'], 'error')
 
+    def test_segmentation_settings_are_reported_and_invalid_durations_rejected(self):
+        with self.client(max_seconds=30, silence_seconds=1, preview_seconds=1) as client:
+            self.assertEqual(client.get('/health').json()['segmentation'],
+                             {'max_seconds': 30, 'hard_seconds': 35, 'silence_seconds': 1, 'preview_seconds': 1,
+                              'short_voice_seconds': 2, 'short_silence_seconds': 2, 'soft_pause_seconds': .3})
+        for field in ['max_seconds', 'hard_seconds', 'silence_seconds', 'preview_seconds']:
+            for value in [0, -1, float('nan'), float('inf')]:
+                with self.assertRaises(ValueError):
+                    create_app(Recognizer(), vad_factory=Vad, **{field: value})
+
+    def test_hard_limit_cannot_precede_soft_limit(self):
+        with self.assertRaises(ValueError):
+            create_app(Recognizer(), max_seconds=30, hard_seconds=29)
+
     def test_stalled_sender_times_out(self):
         with self.client(idle_timeout=.05) as client:
             with client.websocket_connect('/v1/asr') as ws:

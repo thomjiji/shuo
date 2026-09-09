@@ -17,11 +17,15 @@ class AudioJob:
 
 class Segmenter:
     def __init__(self, is_speech: Callable[[bytes], bool], *, preview_seconds=1.0,
-                 silence_seconds=0.6, max_seconds=20.0):
+                 silence_seconds=1.0, max_seconds=30.0, hard_seconds=None):
         self.is_speech = is_speech
         self.preview_frames = max(1, round(preview_seconds / .02))
         self.silence_frames = max(1, round(silence_seconds / .02))
         self.max_frames = max(1, round(max_seconds / .02))
+        self.hard_frames = max(self.max_frames, round((hard_seconds if hard_seconds is not None else max_seconds + 5) / .02))
+        self.short_voice_frames = 100  # Protect utterances with under 2 s of speech.
+        self.short_silence_frames = max(self.silence_frames, 100)
+        self.soft_pause_frames = 15  # A 300 ms pause is enough after the soft cap.
         self.pending = b""
         self.preroll = deque(maxlen=10)
         self.frames = []
@@ -57,7 +61,11 @@ class Segmenter:
             self.silence = 0
         else:
             self.silence += 1
-        if self.silence >= self.silence_frames or len(self.frames) >= self.max_frames:
+        required_silence = (self.short_silence_frames if self.voiced < self.short_voice_frames
+                            else self.silence_frames)
+        natural_end = self.silence >= required_silence
+        soft_end = len(self.frames) >= self.max_frames and self.silence >= self.soft_pause_frames
+        if natural_end or soft_end or len(self.frames) >= self.hard_frames:
             return self._commit()
         if self.voiced >= 6 and len(self.frames) - self.last_preview >= self.preview_frames:
             self.last_preview = len(self.frames)

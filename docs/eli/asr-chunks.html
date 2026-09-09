@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>录音分段：别把一句话切得太碎</title>
+<style>
+:root{color-scheme:light;--paper:#faf7ef;--ink:#202820;--green:#17643e;--purple:#6241a5;--muted:#596158}
+*{box-sizing:border-box}body{margin:0;background:var(--paper);color:var(--ink);font-family:system-ui,"Microsoft YaHei",sans-serif;line-height:1.65}main{max-width:850px;margin:auto;padding:44px 24px 50px}.eyebrow{font-size:14px;font-weight:750;color:var(--green);letter-spacing:.06em}h1{font-size:clamp(29px,5vw,46px);line-height:1.24;letter-spacing:-.025em;margin:12px 0 18px}h2{font-size:23px;line-height:1.4;margin:0 0 14px}p{margin:0 0 12px}.lead{font-size:20px;max-width:680px}mark{background:#ffe37b;color:inherit;padding:0 4px}section{margin-top:30px}.steps{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}.step{background:white;border-radius:18px;padding:20px}.step strong{display:block;font-size:26px;color:var(--green)}.step p{font-size:16px;margin:4px 0 0}.note{font-size:14px;color:var(--muted);margin-top:12px}.comparison{display:grid;grid-template-columns:1fr 1fr;gap:16px}.comparison article{padding:22px;border-radius:20px;border:2px solid #d8ceeb;background:#fff}.comparison article:first-child{border-color:#ecd68b}.comparison h3{font-size:19px;margin:0 0 9px}.comparison p{margin:0}.recommendation{border-left:5px solid var(--green);padding:2px 0 2px 20px}.recommendation h2{margin-bottom:8px}.recommendation p{font-size:18px}.status{font-size:14px;color:var(--muted);margin-top:24px}code,pre,kbd,samp{font-family:"Iosevka Doom Term","Cascadia Mono",Consolas,monospace}@media(max-width:570px){main{padding:26px 18px 36px}.steps,.comparison{grid-template-columns:1fr}.step{padding:15px 18px}.step strong{font-size:23px}section{margin-top:25px}}
+</style>
+</head>
+<body>
+<main>
+<div class="eyebrow">录音分段实验</div>
+<h1>别把一句话<br>切得太碎</h1>
+<p class="lead">模型需要听到<mark>前后连着的话</mark>，才更容易认对字；但每段太长，重新识别也会更慢。</p>
+<section aria-labelledby="how">
+<h2 id="how">小包传过去，连起来听</h2>
+<div class="steps">
+<div class="step"><strong>每 0.2 秒</strong><p>发送一小包录音。小包会积累起来。</p></div>
+<div class="step"><strong>每 1 秒左右</strong><p>重新听当前这一段，更新屏幕上的文字。</p></div>
+<div class="step"><strong>30 秒后找停顿</strong><p>等到短停顿就另起一段，连续说最多保留 35 秒。</p></div>
+</div>
+<p class="note">所以，每秒出字，不等于模型只听到了这一秒。真正另起一段时，前一段的声音和文字才不再提供给模型。</p>
+</section>
+<section aria-labelledby="results">
+<h2 id="results">Mac 上测到了什么？</h2>
+<div class="comparison">
+<article><h3>太短：容易拆开词语</h3><p>同一段中文，用 0.6B 每 2 秒硬切，出现了漏字和重复；每 20 秒切只差 1 个字，30 秒切没有文字差异。</p></article>
+<article><h3>太长：重新听要等更久</h3><p>0.6B 识别 30 秒录音，约用 1 秒；识别 120 秒录音，约用 3 秒。都能处理，但长段更新文字会更慢。</p></article>
+</div>
+<p class="note">文字比较只用了一个 80 秒的合成语音样例，并且忽略了标点，不能当作所有录音的准确率。120 秒是本次测到的长度，不是最大极限。</p>
+</section>
+<section class="recommendation" aria-labelledby="try">
+<h2 id="try">现在试用的设置</h2>
+<p>通常停顿 <strong>1 秒</strong>再另起一段。刚开口、说话还不足 2 秒时，会多等到 <strong>2 秒静音</strong>，让前后文更容易留在一起。</p>
+<p>到了 30 秒，开始找短停顿；一直不停才在 35 秒切开。按停止键就立即送去识别，不用等。</p>
+</section>
+<p class="status">当前试用设置：30 秒后优先等停顿，最长 35 秒，每 1 秒左右更新预览。模型根据声音停顿切分，不能保证每次都切在词语之间。</p>
+</main>
+</body>
+</html>

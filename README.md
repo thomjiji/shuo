@@ -33,6 +33,10 @@ Windows 原生 WinUI 3 听写应用，支持本地模型、自托管服务、豆
 
 下载的模型位于配置文件旁的 `models` 目录，默认是 `%LOCALAPPDATA%\Shuo\models`。自行准备 GGUF 文件的方法见[使用已有模型](docs/setup.md#3-使用已有模型)。
 
+## 实时翻译
+
+在“实时翻译”中配置百炼地域、业务空间和 API Key，即可使用 `qwen3.5-livetranslate-flash-realtime` 将系统播放的声音翻译为中文或英文字幕。音频发送到百炼处理，译文在浮窗中实时更新。使用方法见[实时翻译说明](docs/translation.md)。
+
 ## 文本与历史
 
 “文本整理”中的“去掉末尾句号”默认关闭，修改后自动保存，从下一次听写生效。它只去掉整次输入末尾的句号，保留句中标点、问号、感叹号、省略号及英文缩写等有歧义的句点。
@@ -63,3 +67,4 @@ dotnet build --configuration Debug
 ```
 
 项目结构与进程协议见[开发说明](docs/development.md)。按[构建安装包](docs/setup.md#1-在构建电脑生成安装包)生成 x64 安装器；推送版本标签后，GitHub Actions 会构建并发布安装器和应用内更新包。
+

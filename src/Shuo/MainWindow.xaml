@@ -50,6 +50,7 @@
             <NavigationView.MenuItems>
                 <NavigationViewItem x:Name="GeneralNavigationItem" Content="常规" Tag="general" Icon="Setting" />
                 <NavigationViewItem x:Name="TranscriptionNavigationItem" Content="转录服务" Tag="transcription" Icon="Microphone" />
+                <NavigationViewItem Content="实时翻译" Tag="translation" Icon="Globe" />
                 <NavigationViewItem Content="转录历史" Tag="history" Icon="Clock" />
                 <NavigationViewItem Content="文本整理" Tag="cleanup" Icon="Edit" />
             </NavigationView.MenuItems>
@@ -340,6 +341,31 @@
                                     <TextBox MinHeight="100" AcceptsReturn="True" TextWrapping="Wrap"
                                              PlaceholderText="今天的天气不错，我们来试试语音输入。"
                                              automation:AutomationProperties.Name="听写试用输入框" />
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+                        <StackPanel x:Name="TranslationPage" Spacing="12" Visibility="Collapsed">
+                            <Border Padding="18" CornerRadius="8" BorderThickness="1"
+                                    Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}">
+                                <StackPanel Spacing="12">
+
+                                    <TextBlock x:Name="TranslationModelName" TextWrapping="Wrap" IsTextSelectionEnabled="True" />
+
+
+                                    <ComboBox x:Name="TranslationRegion" Header="地域" SelectedIndex="0" HorizontalAlignment="Stretch">
+                                        <ComboBoxItem Content="北京" />
+                                        <ComboBoxItem Content="新加坡" />
+                                    </ComboBox>
+                                    <TextBox x:Name="TranslationWorkspace" Header="Workspace ID" PlaceholderText="ws-..." />
+                                    <PasswordBox x:Name="TranslationApiKey" Header="翻译 API Key（可选）" PlaceholderText="留空复用同地域的百炼转录凭据" />
+                                    <TextBlock Text="系统声音将发送到百炼翻译。" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                    <ComboBox x:Name="TranslationLanguage" Header="字幕语言" SelectedIndex="0" HorizontalAlignment="Stretch">
+                                        <ComboBoxItem Content="中文" />
+                                        <ComboBoxItem Content="English" />
+                                    </ComboBox>
+                                    <Button x:Name="TranslationButton" Content="开始翻译" Click="TranslationButton_Click" />
+                                    <TextBlock x:Name="TranslationStatus" Text="自动识别源语言；停止后等待最后一段译文返回。" TextWrapping="Wrap" />
                                 </StackPanel>
                             </Border>
                         </StackPanel>

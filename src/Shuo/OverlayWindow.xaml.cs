@@ -20,6 +20,9 @@ public sealed partial class OverlayWindow : Window
 {
     private const int OverlayWidth = 320;
     private const int OverlayHeight = 36;
+    private const double CaptionLineHeight = 26;
+    private const int CaptionWidth = 680;
+    private const int CaptionMaxLines = 2;
     private const double SlideSeconds = 0.16;
     private readonly IntPtr _handle;
     private readonly UISettings _themeSettings = new();
@@ -38,6 +41,14 @@ public sealed partial class OverlayWindow : Window
     private double _slideFrom;
     private double _slideTo;
     private double _panelWidth = 36;
+    private double _panelHeight = OverlayHeight;
+    private bool _translation;
+    private bool _layingOutTranslation;
+    private PointInt32? _captionPosition;
+    private PointInt32 _dragStart;
+    private PointInt32 _dragOrigin;
+    private uint? _dragPointer;
+    internal event Action? TranslationCloseRequested;
     private readonly Stopwatch _voiceClock = new();
     private double _targetLevel;
     private double _displayLevel;
@@ -112,14 +123,29 @@ public sealed partial class OverlayWindow : Window
         UpdateTextMask();
     }
 
-    internal void Begin(bool busy)
+    internal void Begin(bool busy, bool translation = false)
     {
         Hide();
-        _workArea = NativeMethods.GetForegroundWorkArea();
+        _workArea = translation && _captionPosition is { } saved
+            ? DisplayArea.GetFromPoint(saved, DisplayAreaFallback.Nearest).WorkArea
+            : NativeMethods.GetForegroundWorkArea();
         _hasText = false;
-        _panelWidth = 36;
-        OverlaySurface.Padding = new Thickness(5, 0, 5, 0);
-        TrackGrid.ColumnSpacing = 0;
+        _translation = translation;
+        _panelWidth = translation ? CaptionWidth : 36;
+        _panelHeight = translation ? CaptionMaxLines * CaptionLineHeight + 16 : OverlayHeight;
+        TextViewport.Height = translation ? CaptionMaxLines * CaptionLineHeight : 22;
+        TextViewport.Margin = translation ? new Thickness(0, 0, 40, 0) : new Thickness(0);
+        TranscriptText.Width = double.NaN;
+        TranscriptText.LineHeight = translation ? CaptionLineHeight : 22;
+        TranscriptText.FontSize = translation ? 18 : 14;
+        CaptionCloseButton.Visibility = translation ? Visibility.Visible : Visibility.Collapsed;
+        TranscriptText.TextWrapping = translation ? TextWrapping.Wrap : TextWrapping.NoWrap;
+        TranscriptText.LineStackingStrategy = translation ? LineStackingStrategy.BlockLineHeight : LineStackingStrategy.MaxHeight;
+        ElementCompositionPreview.GetElementVisual(TranscriptText).Opacity = translation ? 1 : 0;
+        if (_textVisual is not null) _textVisual.IsVisible = !translation;
+        TextOffset.Y = 0;
+        OverlaySurface.Padding = translation ? new Thickness(10, 0, 8, 0) : new Thickness(5, 0, 5, 0);
+        TrackGrid.ColumnSpacing = translation ? 8 : 0;
         TextOffset.X = 0;
         TranscriptText.Text = "";
         _textWidth = 0;
@@ -138,6 +164,7 @@ public sealed partial class OverlayWindow : Window
     internal void UpdateTranscript(string? text)
     {
         if (!_visible) return;
+        if (_translation) { UpdateTranslationTranscript(text ?? ""); return; }
         var value = (text ?? "").Replace('\r', ' ').Replace('\n', ' ');
         if (value == TranscriptText.Text) return;
         var hadText = _hasText;
@@ -158,6 +185,43 @@ public sealed partial class OverlayWindow : Window
         if (!hadText && _hasText) TextOffset.X = TextViewport.ActualWidth;
         if (_hasText) FollowLatestText();
         else StopScrolling();
+    }
+
+    private void UpdateTranslationTranscript(string text)
+    {
+        if (TranscriptText.Text == text) return;
+        _hasText = !string.IsNullOrWhiteSpace(text);
+        TranscriptText.Text = text;
+        TextViewport.UpdateLayout();
+        LayoutTranslationText();
+    }
+    private void LayoutTranslationText()
+    {
+        if (!_translation || !_visible || _layingOutTranslation) return;
+        _layingOutTranslation = true;
+        try
+        {
+            StopScrolling();
+            TextOffset.X = 0;
+            var width = Math.Max(1, TextViewport.ActualWidth);
+            var scale = TextViewport.XamlRoot?.RasterizationScale ?? 1;
+            var lineHeight = Math.Ceiling(CaptionLineHeight * scale) / scale;
+            TranscriptText.LineHeight = lineHeight;
+            TranscriptText.Width = width;
+            TranscriptText.Measure(new Size(width, double.PositiveInfinity));
+            var lines = _hasText ? Math.Max(1, (int)Math.Round(TranscriptText.DesiredSize.Height / lineHeight)) : 1;
+            var visibleLines = CaptionMaxLines;
+            TextViewport.Height = visibleLines * lineHeight;
+            // Scroll by complete rows, leaving the most recent two lines visible.
+            TextOffset.Y = -Math.Max(0, lines - CaptionMaxLines) * lineHeight;
+            var height = 16 + visibleLines * lineHeight;
+            if (_panelHeight != height)
+            {
+                _panelHeight = height;
+                Position();
+            }
+        }
+        finally { _layingOutTranslation = false; }
     }
 
     internal void Transcribing()
@@ -258,9 +322,9 @@ public sealed partial class OverlayWindow : Window
     }
     private void FollowLatestText()
     {
-        if (!_visible || !_hasText) return;
+        if (_translation || !_visible || !_hasText) return;
         _slideFrom = TextOffset.X;
-        _slideTo = TextViewport.ActualWidth - _textWidth;
+        _slideTo = _panelWidth < OverlayWidth ? 0 : Math.Min(0, TextViewport.ActualWidth - _textWidth);
         StopScrolling();
         if (Math.Abs(_slideTo - _slideFrom) < 0.1)
         {
@@ -308,42 +372,101 @@ public sealed partial class OverlayWindow : Window
         _textVisual.Offset = new Vector3((float)TextOffset.X, 0, 0);
         var color = TranscriptBrush.Color;
         _fadeEnd.Color = color;
-        color.A = (byte)Math.Round(255 * (1 - Math.Clamp(-TextOffset.X / 18, 0, 1)));
+        // Any left-clipped text fades in across the same width, even with a small overflow.
+        color.A = _panelWidth >= OverlayWidth && TextOffset.X < -0.1 ? (byte)0 : (byte)255;
         _fadeStart.Color = color;
         var left = (float)Math.Max(0, -TextOffset.X);
         _textGradient.StartPoint = new Vector2(left, 0);
-        _textGradient.EndPoint = new Vector2(left + 18, 0);
+        _textGradient.EndPoint = new Vector2(left + 24, 0);
     }
 
     private void TextViewport_SizeChanged(object sender, SizeChangedEventArgs args)
     {
         TextClip.Rect = new Rect(0, 0, Math.Max(0, args.NewSize.Width), Math.Max(0, args.NewSize.Height));
-        FollowLatestText();
+        if (_translation) LayoutTranslationText();
+        else FollowLatestText();
     }
 
     private void Position()
     {
         var scale = NativeMethods.GetDpiForWindow(_handle) / 96.0;
         var bounds = CalculateBounds(scale);
-        AppWindow.MoveAndResize(bounds);
+        if (AppWindow.Position.X != bounds.X || AppWindow.Position.Y != bounds.Y
+            || AppWindow.Size.Width != bounds.Width || AppWindow.Size.Height != bounds.Height)
+            AppWindow.MoveAndResize(bounds);
         var targetScale = NativeMethods.GetDpiForWindow(_handle) / 96.0;
         if (targetScale != scale)
         {
             bounds = CalculateBounds(targetScale);
+            if (AppWindow.Position.X != bounds.X || AppWindow.Position.Y != bounds.Y
+            || AppWindow.Size.Width != bounds.Width || AppWindow.Size.Height != bounds.Height)
             AppWindow.MoveAndResize(bounds);
         }
-        NativeMethods.ShowNoActivateTopmost(_handle, bounds);
+        if (_dragPointer is null) NativeMethods.ShowNoActivateTopmost(_handle, bounds);
     }
 
     private RectInt32 CalculateBounds(double scale)
     {
         var margin = (int)Math.Round(20 * scale);
         var width = Math.Max(1, Math.Min((int)Math.Round(_panelWidth * scale), _workArea.Width - margin * 2));
-        var height = Math.Max(1, Math.Min((int)Math.Round(OverlayHeight * scale), _workArea.Height - margin * 2));
+        var height = Math.Max(1, Math.Min((int)Math.Round(_panelHeight * scale), _workArea.Height - margin * 2));
+        if (_translation && _captionPosition is { } position)
+        {
+            return new RectInt32(Math.Clamp(position.X, _workArea.X, _workArea.X + _workArea.Width - width),
+                Math.Clamp(position.Y, _workArea.Y, _workArea.Y + _workArea.Height - height), width, height);
+        }
         return new RectInt32(_workArea.X + (_workArea.Width - width) / 2,
             _workArea.Y + _workArea.Height - height - margin, width, height);
     }
 
+    private void CaptionCloseButton_Click(object sender, RoutedEventArgs args)
+    {
+        Hide();
+        TranslationCloseRequested?.Invoke();
+    }
+
+    private PointInt32 PointerScreenPosition(Microsoft.UI.Xaml.Input.PointerRoutedEventArgs args)
+    {
+        if (NativeMethods.GetCursorPos(out var cursor)) return cursor;
+        var point = args.GetCurrentPoint(OverlaySurface).Position;
+        var scale = OverlaySurface.XamlRoot?.RasterizationScale ?? 1;
+        return new PointInt32(AppWindow.Position.X + (int)Math.Round(point.X * scale),
+            AppWindow.Position.Y + (int)Math.Round(point.Y * scale));
+    }
+
+    private void Overlay_PointerPressed(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs args)
+    {
+        if (!_translation || !args.GetCurrentPoint(OverlaySurface).Properties.IsLeftButtonPressed) return;
+        for (var source = args.OriginalSource as DependencyObject; source is not null; source = VisualTreeHelper.GetParent(source))
+            if (ReferenceEquals(source, CaptionCloseButton)) return;
+        if (!OverlaySurface.CapturePointer(args.Pointer)) return;
+        _dragPointer = args.Pointer.PointerId;
+        _dragStart = PointerScreenPosition(args);
+        _dragOrigin = AppWindow.Position;
+        args.Handled = true;
+    }
+
+    private void Overlay_PointerMoved(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs args)
+    {
+        if (_dragPointer != args.Pointer.PointerId) return;
+        var point = PointerScreenPosition(args);
+        _workArea = DisplayArea.GetFromPoint(point, DisplayAreaFallback.Nearest).WorkArea;
+        _captionPosition = new PointInt32(_dragOrigin.X + point.X - _dragStart.X, _dragOrigin.Y + point.Y - _dragStart.Y);
+        Position();
+        args.Handled = true;
+    }
+
+    private void Overlay_PointerReleased(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs args)
+    {
+        if (_dragPointer != args.Pointer.PointerId) return;
+        _dragPointer = null;
+        _captionPosition = AppWindow.Position;
+        OverlaySurface.ReleasePointerCapture(args.Pointer);
+        args.Handled = true;
+    }
+
+    private void Overlay_PointerCaptureLost(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs args) =>
+        _dragPointer = null;
     private void StopScrolling()
     {
         CompositionTarget.Rendering -= OnRendering;
@@ -353,6 +476,8 @@ public sealed partial class OverlayWindow : Window
     internal void Hide()
     {
         _visible = false;
+        _dragPointer = null;
+        OverlaySurface.ReleasePointerCaptures();
         StopScrolling();
         StopVoiceAnimation();
         BusyRing.IsActive = false;

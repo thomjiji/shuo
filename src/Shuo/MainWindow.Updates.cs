@@ -66,7 +66,7 @@ public sealed partial class MainWindow
     private void UpdateInstallControls()
     {
         if (InstallUpdateButton is null || BannerUpdateButton is null) return;
-        var idle = !_exiting && !_closed && !_dictationActive && !_togglePending && !_modelChanging && _pendingPastes == 0;
+        var idle = _translationCancellation is null && !_exiting && !_closed && !_dictationActive && !_togglePending && !_modelChanging && _pendingPastes == 0;
         InstallUpdateButton.IsEnabled = BannerUpdateButton.IsEnabled = idle && !_installingUpdate && !_checkingUpdate;
         CheckUpdateButton.IsEnabled = !_checkingUpdate && !_installingUpdate;
     }
@@ -109,7 +109,7 @@ public sealed partial class MainWindow
 
     private async void InstallUpdate_Click(object sender, RoutedEventArgs args)
     {
-        if (_updateManager is null || _checkingUpdate || _installingUpdate || _exiting || _closed || _dictationActive || _togglePending || _modelChanging || _pendingPastes > 0) return;
+        if (_translationCancellation is not null || _updateManager is null || _checkingUpdate || _installingUpdate || _exiting || _closed || _dictationActive || _togglePending || _modelChanging || _pendingPastes > 0) return;
         if (_availableUpdate is null && _downloadedUpdate is null) return;
         var updateToInstall = _availableUpdate;
         _installingUpdate = true;

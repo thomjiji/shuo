@@ -5,7 +5,7 @@
     <TargetPlatformMinVersion>10.0.17763.0</TargetPlatformMinVersion>
     <RootNamespace>Shuo</RootNamespace>
     <AssemblyName>shuo</AssemblyName>
-    <Version>0.7.2</Version>
+    <Version>0.8.0</Version>
     <DefineConstants>$(DefineConstants);DISABLE_XAML_GENERATED_MAIN</DefineConstants>
     <Title>说</Title>
     <Product>说</Product>
@@ -75,6 +75,7 @@
     <PackageReference Include="Microsoft.WindowsAppSDK.InteractiveExperiences" Version="2.1.6" />
     <PackageReference Include="Microsoft.Windows.SDK.BuildTools.MSIX" Version="1.7.251221100" />
     <PackageReference Include="System.Net.Http.WinHttpHandler" Version="10.0.0" />
+    <PackageReference Include="NAudio.Wasapi" Version="2.2.1" />
     <PackageReference Include="Velopack" Version="1.2.0" />
   </ItemGroup>
 
@@ -111,3 +112,4 @@
     <Copy SourceFiles="@(WinUiResource)" DestinationFolder="$(PublishDir)" SkipUnchangedFiles="true" />
   </Target>
 </Project>
+

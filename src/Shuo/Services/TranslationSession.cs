@@ -193,4 +193,3 @@ internal sealed class TranslationCaptions
         return result;
     }
 }
-

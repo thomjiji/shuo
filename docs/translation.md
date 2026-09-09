@@ -35,4 +35,3 @@ dotnet build src/Shuo/Shuo.csproj -p:Platform=x64
 ```powershell
 dotnet run --project test/Translation.Tests -- --live cn-beijing <WorkspaceID> <audio.pcm>
 ```
-

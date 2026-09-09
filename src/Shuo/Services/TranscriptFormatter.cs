@@ -52,4 +52,3 @@ internal static partial class TranscriptFormatter
     [GeneratedRegex(@"\p{IsCJKUnifiedIdeographs}")]
     private static partial Regex CjkRegex();
 }
-

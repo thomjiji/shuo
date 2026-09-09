@@ -67,4 +67,3 @@ dotnet build --configuration Debug
 ```
 
 项目结构与进程协议见[开发说明](docs/development.md)。按[构建安装包](docs/setup.md#1-在构建电脑生成安装包)生成 x64 安装器；推送版本标签后，GitHub Actions 会构建并发布安装器和应用内更新包。
-

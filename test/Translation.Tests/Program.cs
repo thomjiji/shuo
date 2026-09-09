@@ -1,3 +1,6 @@
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.Extensions.Logging;
 using Shuo.Services;
 using System.Diagnostics;
 using System.Net;
@@ -113,21 +116,21 @@ Console.WriteLine("Passed caption revision, endpoint validation, audio framing, 
 
 async Task CheckWire(bool cancelCapture, bool fail)
 {
-    using var reserve = new TcpListener(IPAddress.Loopback, 0);
-    reserve.Start();
-    var port = ((IPEndPoint)reserve.LocalEndpoint).Port;
-    reserve.Stop();
-    using var listener = new HttpListener();
-    listener.Prefixes.Add($"http://127.0.0.1:{port}/");
-    listener.Start();
+    var builder = WebApplication.CreateSlimBuilder();
+    builder.Logging.ClearProviders();
+    builder.WebHost.UseUrls("http://127.0.0.1:0");
+    await using var listener = builder.Build();
+    listener.UseWebSockets();
     using var stop = new CancellationTokenSource();
     using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
     var final = "";
-    var server = Task.Run(async () =>
+    var server = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+    listener.Run(async context =>
     {
-        var context = await listener.GetContextAsync().WaitAsync(deadline.Token);
-        Assert(context.Request.Headers["Authorization"] == "Bearer test-key", "Bearer auth");
-        using var socket = (await context.AcceptWebSocketAsync(null)).WebSocket;
+        try
+        {
+        Assert(context.Request.Headers.Authorization.ToString() == "Bearer test-key", "Bearer auth");
+        using var socket = await context.WebSockets.AcceptWebSocketAsync();
         await Send(socket, new { type = "session.created" });
         using var update = await Receive(socket);
         var session = update.RootElement.GetProperty("session");
@@ -154,9 +157,14 @@ async Task CheckWire(bool cancelCapture, bool fail)
         await Send(socket, new { type = "session.finished" });
         var close = new byte[64];
         await socket.ReceiveAsync(close.AsMemory(), deadline.Token);
+        }
+        catch (Exception error) { server.TrySetException(error); }
+        finally { server.TrySetResult(); }
     });
+    await listener.StartAsync(deadline.Token);
+    var endpoint = new Uri(listener.Urls.Single().Replace("http:", "ws:"));
     var client = new TranslationSession(new(WorkspaceId: "ws-example"), "test-key", () => { }, text => final = text, _ => { }, async (text, token) => { await Task.Delay(5, token); return "formatted:" + text; })
-        .RunAsync(stop.Token, Packets(cancelCapture, stop.Token), new Uri($"ws://127.0.0.1:{port}/"));
+        .RunAsync(stop.Token, Packets(cancelCapture, stop.Token), endpoint);
     if (fail)
     {
         try { await client.WaitAsync(deadline.Token); throw new Exception("Expected service error"); }
@@ -167,7 +175,7 @@ async Task CheckWire(bool cancelCapture, bool fail)
         await client.WaitAsync(deadline.Token);
         Assert(final == "formatted:Final tail.", "Receive final translation after stop");
     }
-    await server.WaitAsync(deadline.Token);
+    await server.Task.WaitAsync(deadline.Token);
 }
 
 static async IAsyncEnumerable<byte[]> Packets(bool wait, [EnumeratorCancellation] CancellationToken token)

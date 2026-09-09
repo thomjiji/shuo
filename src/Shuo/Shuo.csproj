@@ -112,4 +112,3 @@
     <Copy SourceFiles="@(WinUiResource)" DestinationFolder="$(PublishDir)" SkipUnchangedFiles="true" />
   </Target>
 </Project>
-

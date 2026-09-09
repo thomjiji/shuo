@@ -6,6 +6,7 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
   <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
     <PackageReference Include="NAudio.Wasapi" Version="2.2.1" />
     <Compile Include="../../src/Shuo/Services/TranscriptFormatter.cs" Link="TranscriptFormatter.cs" />
     <Compile Include="../../src/Shuo/Services/TranslationSession.cs" Link="TranslationSession.cs" />
@@ -16,4 +17,3 @@
     <Compile Include="../../src/Shuo/Services/HotkeyBinding.cs" Link="HotkeyBinding.cs" />
   </ItemGroup>
 </Project>
-

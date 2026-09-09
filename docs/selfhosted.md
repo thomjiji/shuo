@@ -15,11 +15,11 @@ uv run --project asr-server --frozen shuo-asr
 通过 Tailscale 将服务发布到私网：
 
 ```bash
-tailscale serve --bg --http=18765 http://127.0.0.1:18765
+tailscale serve --bg --tcp=18765 tcp://127.0.0.1:18765
 tailscale serve status
 ```
 
-Windows 到 Mac 的 **TCP 18765** 必须被 tailnet 的访问规则允许。源选择需要使用听写的 Windows 设备，目标选择 Mac；地址使用 `tailscale serve status` 显示的主机名，例如 `http://<Mac主机名>:18765`。不要直接替换成 `100.x` IP：当前 HTTP 发布按主机名匹配，IP 请求可能返回 404。HTTP 和 WebSocket 流量由 Tailscale 隧道加密。
+Windows 到 Mac 的 **TCP 18765** 必须被 tailnet 的访问规则允许。源选择需要使用听写的 Windows 设备，目标选择 Mac。TCP 转发支持 Mac 的 Tailscale IP 和主机名，HTTP 和 WebSocket 流量由 Tailscale 隧道加密。
 
 在 Windows 上验证：
 
@@ -27,7 +27,7 @@ Windows 到 Mac 的 **TCP 18765** 必须被 tailnet 的访问规则允许。源�
 curl.exe --max-time 5 http://<Mac的Tailscale名称>:18765/health
 ```
 
-返回 `ready: true` 后，在 shuo 的“转录服务”中选择“自托管识别”，填写同一个服务根地址，点击“测试连接”。随后可按快捷键听写，浮窗显示实时预览，停止后才粘贴最终文字。地址自动保存，切换服务后保留。
+返回 `ready: true` 后，在 shuo 的“转录服务”中选择“自托管识别”，在“主机 IP”中填写 Mac 的 Tailscale IP，点击“测试连接”。随后可按快捷键听写，浮窗显示实时预览，停止后才粘贴最终文字。应用自动补上 HTTP 协议和默认端口 18765，也兼容主机名及已有的完整地址。地址在输入时自动保存，离开输入框后应用配置，切换服务后保留。
 
 在“识别模型”中选择 Qwen3-ASR 1.7B 或 0.6B，选择自动保存并在下一次听写时生效。两个选项都使用 Mac 上的 MLX 服务和相同的实时分段预览流程。0.6B 的实际速度与识别效果可用自己的录音比较；服务端未安装所选模型时会明确报错。
 
@@ -67,7 +67,7 @@ LaunchAgent 的 `ProgramArguments` 使用环境中的 `bin/shuo-asr`，设置 `R
 停用私网发布：
 
 ```bash
-tailscale serve --http=18765 off
+tailscale serve --tcp=18765 off
 ```
 
 ## 开发验证

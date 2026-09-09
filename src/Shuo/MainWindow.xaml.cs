@@ -98,7 +98,7 @@ public sealed partial class MainWindow : Window
         {
             _cloudOptions = CloudSettings.Load();
             ProviderPicker.SelectedIndex = _cloudOptions.Backend switch { "selfhosted" => 3, "qwen" => 2, "doubao" => 1, _ => 0 };
-            SelfHostedUrl.Text = _cloudOptions.SelfHostedUrl;
+            SelfHostedUrl.Text = SelfHostedAddress.ToDisplay(_cloudOptions.SelfHostedUrl);
             SelfHostedModelPicker.SelectedIndex = _cloudOptions.SelfHostedModel == "Qwen3-ASR-0.6B-8bit" ? 1 : 0;
             QwenApiKey.Password = _cloudOptions.QwenApiKey;
             QwenRegionPicker.SelectedIndex = _cloudOptions.QwenRegion == "ap-southeast-1" ? 1 : 0;
@@ -118,6 +118,8 @@ public sealed partial class MainWindow : Window
         CloudAppId.TextChanged += (_, _) => SaveCloudFields();
         CloudResourceId.TextChanged += (_, _) => SaveCloudFields();
         QwenRegionPicker.SelectionChanged += (_, _) => SaveCloudFields();
+        foreach (var field in CloudInputFields)
+            field.LostFocus += (_, _) => SaveCloudFields();
         RefreshCloudStatus();
         InitializeUpdates();
         InitializeTranslation();
@@ -227,7 +229,7 @@ public sealed partial class MainWindow : Window
         Provider: ProviderPicker.SelectedIndex switch { 3 => "selfhosted", 2 => "qwen", _ => "doubao" },
         QwenApiKey: QwenApiKey.Password.Trim(),
         QwenRegion: QwenRegionPicker.SelectedIndex == 1 ? "ap-southeast-1" : "cn-beijing",
-        SelfHostedUrl: SelfHostedUrl.Text.Trim(),
+        SelfHostedUrl: SelfHostedAddress.ToUrl(SelfHostedUrl.Text),
         SelfHostedModel: SelfHostedModelPicker.SelectedIndex == 1 ? "Qwen3-ASR-0.6B-8bit" : "Qwen3-ASR-1.7B-8bit");
 
     private void RefreshCloudStatus()
@@ -285,6 +287,9 @@ public sealed partial class MainWindow : Window
         }
     }
 
+    private Control[] CloudInputFields => [CloudApiKey, CloudAccessToken, QwenApiKey,
+        SelfHostedUrl, CloudAppId, CloudResourceId];
+
     private CancellationTokenSource? _cloudSaveDelay;
 
     private async void SaveCloudFields()
@@ -296,13 +301,14 @@ public sealed partial class MainWindow : Window
         try
         {
             var options = ReadCloudOptions();
-            if (options == _cloudOptions) return;
+            if (options == _cloudOptions && _backendConfigured) return;
             CloudSettings.Save(options);
             _cloudOptions = options;
             _backendConfigured = false;
             CloudStatusMessage = "已自动保存。";
-            // Persist immediately, then apply once typing pauses so editing keeps its focus.
+            // Persist while typing; defer control-disabling configuration until the editor loses focus.
             await Task.Delay(500, delay.Token);
+            if (CloudInputFields.Any(field => field.FocusState != FocusState.Unfocused)) return;
             if (!_daemonReady || _dictationActive || _togglePending || _modelChanging) return;
             _modelChanging = true;
             UpdateModelControls();

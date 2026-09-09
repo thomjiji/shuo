@@ -23,7 +23,7 @@ Windows 原生 WinUI 3 听写应用，支持本地模型、自托管服务、豆
 | 服务 | 配置与处理方式 |
 | --- | --- |
 | 本地模型 | 使用 Qwen3-ASR-0.6B Q8_0，停止录音后在本机转写，无需联网。 |
-| 自托管识别 | 在 Apple Silicon Mac 通过 MLX 部署 Qwen3-ASR 1.7B / 0.6B，填写服务地址并选择模型，通过 Tailscale 实时识别。[部署说明](docs/selfhosted.md)。 |
+| 自托管识别 | 在 Apple Silicon Mac 通过 MLX 部署 Qwen3-ASR 1.7B / 0.6B，填写 Mac 的 Tailscale IP 并选择模型，通过 Tailscale 实时识别。[部署说明](docs/selfhosted.md)。 |
 | 火山引擎 | 填写语音控制台 API Key，默认使用豆包流式语音识别 2.0 小时版。旧版凭据和其他套餐的资源 ID 可在展开项中填写。 |
 | 阿里云百炼 | 使用 `fun-asr-realtime`。填写百炼 API Key，选择创建 Key 时使用的北京或新加坡地域。 |
 

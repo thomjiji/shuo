@@ -6,6 +6,7 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="../../src/Shuo/Services/SelfHostedAddress.cs" Link="SelfHostedAddress.cs" />
     <Compile Include="../../src/Shuo/Services/LocalModelDownload.cs" Link="LocalModelDownload.cs" />
     <Compile Include="../../src/Shuo/Services/TextCleanup.cs" Link="TextCleanup.cs" />
     <Compile Include="../../src/Shuo/Services/TextCleanupSettings.cs" Link="TextCleanupSettings.cs" />

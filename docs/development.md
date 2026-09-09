@@ -87,4 +87,4 @@ WinUI 的 XBF 和 PRI 资源通过项目中的发布 targets 纳入输出。调�
 
 更新源验证：`dotnet run --project test/Update.Tests/Update.Tests.csproj -- <releases目录> <版本> ShuoDesktop`，检查版本发现、真实包下载校验、待重启状态和禁止降级。发布工作流在上传前运行它。
 
-转录服务选择通过 `CloudSettings.SaveProvider` 单独持久化，不要求先填写凭据。凭据和地域修改时立即持久化，停止输入 500 ms 后配置 worker。宿主随后配置 worker；缺少凭据时阻止听写并提示填写。清空凭据会同步清除已保存值。本地和云端共用听写试用区。
+转录服务选择通过 `CloudSettings.SaveProvider` 单独持久化，不要求先填写凭据。凭据和地域修改时立即持久化，等待 500 ms 且焦点离开凭据或地址输入框后配置 worker。宿主随后配置 worker；缺少凭据时阻止听写并提示填写。清空凭据会同步清除已保存值。本地和云端共用听写试用区。

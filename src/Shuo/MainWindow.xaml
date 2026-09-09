@@ -285,9 +285,9 @@
                                                 <ComboBoxItem Content="Qwen3-ASR 1.7B" />
                                                 <ComboBoxItem Content="Qwen3-ASR 0.6B" />
                                             </ComboBox>
-                                            <TextBox x:Name="SelfHostedUrl" Header="服务地址"
-                                                     PlaceholderText="http://macbook:18765"
-                                                     automation:AutomationProperties.Name="自托管服务地址" />
+                                            <TextBox x:Name="SelfHostedUrl" Header="主机 IP"
+                                                     PlaceholderText="输入 Mac 的 Tailscale IP，如 100.x.x.x"
+                                                     automation:AutomationProperties.Name="自托管主机 IP" />
                                             <TextBlock Text="音频发送到你部署的识别服务。服务所在电脑需保持在线。"
                                                        FontSize="12" TextWrapping="Wrap"
                                                        Foreground="{ThemeResource TextFillColorSecondaryBrush}" />

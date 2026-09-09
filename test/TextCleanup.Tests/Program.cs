@@ -4,6 +4,19 @@ using System.Text.Json.Nodes;
 
 await ModelDownloadTests.RunAsync();
 
+foreach (var (input, expected) in new[] {
+    (" 100.119.85.74 ", "http://100.119.85.74:18765"),
+    ("thombp", "http://thombp:18765"),
+    ("", ""),
+    ("mac:9999", "http://mac:9999"),
+    ("fd7a:115c:a1e0::1", "http://[fd7a:115c:a1e0::1]:18765"),
+    ("https://mac:443/v1/asr", "https://mac:443/v1/asr") })
+    if (SelfHostedAddress.ToUrl(input) != expected) throw new Exception("Host address defaults failed.");
+foreach (var url in new[] { "http://100.119.85.74:18765", "http://thombp:18765",
+    "http://[fd7a:115c:a1e0::1]:18765", "https://mac/v1/asr", "http://mac:9999" })
+    if (SelfHostedAddress.ToUrl(SelfHostedAddress.ToDisplay(url)) != url)
+        throw new Exception("Saved address round trip failed.");
+
 var periods = new TextCleanupOptions(TrimTrailingPeriod: true);
 var cases = new (string Input, string Expected, TextCleanupOptions Options)[]
 {

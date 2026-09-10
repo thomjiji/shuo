@@ -101,7 +101,6 @@ public sealed partial class MainWindow : Window
             SelfHostedUrl.Text = SelfHostedAddress.ToDisplay(_cloudOptions.SelfHostedUrl);
             SelfHostedModelPicker.SelectedIndex = _cloudOptions.SelfHostedModel == "Qwen3-ASR-0.6B-8bit" ? 1 : 0;
             QwenApiKey.Password = _cloudOptions.QwenApiKey;
-            QwenRegionPicker.SelectedIndex = _cloudOptions.QwenRegion == "ap-southeast-1" ? 1 : 0;
             CloudApiKey.Password = _cloudOptions.ApiKey;
             CloudAppId.Text = _cloudOptions.AppId;
             CloudAccessToken.Password = _cloudOptions.AccessToken;
@@ -117,7 +116,6 @@ public sealed partial class MainWindow : Window
         SelfHostedModelPicker.SelectionChanged += (_, _) => SaveCloudFields();
         CloudAppId.TextChanged += (_, _) => SaveCloudFields();
         CloudResourceId.TextChanged += (_, _) => SaveCloudFields();
-        QwenRegionPicker.SelectionChanged += (_, _) => SaveCloudFields();
         foreach (var field in CloudInputFields)
             field.LostFocus += (_, _) => SaveCloudFields();
         RefreshCloudStatus();
@@ -132,6 +130,25 @@ public sealed partial class MainWindow : Window
         AppWindow.Show();
         Activate();
         _ = RefreshModelsAsync();
+    }
+
+    private void RevealCredential_Click(object sender, RoutedEventArgs args)
+    {
+        if (sender is not Button button) return;
+        var field = (button.Tag as string) switch
+        {
+            nameof(CloudApiKey) => CloudApiKey,
+            nameof(CloudAccessToken) => CloudAccessToken,
+            nameof(QwenApiKey) => QwenApiKey,
+            nameof(TranslationApiKey) => TranslationApiKey,
+            _ => null
+        };
+        if (field is null) return;
+        var reveal = field.PasswordRevealMode != PasswordRevealMode.Visible;
+        field.PasswordRevealMode = reveal ? PasswordRevealMode.Visible : PasswordRevealMode.Hidden;
+        var label = reveal ? "隐藏密钥" : "显示密钥";
+        ToolTipService.SetToolTip(button, label);
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(button, label);
     }
 
     private void OnWindowClosing(AppWindow sender, AppWindowClosingEventArgs args)
@@ -228,7 +245,7 @@ public sealed partial class MainWindow : Window
         CloudAppId.Text.Trim(), CloudAccessToken.Password.Trim(),
         Provider: ProviderPicker.SelectedIndex switch { 3 => "selfhosted", 2 => "qwen", _ => "doubao" },
         QwenApiKey: QwenApiKey.Password.Trim(),
-        QwenRegion: QwenRegionPicker.SelectedIndex == 1 ? "ap-southeast-1" : "cn-beijing",
+        QwenRegion: "cn-beijing",
         SelfHostedUrl: SelfHostedAddress.ToUrl(SelfHostedUrl.Text),
         SelfHostedModel: SelfHostedModelPicker.SelectedIndex == 1 ? "Qwen3-ASR-0.6B-8bit" : "Qwen3-ASR-1.7B-8bit");
 
@@ -333,7 +350,7 @@ public sealed partial class MainWindow : Window
         UpdateInstallControls();
         var idle = _translationCancellation is null && !_installingUpdate && _daemonReady && !_dictationActive && !_togglePending && !_modelChanging && !_loadingModels;
         var cloudIdle = _translationCancellation is null && !_installingUpdate && _daemonReady && !_dictationActive && !_togglePending && !_modelChanging;
-        foreach (var control in new Control[] { ProviderPicker, CloudApiKey, CloudAppId, CloudAccessToken, CloudResourceId, QwenApiKey, QwenRegionPicker, SelfHostedUrl, SelfHostedModelPicker, SelfHostedTestButton }) control.IsEnabled = cloudIdle;
+        foreach (var control in new Control[] { ProviderPicker, CloudApiKey, CloudAppId, CloudAccessToken, CloudResourceId, QwenApiKey, SelfHostedUrl, SelfHostedModelPicker, SelfHostedTestButton }) control.IsEnabled = cloudIdle;
         ModelPicker.IsEnabled = idle && !_cloudOptions.Enabled && ModelPicker.Items.Count > 0;
         UpdateModelDownloadControls();
         EditShortcutButton.IsEnabled = !_modelChanging;
@@ -609,7 +626,7 @@ public sealed partial class MainWindow : Window
     {
         if (string.IsNullOrWhiteSpace(text)) return;
         _pendingPastes++;
-        UpdateInstallControls();
+        UpdateModelControls();
         var completedAt = DateTimeOffset.Now;
         var provider = _cloudOptions.Backend == "selfhosted" ? $"自托管 / {model ?? "Qwen3-ASR"}"
             : _cloudOptions.Backend == "qwen" ? "fun-asr-realtime"
@@ -650,7 +667,7 @@ public sealed partial class MainWindow : Window
         finally
         {
             _pendingPastes--;
-            UpdateInstallControls();
+            UpdateModelControls();
         }
     }
 

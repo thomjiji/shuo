@@ -12,7 +12,7 @@ using System.Text.Json;
 if (args.Length == 6 && args[0] == "--latency")
 {
     var options = new TranslationOptions(args[1], args[2], "zh");
-    var key = TranslationSettings.ResolveApiKey(TranslationSettings.LoadApiKey(), options.Region);
+    var key = TranslationSettings.LoadApiKey();
     if (string.IsNullOrWhiteSpace(key)) throw new Exception("No saved Bailian API key.");
     var source = await File.ReadAllBytesAsync(args[3]);
     var pcm = new byte[source.Length + 64000];
@@ -65,7 +65,7 @@ if (args.Length > 0 && args[0] == "--live")
     if (args.Length != 4) throw new ArgumentException("--live REGION WORKSPACE PCM_FILE");
     var options = new TranslationOptions(args[1], args[2], "zh");
     var ownKey = TranslationSettings.LoadApiKey();
-    var key = TranslationSettings.ResolveApiKey(ownKey, options.Region);
+    var key = ownKey;
     if (string.IsNullOrWhiteSpace(key)) throw new Exception("No saved Bailian API key.");
     TranslationSettings.Save(options, ownKey);
     var pcm = await File.ReadAllBytesAsync(args[3]);

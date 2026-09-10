@@ -31,7 +31,7 @@ internal static class CloudSettings
             provider != "local",
             root?["doubao"]?["resourceId"]?.GetValue<string>() ?? "volc.seedasr.sauc.duration",
             Provider: provider == "local" ? "doubao" : provider,
-            QwenRegion: root?["qwen"]?["region"]?.GetValue<string>() ?? "cn-beijing",
+            QwenRegion: "cn-beijing",
             SelfHostedUrl: root?["selfhosted"]?["url"]?.GetValue<string>() ?? "",
             SelfHostedModel: root?["selfhosted"]?["model"]?.GetValue<string>() == "Qwen3-ASR-0.6B-8bit"
                 ? "Qwen3-ASR-0.6B-8bit" : "Qwen3-ASR-1.7B-8bit");

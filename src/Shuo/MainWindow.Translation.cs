@@ -9,13 +9,13 @@ public sealed partial class MainWindow
     private Task? _translationTask;
 
     private bool CanStartTranslation => !_exiting && !_closed && !_installingUpdate
-        && !_dictationActive && !_togglePending && !_modelChanging && !_loadingModels && _pendingPastes == 0;
+        && !_dictationActive && !_togglePending && !_modelChanging && _pendingPastes == 0;
 
     private void InitializeTranslation()
     {
-        _overlay.TranslationCloseRequested += () => _translationCancellation?.Cancel();
-        Microsoft.UI.Xaml.Controls.ToolTipService.SetToolTip(TranslationModelCard, TranslationSession.Model);
-        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(TranslationModelCard, "翻译模型：" + TranslationSession.Model);
+        _overlay.TranslationCloseRequested += StopTranslation;
+        Microsoft.UI.Xaml.Controls.ToolTipService.SetToolTip(TranslationModelPicker, TranslationSession.Model);
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(TranslationModelPicker, "翻译模型：" + TranslationSession.Model);
         try
         {
             var options = TranslationSettings.Load();
@@ -24,6 +24,13 @@ public sealed partial class MainWindow
             TranslationLanguage.SelectedIndex = options.TargetLanguage == "en" ? 1 : 0;
         }
         catch (Exception error) { TranslationStatus.Text = "无法读取翻译设置：" + error.Message; }
+    }
+
+    private void StopTranslation()
+    {
+        if (_translationCancellation is not { } active) return;
+        TranslationStatus.Text = "正在停止采集并等待最后一段译文...";
+        active.Cancel();
     }
 
     private void UpdateTranslationControls()
@@ -37,7 +44,7 @@ public sealed partial class MainWindow
 
     private async void TranslationButton_Click(object sender, RoutedEventArgs args)
     {
-        if (_translationCancellation is { } active) { TranslationStatus.Text = "正在停止采集并等待最后一段译文..."; active.Cancel(); return; }
+        if (_translationCancellation is not null) { StopTranslation(); return; }
         if (!CanStartTranslation) return;
         var options = new TranslationOptions(WorkspaceId: TranslationWorkspace.Text.Trim(),
             TargetLanguage: TranslationLanguage.SelectedIndex == 1 ? "en" : "zh");
@@ -45,8 +52,8 @@ public sealed partial class MainWindow
         try
         {
             TranslationSession.Endpoint(options);
-            apiKey = TranslationSettings.ResolveApiKey(TranslationApiKey.Password, options.Region);
-            if (string.IsNullOrWhiteSpace(apiKey)) throw new ArgumentException("请填写百炼 API Key，或先在转录服务中保存百炼凭据。");
+            apiKey = TranslationApiKey.Password.Trim();
+            if (string.IsNullOrWhiteSpace(apiKey)) throw new ArgumentException("请填写翻译 API Key。");
             TranslationSettings.Save(options, TranslationApiKey.Password);
         }
         catch (Exception error) { TranslationStatus.Text = error.Message; return; }

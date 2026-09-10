@@ -28,14 +28,6 @@ internal static class TranslationSettings
         return credential.Password;
     }
 
-    internal static string ResolveApiKey(string ownKey, string region)
-    {
-        if (!string.IsNullOrWhiteSpace(ownKey)) return ownKey.Trim();
-        var cloud = CloudSettings.Load();
-        if (cloud.QwenRegion != region) throw new ArgumentException("转录凭据地域不匹配，请填写翻译服务对应地域的 API Key。");
-        return cloud.QwenApiKey;
-    }
-
     internal static void Save(TranslationOptions options, string ownKey)
     {
         var path = HotkeySettings.GetPath();

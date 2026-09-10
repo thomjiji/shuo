@@ -61,7 +61,7 @@ dotnet build Shuo.slnx --configuration Debug
 
 本地模型在多次听写间复用，停止录音后执行转写。豆包模式通过 `worker/doubao.mjs` 建立双向流式 WebSocket，每 200 ms 发送一包 16 kHz、16-bit 单声道 PCM。`partial` 事件携带当前完整预览文本；最后一个音频包带结束标记，收到服务端最终包才发送 `transcript`。断线或超时不提交未确认文本。宿主退出时会等待 worker，超过五秒则终止子进程。
 
-百炼通过 worker/qwen.mjs 调用 fun-asr-realtime，使用 DashScope 双向 WebSocket 协议。发送 run-task 并收到 task-started 后开始采集，每 200 ms 发送一包二进制 PCM。按 sentence_id 排序并更新句子快照，sentence_end 确认句子完成；心跳包不进入文本。停止录音时发送 finish-task，收到 task-finished 且所有句子完成后才提交最终文字。北京和新加坡使用各自端点与凭据；内部 provider 仍为 qwen。测试使用本地 WebSocket 服务验证协议，不调用真实云端。
+百炼通过 worker/qwen.mjs 调用 fun-asr-realtime，使用 DashScope 双向 WebSocket 协议。发送 run-task 并收到 task-started 后开始采集，每 200 ms 发送一包二进制 PCM。按 sentence_id 排序并更新句子快照，sentence_end 确认句子完成；心跳包不进入文本。停止录音时发送 finish-task，收到 task-finished 且所有句子完成后才提交最终文字。应用固定使用北京端点与对应凭据；内部 provider 仍为 qwen。测试使用本地 WebSocket 服务验证协议，不调用真实云端。
 
 自托管模式通过 `worker/selfhosted.mjs` 连接服务根地址对应的 `/v1/asr` WebSocket，`selfhosted.url` 和 `selfhosted.model` 分别保存地址与模型选择。客户端发送 `start`（协议版本 1、16 kHz、`pcm_s16le`、语言和模型），收到 `ready` 后开始录音，每 200 毫秒发一包音频。服务按会话选用预热的模型，客户端校验 `ready.model` 与选择一致。`partial` 是可替换的完整预览；停止时发完尾包，再发送 `finish`，只有收到 `final` 才提交文字。实际模型名称随最终事件传回宿主并写入历史。
 
@@ -87,4 +87,4 @@ WinUI 的 XBF 和 PRI 资源通过项目中的发布 targets 纳入输出。调�
 
 更新源验证：`dotnet run --project test/Update.Tests/Update.Tests.csproj -- <releases目录> <版本> ShuoDesktop`，检查版本发现、真实包下载校验、待重启状态和禁止降级。发布工作流在上传前运行它。
 
-转录服务选择通过 `CloudSettings.SaveProvider` 单独持久化，不要求先填写凭据。凭据和地域修改时立即持久化，等待 500 ms 且焦点离开凭据或地址输入框后配置 worker。宿主随后配置 worker；缺少凭据时阻止听写并提示填写。清空凭据会同步清除已保存值。本地和云端共用听写试用区。
+转录服务选择通过 `CloudSettings.SaveProvider` 单独持久化，不要求先填写凭据。凭据修改时立即持久化，等待 500 ms 且焦点离开凭据或地址输入框后配置 worker。宿主随后配置 worker；缺少凭据时阻止听写并提示填写。清空凭据会同步清除已保存值。本地和云端共用听写试用区。

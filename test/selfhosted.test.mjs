@@ -20,6 +20,99 @@ async function withServer(handler, run) {
 const send = (socket, event) => socket.send(JSON.stringify(event));
 const ready = socket => send(socket, { type: "ready", protocol: 1, model: "Qwen3-ASR-1.7B-8bit" });
 
+function captureDaemon(url) {
+  let recorder;
+  class Recorder {
+    sampleRate = 16000;
+    constructor() { recorder = this; }
+    start() { this.isRecording = true; }
+    read() { return new Promise(resolve => { this.deliver = resolve; }); }
+    stop() { this.isRecording = false; this.deliver(new Int16Array()); }
+    release() { this.released = true; }
+  }
+  const daemon = new DictationDaemon({
+    chineseOutput: "simplified", transcriptionLanguage: "zh", microphone: { type: "system-default" },
+  }, { PvRecorder: Recorder, OpenCC: { Converter: () => text => text } });
+  daemon.configureBackend({ provider: "selfhosted", config: { url } });
+  return { daemon, recorder: () => recorder };
+}
+
+for (const stopBeforeReady of [false, true]) {
+  test(`daemon preserves the audio prefix with delayed ready (stop before ready: ${stopBeforeReady})`, { timeout: 3000 }, async () => {
+    const samples = [];
+    let acknowledgeStart;
+    const started = new Promise(resolve => { acknowledgeStart = resolve; });
+    await withServer((socket, event) => {
+      if (event.type === "start") acknowledgeStart(socket);
+      else if (Buffer.isBuffer(event)) samples.push(event);
+      else if (event.type === "finish") send(socket, { type: "final", text: "完整开头" });
+    }, async url => {
+      const { daemon, recorder } = captureDaemon(url);
+      try {
+        // startRecording must return with the microphone running even while
+        // the server deliberately withholds its ready acknowledgement.
+        await daemon.startRecording();
+        assert.equal(daemon.state, "recording");
+        assert.equal(recorder().isRecording, true);
+        const prefix = Int16Array.from({ length: 3501 }, (_, i) => i - 1700);
+        recorder().deliver(prefix);
+        await new Promise(setImmediate);
+        const socket = await started;
+        assert.equal(samples.length, 0);
+        let stopping;
+        if (stopBeforeReady) {
+          stopping = daemon.toggle();
+          assert.equal(recorder().isRecording, false);
+          await new Promise(setImmediate);
+          assert.equal(recorder().released, true);
+          assert.equal(daemon.state, "transcribing");
+        }
+        ready(socket);
+        await daemon.cloudConnecting;
+        const tail = Int16Array.of(111, -222, 333);
+        if (!stopBeforeReady) {
+          recorder().deliver(tail);
+          await new Promise(setImmediate);
+          stopping = daemon.toggle();
+        }
+        await stopping;
+        const pcm = Buffer.concat(samples);
+        assert.deepEqual(Array.from({ length: pcm.length / 2 }, (_, i) => pcm.readInt16LE(i * 2)),
+          [...prefix, ...(stopBeforeReady ? [] : tail)]);
+        assert.equal(daemon.state, "idle");
+        assert.equal(recorder().released, true);
+        assert.equal(daemon.cloudFrames.length, 0);
+      } finally { await daemon.shutdown(); }
+    });
+  });
+}
+
+test("daemon releases capture and buffered audio when the connection fails, then can restart", { timeout: 3000 }, async () => {
+  let rejectStart;
+  const started = new Promise(resolve => { rejectStart = resolve; });
+  await withServer((socket, event) => {
+    if (event.type === "start") rejectStart(socket);
+  }, async url => {
+    const { daemon, recorder } = captureDaemon(url);
+    try {
+      await daemon.startRecording();
+      recorder().deliver(Int16Array.of(123));
+      const socket = await started;
+      send(socket, { type: "error", message: "服务忙碌" });
+      await assert.rejects(daemon.cloudConnecting, /服务忙碌/);
+      await new Promise(setImmediate);
+      assert.equal(daemon.state, "idle");
+      assert.equal(recorder().released, true);
+      assert.equal(daemon.cloudFrames.length, 0);
+      await daemon.startRecording();
+      assert.equal(recorder().isRecording, true);
+      assert.equal(daemon.cloudFrames.length, 0);
+    } finally { await daemon.shutdown(); }
+    await new Promise(setImmediate);
+    assert.equal(daemon.state, "stopping");
+  });
+});
+
 test("self-hosted streams PCM before stop, replaces drafts, and flushes the audio tail", async () => {
   const samples = [], partials = [];
   let sawPartial;

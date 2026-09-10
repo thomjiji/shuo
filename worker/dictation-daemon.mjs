@@ -222,6 +222,9 @@ export class DictationDaemon {
     this.provider = "local";
     this.cloudConfig = {};
     this.cloud = undefined;
+    this.cloudConnecting = undefined;
+    this.cloudReady = false;
+    this.cloudFrames = [];
   }
 
   configureBackend(command) {
@@ -262,6 +265,7 @@ export class DictationDaemon {
     await this.finishCapture().catch(() => {});
     this.cloud?.close();
     this.cloud = undefined;
+    this.cloudFrames = [];
     this.state = "idle";
     emit("error", { message: errorMessage(error) });
   }
@@ -290,6 +294,7 @@ export class DictationDaemon {
     try {
       const pcm = await this.finishCapture();
       if (this.cloud) {
+        await this.cloudConnecting;
         const result = await this.cloud.finish();
         const text = this.format(result.text, result.language, this.settings.transcriptionLanguage);
         emit(text ? "transcript" : "empty", text ? { text, ...(result.model ? { model: result.model } : {}) } : {});
@@ -317,6 +322,7 @@ export class DictationDaemon {
     } finally {
       this.cloud?.close();
       this.cloud = undefined;
+      this.cloudFrames = [];
       this.state = "idle";
     }
   }
@@ -352,6 +358,8 @@ export class DictationDaemon {
   async shutdown() {
     this.state = "stopping";
     this.cloud?.close();
+    this.cloud = undefined;
+    this.cloudFrames = [];
     if (this.recorder) await this.finishCapture().catch(() => undefined);
     await this.modelLoading?.catch(() => undefined);
     this.model?.dispose();
@@ -376,14 +384,6 @@ export class DictationDaemon {
   }
 
   async startRecording() {
-    if (this.provider !== "local") {
-      this.state = "connecting";
-      emit("connecting");
-      this.cloud = this.createCloudStream((text) => emit("partial", { text }));
-      try { await this.cloud.connect(); }
-      catch (error) { this.cloud.close(); this.cloud = undefined; throw error; }
-      this.cloud.result.catch((error) => { void this.abortRecording(error); });
-    }
     const recorder = new this.runtime.PvRecorder(
       FRAME_LENGTH,
       microphoneIndex(this.runtime.PvRecorder, this.settings.microphone),
@@ -396,7 +396,14 @@ export class DictationDaemon {
     this.frames = [];
     this.captureError = undefined;
     this.stopping = false;
+    this.cloudReady = false;
+    this.cloudFrames = [];
+    this.cloudConnecting = undefined;
     try {
+      if (this.provider !== "local") {
+        this.cloud = this.createCloudStream((text) => emit("partial", { text }));
+        emit("connecting");
+      }
       recorder.start();
       this.recorder = recorder;
       this.readLoop = this.readFrames(recorder);
@@ -406,6 +413,24 @@ export class DictationDaemon {
     } catch (error) {
       recorder.release();
       throw error;
+    }
+    if (this.cloud) {
+      const stream = this.cloud;
+      const onError = (error) => {
+        if (this.cloud === stream) void this.abortRecording(error);
+      };
+      stream.result.catch(onError);
+      // Capture continues while the handshake runs. Flush the prefix before
+      // allowing live frames through, including when capture has already stopped.
+      this.cloudConnecting = Promise.resolve().then(() => {
+        if (this.cloud === stream) return stream.connect();
+      }).then(() => {
+        if (this.cloud !== stream || !["recording", "transcribing"].includes(this.state)) return;
+        for (const frame of this.cloudFrames) stream.feed(frame);
+        this.cloudFrames = [];
+        this.cloudReady = true;
+      });
+      this.cloudConnecting.catch(onError);
     }
   }
 
@@ -420,7 +445,10 @@ export class DictationDaemon {
             emit("audio-level", { level: audioLevel(frame) });
             levelSamples = 0;
           }
-          if (this.cloud) this.cloud.feed(frame);
+          if (this.cloud) {
+            if (this.cloudReady) this.cloud.feed(frame);
+            else this.cloudFrames.push(Int16Array.from(frame));
+          }
           else this.frames.push(frame);
         }
       }

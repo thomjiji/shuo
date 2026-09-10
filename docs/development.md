@@ -61,9 +61,9 @@ dotnet build Shuo.slnx --configuration Debug
 
 本地模型在多次听写间复用，停止录音后执行转写。豆包模式通过 `worker/doubao.mjs` 建立双向流式 WebSocket，每 200 ms 发送一包 16 kHz、16-bit 单声道 PCM。`partial` 事件携带当前完整预览文本；最后一个音频包带结束标记，收到服务端最终包才发送 `transcript`。断线或超时不提交未确认文本。宿主退出时会等待 worker，超过五秒则终止子进程。
 
-百炼通过 worker/qwen.mjs 调用 fun-asr-realtime，使用 DashScope 双向 WebSocket 协议。发送 run-task 并收到 task-started 后开始采集，每 200 ms 发送一包二进制 PCM。按 sentence_id 排序并更新句子快照，sentence_end 确认句子完成；心跳包不进入文本。停止录音时发送 finish-task，收到 task-finished 且所有句子完成后才提交最终文字。应用固定使用北京端点与对应凭据；内部 provider 仍为 qwen。测试使用本地 WebSocket 服务验证协议，不调用真实云端。
+百炼通过 worker/qwen.mjs 调用 fun-asr-realtime，使用 DashScope 双向 WebSocket 协议。录音启动后发送 run-task，连接期间的音频暂存在本机，收到 task-started 后按采集顺序发送，每 200 ms 音频组成一包二进制 PCM。按 sentence_id 排序并更新句子快照，sentence_end 确认句子完成；心跳包不进入文本。停止录音时发送 finish-task，收到 task-finished 且所有句子完成后才提交最终文字。应用固定使用北京端点与对应凭据；内部 provider 仍为 qwen。测试使用本地 WebSocket 服务验证协议，不调用真实云端。
 
-自托管模式通过 `worker/selfhosted.mjs` 连接服务根地址对应的 `/v1/asr` WebSocket，`selfhosted.url` 和 `selfhosted.model` 分别保存地址与模型选择。客户端发送 `start`（协议版本 1、16 kHz、`pcm_s16le`、语言和模型），收到 `ready` 后开始录音，每 200 毫秒发一包音频。服务按会话选用预热的模型，客户端校验 `ready.model` 与选择一致。`partial` 是可替换的完整预览；停止时发完尾包，再发送 `finish`，只有收到 `final` 才提交文字。实际模型名称随最终事件传回宿主并写入历史。
+自托管模式通过 `worker/selfhosted.mjs` 连接服务根地址对应的 `/v1/asr` WebSocket，`selfhosted.url` 和 `selfhosted.model` 分别保存地址与模型选择。客户端先启动麦克风，再建立连接并发送 `start`（协议版本 1、16 kHz、`pcm_s16le`、语言和模型）。等待 `ready` 期间的音频暂存在本机，服务就绪后先按顺序发送暂存音频，再发送后续录音，每 200 毫秒音频组成一包。连接期间也可以停止录音；客户端立即释放麦克风，待服务就绪后发送完整录音并结束会话。连接超时或失败时停止录音、清除暂存音频并报告错误。服务按会话选用预热的模型，客户端校验 `ready.model` 与选择一致。`partial` 是可替换的完整预览；停止时发完尾包，再发送 `finish`，只有收到 `final` 才提交文字。实际模型名称随最终事件传回宿主并写入历史。
 
 `asr-server` 是独立的 macOS Python 服务，通过单个推理线程加载和调用 MLX 模型。WebRTC VAD 按停顿分段：默认等待 2 秒静音；配置更短静音时，累计语音不足 2 秒仍等待至少 2 秒静音；达到 30 秒软上限后，300 毫秒静音即可确认，35 秒硬上限强制切分。停止录音立即提交尾段，不等待静音。任务队列合并同段的旧预览，但保留确认段落的顺序；积压超过三个待识别段落时整次听写失败，不丢弃音频后继续提交。服务拒绝同时进行的第二路听写，断线和取消后释放会话。安装、使用及服务端验证见[自托管部署](selfhosted.md)。
 

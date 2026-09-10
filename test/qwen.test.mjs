@@ -184,3 +184,69 @@ test("provider switching selects the matching stream and refuses invalid or busy
   assert.throws(() => qwenConnection({ apiKey: "test", region: "wrong" }), /地域/);
   assert.match(qwenConnection({ apiKey: "test", region: "ap-southeast-1" }).url, /dashscope-intl/);
 });
+
+
+test("Qwen3 realtime sends base64 PCM and waits for corrected final tail", async () => {
+  const { QwenRealtimeStream } = await import("../worker/qwen-realtime.mjs");
+  const server = new WebSocketServer({ host: "127.0.0.1", port: 0 });
+  await once(server, "listening");
+  const received = [], partials = [];
+  server.on("connection", socket => {
+    socket.send(JSON.stringify({ type: "session.created" }));
+    socket.on("message", data => {
+      const event = JSON.parse(data);
+      assert.ok(event.event_id);
+      if (event.type === "session.update") {
+        assert.equal(event.session.sample_rate, 16000);
+        socket.send(JSON.stringify({ type: "session.updated" }));
+      } else if (event.type === "input_audio_buffer.append") {
+        received.push(Buffer.from(event.audio, "base64"));
+        socket.send(JSON.stringify({ type: "conversation.item.input_audio_transcription.text",
+          item_id: "a", text: "你好", stash: "千文" }));
+      } else if (event.type === "session.finish") {
+        socket.send(JSON.stringify({ type: "conversation.item.input_audio_transcription.completed",
+          item_id: "a", transcript: "你好千问。" }));
+        socket.send(JSON.stringify({ type: "session.finished" }));
+      } else assert.fail(event.type);
+    });
+  });
+  const stream = new QwenRealtimeStream({ apiKey: "test", model: "qwen3-asr-flash-realtime" },
+    text => partials.push(text), { url: "ws://127.0.0.1:" + server.address().port, timeoutMs: 1000 });
+  try {
+    await stream.connect();
+    const frames = Int16Array.from({ length: 3500 }, (_, i) => i - 1700);
+    stream.feed(frames);
+    const result = await stream.finish();
+    assert.equal(result.text, "你好千问。");
+    assert.equal(result.model, "qwen3-asr-flash-realtime");
+    assert.deepEqual(Buffer.concat(received), Buffer.from(frames.buffer));
+    assert.equal(partials.at(-1), result.text);
+    assert.ok(partials.includes("你好千文"));
+  } finally {
+    stream.close();
+    for (const client of server.clients) client.terminate();
+    await new Promise(resolve => server.close(resolve));
+  }
+});
+
+test("Qwen3 rejects incomplete results and protects final text and credentials", async () => {
+  const { QwenRealtimeStream } = await import("../worker/qwen-realtime.mjs");
+  const stream = new QwenRealtimeStream({ apiKey: "secret", model: "qwen3-asr-flash-realtime" });
+  stream.receive({ type: "conversation.item.input_audio_transcription.completed", item_id: "a", transcript: "完成" });
+  stream.receive({ type: "conversation.item.input_audio_transcription.text", item_id: "a", text: "过时", stash: "" });
+  assert.equal(stream.transcript(), "完成");
+  stream.receive({ type: "conversation.item.input_audio_transcription.text", item_id: "b", text: "", stash: "草稿" });
+  stream.ending = true;
+  assert.throws(() => stream.receive({ type: "session.finished" }), /最终结果/);
+  assert.throws(() => stream.receive({ type: "conversation.item.input_audio_transcription.failed",
+    error: { message: "denied secret" } }), error => !error.message.includes("secret"));
+  stream.close();
+  assert.match(qwenConnection({ apiKey: "test", model: "qwen3-asr-flash-realtime" }).url,
+    /realtime\?model=qwen3-asr-flash-realtime$/);
+  assert.throws(() => qwenConnection({ apiKey: "test", model: "invented-asr" }), /模型/);
+  const daemon = new DictationDaemon({ chineseOutput: "simplified" }, { OpenCC: { Converter: () => text => text } });
+  daemon.configureBackend({ provider: "qwen", config: { apiKey: "test", model: "qwen3-asr-flash-realtime" } });
+  const selected = daemon.createCloudStream();
+  assert.ok(selected instanceof QwenRealtimeStream);
+  selected.close();
+});

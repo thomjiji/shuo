@@ -23,9 +23,9 @@ Windows 原生 WinUI 3 听写应用，支持本地模型、自托管服务、豆
 | 服务 | 配置与处理方式 |
 | --- | --- |
 | 本地模型 | 使用 Qwen3-ASR-0.6B Q8_0，停止录音后在本机转写，无需联网。 |
-| 自托管识别 | 在 Apple Silicon Mac 通过 MLX 部署 Qwen3-ASR 1.7B / 0.6B，填写 Mac 的 Tailscale IP 并选择模型，通过 Tailscale 实时识别。[部署说明](docs/selfhosted.md)。 |
-| 火山引擎 | 填写语音控制台 API Key，默认使用豆包流式语音识别 2.0 小时版。旧版凭据和其他套餐的资源 ID 可在展开项中填写。 |
-| 阿里云百炼 | 使用 `fun-asr-realtime`。固定使用北京地域，填写该地域的百炼 API Key。 |
+| 自托管（MLX） | 在 Apple Silicon Mac 通过 MLX 部署 Qwen3-ASR 1.7B / 0.6B，填写 Mac 的 Tailscale IP 并选择模型，通过 Tailscale 实时识别。[部署说明](docs/selfhosted.md)。 |
+| 火山引擎 | 填写语音控制台 API Key，可选择豆包流式语音识别 2.0 或 1.0，默认使用 2.0 小时版。旧版凭据和其他套餐的资源 ID 可在展开项中填写。 |
+| 阿里云百炼 | 可选择 `fun-asr-realtime` 或 `qwen3-asr-flash-realtime`，模型选择自动保存。固定使用北京地域，填写该地域的百炼 API Key。 |
 
 云端录音会上传到所选服务并按音频时长计费。豆包开启语义顺滑、数字规范化（ITN）和标点处理；百炼使用模型内置的语气词过滤、ITN 和标点预测。录音时浮窗显示实时文字，结果可能修正，只有最终文本会粘贴；断线或超时会提示失败。
 
@@ -53,17 +53,6 @@ Windows 原生 WinUI 3 听写应用，支持本地模型、自托管服务、豆
 
 需要 Windows、.NET SDK 10 和 Node.js 22+。本地听写还需 GGUF 模型，也可配置云端服务。
 
-```powershell
-npm ci
-dotnet run --project src/Shuo/Shuo.csproj
-```
-
-验证：
-
-```powershell
-npm test
-dotnet run --project test/TextCleanup.Tests/TextCleanup.Tests.csproj
-dotnet build --configuration Debug
-```
+本地预览构建、自动启动和跨平台验证遵循 [AGENTS.md](AGENTS.md)，预览产物统一放在 artifacts/preview/。
 
 项目结构与进程协议见[开发说明](docs/development.md)。按[构建安装包](docs/setup.md#1-在构建电脑生成安装包)生成 x64 安装器；推送版本标签后，GitHub Actions 会构建并发布安装器和应用内更新包。

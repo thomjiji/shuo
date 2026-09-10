@@ -101,10 +101,12 @@ public sealed partial class MainWindow : Window
             SelfHostedUrl.Text = SelfHostedAddress.ToDisplay(_cloudOptions.SelfHostedUrl);
             SelfHostedModelPicker.SelectedIndex = _cloudOptions.SelfHostedModel == "Qwen3-ASR-0.6B-8bit" ? 1 : 0;
             QwenApiKey.Password = _cloudOptions.QwenApiKey;
+            QwenModelPicker.SelectedIndex = _cloudOptions.QwenModel == "qwen3-asr-flash-realtime" ? 1 : 0;
             CloudApiKey.Password = _cloudOptions.ApiKey;
             CloudAppId.Text = _cloudOptions.AppId;
             CloudAccessToken.Password = _cloudOptions.AccessToken;
             CloudResourceId.Text = _cloudOptions.ResourceId;
+            UpdateDoubaoModelPicker();
         }
         catch (Exception cloudError) { CloudStatusMessage = cloudError.Message; }
         ProviderPicker_SelectionChanged(this, null!);
@@ -112,10 +114,19 @@ public sealed partial class MainWindow : Window
         CloudApiKey.PasswordChanged += (_, _) => SaveCloudFields();
         CloudAccessToken.PasswordChanged += (_, _) => SaveCloudFields();
         QwenApiKey.PasswordChanged += (_, _) => SaveCloudFields();
+        QwenModelPicker.SelectionChanged += (_, _) => SaveCloudFields();
         SelfHostedUrl.TextChanged += (_, _) => SaveCloudFields();
         SelfHostedModelPicker.SelectionChanged += (_, _) => SaveCloudFields();
         CloudAppId.TextChanged += (_, _) => SaveCloudFields();
-        CloudResourceId.TextChanged += (_, _) => SaveCloudFields();
+        DoubaoModelPicker.SelectionChanged += (_, _) =>
+        {
+            if (_updatingDoubaoModel) return;
+            var suffix = CloudResourceId.Text.Trim().EndsWith(".concurrent", StringComparison.Ordinal) ? "concurrent" : "duration";
+            if (DoubaoModelPicker.SelectedIndex == 0) CloudResourceId.Text = $"volc.seedasr.sauc.{suffix}";
+            else if (DoubaoModelPicker.SelectedIndex == 1) CloudResourceId.Text = $"volc.bigasr.sauc.{suffix}";
+            else DoubaoResourceSettings.IsExpanded = true;
+        };
+        CloudResourceId.TextChanged += (_, _) => { UpdateDoubaoModelPicker(); SaveCloudFields(); };
         foreach (var field in CloudInputFields)
             field.LostFocus += (_, _) => SaveCloudFields();
         RefreshCloudStatus();
@@ -166,7 +177,7 @@ public sealed partial class MainWindow : Window
         && !_modelChanging && !_loadingModels && !_installingUpdate;
 
     private IReadOnlyList<TrayChoice> TrayProviders() =>
-        new[] { ("local", "本地模型"), ("doubao", "火山引擎"), ("qwen", "阿里云百炼"), ("selfhosted", "自托管识别") }
+        new[] { ("local", "本地模型"), ("doubao", "火山引擎"), ("qwen", "阿里云百炼"), ("selfhosted", "自托管（MLX）") }
             .Select(item => new TrayChoice(item.Item2, _cloudOptions.Backend == item.Item1,
                 CanSwitchFromTray, () => _ = SwitchProviderAsync(item.Item1))).ToArray();
 
@@ -221,12 +232,30 @@ public sealed partial class MainWindow : Window
         }
     }
 
+    private bool _updatingDoubaoModel;
+
+    private void UpdateDoubaoModelPicker()
+    {
+        _updatingDoubaoModel = true;
+        try
+        {
+            DoubaoModelPicker.SelectedIndex = CloudResourceId.Text.Trim() switch
+            {
+                "volc.seedasr.sauc.duration" or "volc.seedasr.sauc.concurrent" => 0,
+                "volc.bigasr.sauc.duration" or "volc.bigasr.sauc.concurrent" => 1,
+                _ => 2
+            };
+        }
+        finally { _updatingDoubaoModel = false; }
+    }
+
     private CloudOptions ReadCloudOptions() => new(ProviderPicker.SelectedIndex > 0,
         CloudResourceId.Text.Trim(), CloudApiKey.Password.Trim(),
         CloudAppId.Text.Trim(), CloudAccessToken.Password.Trim(),
         Provider: ProviderPicker.SelectedIndex switch { 3 => "selfhosted", 2 => "qwen", _ => "doubao" },
         QwenApiKey: QwenApiKey.Password.Trim(),
         QwenRegion: "cn-beijing",
+        QwenModel: QwenModelPicker.SelectedIndex == 1 ? "qwen3-asr-flash-realtime" : "fun-asr-realtime",
         SelfHostedUrl: SelfHostedAddress.ToUrl(SelfHostedUrl.Text),
         SelfHostedModel: SelfHostedModelPicker.SelectedIndex == 1 ? "Qwen3-ASR-0.6B-8bit" : "Qwen3-ASR-1.7B-8bit");
 
@@ -256,7 +285,7 @@ public sealed partial class MainWindow : Window
         type = "configure-backend",
         provider = _cloudOptions.Backend,
         config = new { apiKey = _cloudOptions.Provider == "qwen" ? _cloudOptions.QwenApiKey : _cloudOptions.ApiKey, region = _cloudOptions.QwenRegion, appId = _cloudOptions.AppId,
-            accessToken = _cloudOptions.AccessToken, resourceId = _cloudOptions.ResourceId, url = _cloudOptions.SelfHostedUrl, model = _cloudOptions.SelfHostedModel }
+            accessToken = _cloudOptions.AccessToken, resourceId = _cloudOptions.ResourceId, url = _cloudOptions.SelfHostedUrl, model = _cloudOptions.Provider == "qwen" ? _cloudOptions.QwenModel : _cloudOptions.SelfHostedModel }
     }));
 
     private async void SelfHostedTest_Click(object sender, RoutedEventArgs args)
@@ -331,7 +360,7 @@ public sealed partial class MainWindow : Window
         UpdateInstallControls();
         var idle = _translationCancellation is null && !_installingUpdate && _daemonReady && !_dictationActive && !_togglePending && !_modelChanging && !_loadingModels;
         var cloudIdle = _translationCancellation is null && !_installingUpdate && _daemonReady && !_dictationActive && !_togglePending && !_modelChanging;
-        foreach (var control in new Control[] { ProviderPicker, CloudApiKey, CloudAppId, CloudAccessToken, CloudResourceId, QwenApiKey, SelfHostedUrl, SelfHostedModelPicker, SelfHostedTestButton }) control.IsEnabled = cloudIdle;
+        foreach (var control in new Control[] { ProviderPicker, DoubaoModelPicker, CloudApiKey, CloudAppId, CloudAccessToken, CloudResourceId, QwenApiKey, QwenModelPicker, SelfHostedUrl, SelfHostedModelPicker, SelfHostedTestButton }) control.IsEnabled = cloudIdle;
         ModelPicker.IsEnabled = idle && !_cloudOptions.Enabled && ModelPicker.Items.Count > 0;
         UpdateModelDownloadControls();
         EditShortcutButton.IsEnabled = !_modelChanging;
@@ -610,7 +639,7 @@ public sealed partial class MainWindow : Window
         UpdateModelControls();
         var completedAt = DateTimeOffset.Now;
         var provider = _cloudOptions.Backend == "selfhosted" ? $"自托管 / {model ?? "Qwen3-ASR"}"
-            : _cloudOptions.Backend == "qwen" ? "fun-asr-realtime"
+            : _cloudOptions.Backend == "qwen" ? model ?? _cloudOptions.QwenModel
             : TranscriptHistory.ModelName(_cloudOptions.Enabled, _cloudOptions.ResourceId, _selectedModelPath);
         try
         {

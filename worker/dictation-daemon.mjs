@@ -7,6 +7,7 @@ import { fileURLToPath } from "node:url";
 import { findLocalModels, saveModelSelection } from "./models.mjs";
 import { DoubaoStream, doubaoHeaders } from "./doubao.mjs";
 import { QwenStream, qwenConnection } from "./qwen.mjs";
+import { QwenRealtimeStream } from "./qwen-realtime.mjs";
 import { SelfHostedStream, selfHostedConnection } from "./selfhosted.mjs";
 
 const SAMPLE_RATE = 16_000;
@@ -240,7 +241,8 @@ export class DictationDaemon {
 
   createCloudStream(onPartial) {
     if (this.provider === "selfhosted") return new SelfHostedStream({ ...this.cloudConfig, language: this.settings.transcriptionLanguage }, onPartial);
-    if (this.provider === "qwen") return new QwenStream(this.cloudConfig, onPartial);
+    if (this.provider === "qwen") return this.cloudConfig.model === "qwen3-asr-flash-realtime"
+      ? new QwenRealtimeStream(this.cloudConfig, onPartial) : new QwenStream(this.cloudConfig, onPartial);
     if (this.provider === "doubao") return new DoubaoStream(this.cloudConfig, onPartial);
     throw new Error("请先选择云端转录服务。");
   }

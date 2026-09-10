@@ -11,10 +11,12 @@ const CHUNK_BYTES = 6400;
 export function qwenConnection(config) {
   const apiKey = config.apiKey?.trim();
   if (!apiKey) throw new Error("请先填写百炼 API Key。");
+  const model = config.model || QWEN_MODEL;
+  if (![QWEN_MODEL, "qwen3-asr-flash-realtime"].includes(model)) throw new Error("不支持的百炼识别模型。");
   const endpoint = ENDPOINTS[config.region || "cn-beijing"];
   if (!endpoint) throw new Error("请选择百炼服务地域：北京或新加坡。");
   return {
-    url: endpoint,
+    url: model === QWEN_MODEL ? endpoint : endpoint.replace("/inference", "/realtime") + "?model=" + model,
     headers: { Authorization: "Bearer " + apiKey },
   };
 }
@@ -46,7 +48,7 @@ export class QwenStream {
     socket.on("open", () => {
       try {
         this.sendCommand("run-task", {
-          task_group: "audio", task: "asr", function: "recognition", model: QWEN_MODEL,
+          task_group: "audio", task: "asr", function: "recognition", model: this.config.model || QWEN_MODEL,
           // Fun-ASR includes filler filtering and ITN; neither has a documented toggle.
           parameters: { punctuation_prediction_enabled: true, format: "pcm", sample_rate: 16000, max_sentence_silence: 800, heartbeat: true },
           input: {},
@@ -99,7 +101,7 @@ export class QwenStream {
           throw new Error("百炼未返回所有句子的最终结果，请重试。");
         this.settled = true;
         clearTimeout(this.timer);
-        this.resolve({ text: this.transcript() });
+        this.resolve({ text: this.transcript(), model: this.config.model || QWEN_MODEL });
         this.socket.close();
         break;
       case "task-failed": {
@@ -129,6 +131,8 @@ export class QwenStream {
     });
   }
 
+  sendAudio(audio) { this.send(audio); }
+
   feed(frame) {
     if (this.error) throw this.error;
     if (!this.ready || this.ending) throw new Error("百炼当前无法接收音频。");
@@ -136,7 +140,7 @@ export class QwenStream {
     for (let i = 0; i < frame.length; i++) audio.writeInt16LE(frame[i], i * 2);
     this.pending = Buffer.concat([this.pending, audio]);
     while (this.pending.length >= CHUNK_BYTES) {
-      this.send(this.pending.subarray(0, CHUNK_BYTES));
+      this.sendAudio(this.pending.subarray(0, CHUNK_BYTES));
       this.pending = this.pending.subarray(CHUNK_BYTES);
     }
   }
@@ -147,7 +151,7 @@ export class QwenStream {
     this.ending = true;
     this.timer = setTimeout(() => this.fail(new Error("等待百炼最终结果超时，请重试。")), this.timeoutMs);
     try {
-      if (this.pending.length) this.send(this.pending);
+      if (this.pending.length) this.sendAudio(this.pending);
       this.pending = Buffer.alloc(0);
       // VAD finalizes sentences during recording; finish also flushes the last unfinished sentence.
       this.sendCommand("finish-task", { input: {} });

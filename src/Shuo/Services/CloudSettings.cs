@@ -6,12 +6,12 @@ namespace Shuo.Services;
 
 internal sealed record CloudOptions(bool Enabled = false, string ResourceId = "volc.seedasr.sauc.duration",
     string ApiKey = "", string AppId = "", string AccessToken = "", string Provider = "doubao",
-    string QwenApiKey = "", string QwenRegion = "cn-beijing", string SelfHostedUrl = "", string SelfHostedModel = "Qwen3-ASR-1.7B-8bit")
+    string QwenApiKey = "", string QwenRegion = "cn-beijing", string SelfHostedUrl = "", string SelfHostedModel = "Qwen3-ASR-1.7B-8bit", string QwenModel = "fun-asr-realtime")
 {
     [System.Text.Json.Serialization.JsonIgnore]
     internal string Backend => Enabled ? Provider : "local";
     [System.Text.Json.Serialization.JsonIgnore]
-    internal string ServiceName => Provider switch { "selfhosted" => "自托管识别", "qwen" => "阿里云百炼", _ => "火山引擎" };
+    internal string ServiceName => Provider switch { "selfhosted" => "自托管（MLX）", "qwen" => "阿里云百炼", _ => "火山引擎" };
 }
 
 internal static class CloudSettings
@@ -32,6 +32,8 @@ internal static class CloudSettings
             root?["doubao"]?["resourceId"]?.GetValue<string>() ?? "volc.seedasr.sauc.duration",
             Provider: provider == "local" ? "doubao" : provider,
             QwenRegion: "cn-beijing",
+            QwenModel: root?["qwen"]?["model"]?.GetValue<string>() == "qwen3-asr-flash-realtime"
+                ? "qwen3-asr-flash-realtime" : "fun-asr-realtime",
             SelfHostedUrl: root?["selfhosted"]?["url"]?.GetValue<string>() ?? "",
             SelfHostedModel: root?["selfhosted"]?["model"]?.GetValue<string>() == "Qwen3-ASR-0.6B-8bit"
                 ? "Qwen3-ASR-0.6B-8bit" : "Qwen3-ASR-1.7B-8bit");
@@ -111,6 +113,7 @@ internal static class CloudSettings
         if (root["doubao"] is not JsonObject) root["doubao"] = doubao;
         var qwen = root["qwen"] as JsonObject ?? new JsonObject();
         qwen["region"] = options.QwenRegion;
+        qwen["model"] = options.QwenModel;
         if (root["qwen"] is not JsonObject) root["qwen"] = qwen;
         var selfhosted = root["selfhosted"] as JsonObject ?? new JsonObject();
         selfhosted["url"] = options.SelfHostedUrl;

@@ -132,25 +132,6 @@ public sealed partial class MainWindow : Window
         _ = RefreshModelsAsync();
     }
 
-    private void RevealCredential_Click(object sender, RoutedEventArgs args)
-    {
-        if (sender is not Button button) return;
-        var field = (button.Tag as string) switch
-        {
-            nameof(CloudApiKey) => CloudApiKey,
-            nameof(CloudAccessToken) => CloudAccessToken,
-            nameof(QwenApiKey) => QwenApiKey,
-            nameof(TranslationApiKey) => TranslationApiKey,
-            _ => null
-        };
-        if (field is null) return;
-        var reveal = field.PasswordRevealMode != PasswordRevealMode.Visible;
-        field.PasswordRevealMode = reveal ? PasswordRevealMode.Visible : PasswordRevealMode.Hidden;
-        var label = reveal ? "隐藏密钥" : "显示密钥";
-        ToolTipService.SetToolTip(button, label);
-        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(button, label);
-    }
-
     private void OnWindowClosing(AppWindow sender, AppWindowClosingEventArgs args)
     {
         if (_exiting) return;

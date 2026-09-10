@@ -269,34 +269,12 @@
                                             <ComboBoxItem Content="自托管识别" />
                                         </ComboBox>
                                         <StackPanel x:Name="CloudFields" Spacing="8" Visibility="Collapsed">
-                                            <Grid ColumnSpacing="8">
-                                                <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="*" />
-                                                    <ColumnDefinition Width="Auto" />
-                                                </Grid.ColumnDefinitions>
-                                                <PasswordBox x:Name="CloudApiKey" Header="语音控制台 API Key" PasswordRevealMode="Hidden" />
-                                                <Button Grid.Column="1" Tag="CloudApiKey" Click="RevealCredential_Click"
-                                                        VerticalAlignment="Bottom" Width="36" Height="32" Padding="0"
-                                                        ToolTipService.ToolTip="显示密钥" automation:AutomationProperties.Name="显示密钥">
-                                                    <SymbolIcon Symbol="View" />
-                                                </Button>
-                                            </Grid>
+                                            <PasswordBox x:Name="CloudApiKey" Header="语音控制台 API Key" PasswordRevealMode="Peek" />
                                             <Expander Header="旧版控制台凭据与资源设置" HorizontalAlignment="Stretch"
                                                       HorizontalContentAlignment="Stretch">
                                                 <StackPanel Spacing="8">
                                                     <TextBox x:Name="CloudAppId" Header="App ID（旧版控制台）" />
-                                                    <Grid ColumnSpacing="8">
-                                                        <Grid.ColumnDefinitions>
-                                                            <ColumnDefinition Width="*" />
-                                                            <ColumnDefinition Width="Auto" />
-                                                        </Grid.ColumnDefinitions>
-                                                        <PasswordBox x:Name="CloudAccessToken" Header="Access Token（旧版控制台）" PasswordRevealMode="Hidden" />
-                                                        <Button Grid.Column="1" Tag="CloudAccessToken" Click="RevealCredential_Click"
-                                                                VerticalAlignment="Bottom" Width="36" Height="32" Padding="0"
-                                                                ToolTipService.ToolTip="显示密钥" automation:AutomationProperties.Name="显示密钥">
-                                                            <SymbolIcon Symbol="View" />
-                                                        </Button>
-                                                    </Grid>
+                                                    <PasswordBox x:Name="CloudAccessToken" Header="Access Token（旧版控制台）" PasswordRevealMode="Peek" />
                                                     <TextBox x:Name="CloudResourceId" Header="资源 ID"
                                                              Text="volc.seedasr.sauc.duration" />
                                                 </StackPanel>
@@ -316,19 +294,8 @@
                                             <Button x:Name="SelfHostedTestButton" Content="测试连接" Click="SelfHostedTest_Click" />
                                         </StackPanel>
                                         <StackPanel x:Name="QwenFields" Spacing="8" Visibility="Collapsed">
-                                            <Grid ColumnSpacing="8">
-                                                <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="*" />
-                                                    <ColumnDefinition Width="Auto" />
-                                                </Grid.ColumnDefinitions>
-                                                <PasswordBox x:Name="QwenApiKey" Header="百炼 API Key"
-                                                         automation:AutomationProperties.Name="百炼 API Key" PasswordRevealMode="Hidden" />
-                                                <Button Grid.Column="1" Tag="QwenApiKey" Click="RevealCredential_Click"
-                                                        VerticalAlignment="Bottom" Width="36" Height="32" Padding="0"
-                                                        ToolTipService.ToolTip="显示密钥" automation:AutomationProperties.Name="显示密钥">
-                                                    <SymbolIcon Symbol="View" />
-                                                </Button>
-                                            </Grid>
+                                            <PasswordBox x:Name="QwenApiKey" Header="百炼 API Key"
+                                                         automation:AutomationProperties.Name="百炼 API Key" PasswordRevealMode="Peek" />
                                         </StackPanel>
                                     </StackPanel>
                                     <StackPanel x:Name="LocalModelCard" Spacing="8">
@@ -383,18 +350,7 @@
                                         <ComboBoxItem Content="Qwen3.5 LiveTranslate Flash" />
                                     </ComboBox>
                                     <TextBox x:Name="TranslationWorkspace" Header="Workspace ID" PlaceholderText="ws-..." />
-                                    <Grid ColumnSpacing="8">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*" />
-                                            <ColumnDefinition Width="Auto" />
-                                        </Grid.ColumnDefinitions>
-                                        <PasswordBox x:Name="TranslationApiKey" Header="翻译 API Key" PlaceholderText="填写翻译服务的 API Key（必填）" PasswordRevealMode="Hidden" />
-                                        <Button Grid.Column="1" Tag="TranslationApiKey" Click="RevealCredential_Click"
-                                                VerticalAlignment="Bottom" Width="36" Height="32" Padding="0"
-                                                ToolTipService.ToolTip="显示密钥" automation:AutomationProperties.Name="显示密钥">
-                                            <SymbolIcon Symbol="View" />
-                                        </Button>
-                                    </Grid>
+                                    <PasswordBox x:Name="TranslationApiKey" Header="翻译 API Key" PlaceholderText="填写翻译服务的 API Key（必填）" PasswordRevealMode="Peek" />
                                     <ComboBox x:Name="TranslationLanguage" Header="字幕语言" SelectedIndex="0" HorizontalAlignment="Stretch">
                                         <ComboBoxItem Content="中文" />
                                         <ComboBoxItem Content="English" />

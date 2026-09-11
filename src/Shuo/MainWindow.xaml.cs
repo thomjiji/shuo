@@ -132,6 +132,7 @@ public sealed partial class MainWindow : Window
         RefreshCloudStatus();
         InitializeUpdates();
         InitializeTranslation();
+        InitializeReading();
     }
 
     internal void ShowSettings()
@@ -161,9 +162,10 @@ public sealed partial class MainWindow : Window
         CleanupPage.Visibility = section == "cleanup" ? Visibility.Visible : Visibility.Collapsed;
         HistoryPage.Visibility = section == "history" ? Visibility.Visible : Visibility.Collapsed;
         TranslationPage.Visibility = section == "translation" ? Visibility.Visible : Visibility.Collapsed;
+        ReadingPage.Visibility = section == "reading" ? Visibility.Visible : Visibility.Collapsed;
         if (section == "history" && _historyEntries is null) LoadHistory();
         if (section == "transcription") _ = RefreshModelsAsync();
-        PageTitle.Text = section switch { "general" => "常规", "cleanup" => "文本整理", "history" => "转录历史", "translation" => "实时翻译", _ => "转录服务" };
+        PageTitle.Text = section switch { "general" => "常规", "cleanup" => "文本整理", "history" => "转录历史", "translation" => "实时翻译", "reading" => "实时朗读", _ => "转录服务" };
         PageScroll.ChangeView(null, 0, null, disableAnimation: true);
     }
 
@@ -173,7 +175,7 @@ public sealed partial class MainWindow : Window
             SettingsContent.Width = Math.Max(0, Math.Min(920, args.NewSize.Width - 48));
     }
 
-    private bool CanSwitchFromTray => _translationCancellation is null && _daemonReady && !_dictationActive && !_togglePending
+    private bool CanSwitchFromTray => _readingCancellation is null && _translationCancellation is null && _daemonReady && !_dictationActive && !_togglePending
         && !_modelChanging && !_loadingModels && !_installingUpdate;
 
     private IReadOnlyList<TrayChoice> TrayProviders() =>
@@ -358,14 +360,15 @@ public sealed partial class MainWindow : Window
     private void UpdateModelControls()
     {
         UpdateInstallControls();
-        var idle = _translationCancellation is null && !_installingUpdate && _daemonReady && !_dictationActive && !_togglePending && !_modelChanging && !_loadingModels;
-        var cloudIdle = _translationCancellation is null && !_installingUpdate && _daemonReady && !_dictationActive && !_togglePending && !_modelChanging;
+        var idle = _readingCancellation is null && _translationCancellation is null && !_installingUpdate && _daemonReady && !_dictationActive && !_togglePending && !_modelChanging && !_loadingModels;
+        var cloudIdle = _readingCancellation is null && _translationCancellation is null && !_installingUpdate && _daemonReady && !_dictationActive && !_togglePending && !_modelChanging;
         foreach (var control in new Control[] { ProviderPicker, DoubaoModelPicker, CloudApiKey, CloudAppId, CloudAccessToken, CloudResourceId, QwenApiKey, QwenModelPicker, SelfHostedUrl, SelfHostedModelPicker, SelfHostedTestButton }) control.IsEnabled = cloudIdle;
         ModelPicker.IsEnabled = idle && !_cloudOptions.Enabled && ModelPicker.Items.Count > 0;
         UpdateModelDownloadControls();
         EditShortcutButton.IsEnabled = !_modelChanging;
         TrimTrailingPeriodToggle.IsEnabled = !_modelChanging;
         UpdateTranslationControls();
+        UpdateReadingControls();
     }
 
     private void SelectCurrentModel()
@@ -470,6 +473,7 @@ public sealed partial class MainWindow : Window
 
     private async Task ToggleAsync()
     {
+        if (_readingCancellation is not null) { StopReading(); return; }
         if (_translationCancellation is { } translation) { translation.Cancel(); return; }
         if (_exiting || _closed || _installingUpdate) return;
         if (_togglePending || _modelChanging) return;
@@ -991,6 +995,10 @@ public sealed partial class MainWindow : Window
         _exiting = true;
         _updateTimer?.Stop();
         _shutdown.Cancel();
+        _readingCancellation?.Cancel();
+        if (_readingTask is not null) await _readingTask;
+        _readingSelectionHotkey?.Dispose();
+        _readingClipboardHotkey?.Dispose();
         _translationCancellation?.Cancel();
         if (_translationTask is not null) await _translationTask;
         _tray.Dispose();

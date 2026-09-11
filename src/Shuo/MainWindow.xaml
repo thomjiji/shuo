@@ -51,6 +51,7 @@
                 <NavigationViewItem x:Name="GeneralNavigationItem" Content="常规" Tag="general" Icon="Setting" />
                 <NavigationViewItem x:Name="TranscriptionNavigationItem" Content="转录服务" Tag="transcription" Icon="Microphone" />
                 <NavigationViewItem Content="实时翻译" Tag="translation" Icon="Globe" />
+                <NavigationViewItem x:Name="ReadingNavigationItem" Content="实时朗读" Tag="reading" Icon="Volume" />
                 <NavigationViewItem Content="转录历史" Tag="history" Icon="Clock" />
                 <NavigationViewItem Content="文本整理" Tag="cleanup" Icon="Edit" />
             </NavigationView.MenuItems>
@@ -345,6 +346,44 @@
                                     <TextBox MinHeight="100" AcceptsReturn="True" TextWrapping="Wrap"
                                              PlaceholderText="今天的天气不错，我们来试试语音输入。"
                                              automation:AutomationProperties.Name="听写试用输入框" />
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+                        <StackPanel x:Name="ReadingPage" Spacing="12" Visibility="Collapsed">
+                            <TextBlock Text="选中文字或复制到剪贴板，让豆包读给你听。仅在触发朗读时获取文字并发送到火山引擎；不监听剪贴板，不保存朗读原文和音频。"
+                                       TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                            <Border Padding="18" CornerRadius="8" BorderThickness="1"
+                                    Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}">
+                                <StackPanel x:Name="ReadingConfiguration" Spacing="12">
+                                    <ToggleSwitch x:Name="ReadingEnabled" Header="启用实时朗读" OffContent="关闭" OnContent="开启" Toggled="ReadingToggle_Changed" />
+                                    <TextBlock Text="Ctrl+Alt+R 朗读选区；Ctrl+Alt+Shift+R 朗读剪贴板。播放时再次按任一朗读快捷键停止。开启后请保存设置以注册快捷键。"
+                                               FontSize="12" TextWrapping="Wrap" />
+                                    <ToggleSwitch x:Name="ReadingUseExistingKey" Header="使用转录服务中的火山引擎 API Key" IsOn="True"
+                                                  OffContent="单独配置" OnContent="使用已有 Key" Toggled="ReadingToggle_Changed" />
+                                    <PasswordBox x:Name="ReadingApiKey" Header="朗读 API Key" PasswordRevealMode="Peek" />
+                                    <TextBlock Text="豆包语音合成 2.0" FontWeight="SemiBold" />
+                                    <TextBox x:Name="ReadingSpeaker" Header="音色 ID" Text="zh_female_vv_uranus_bigtts" />
+                                    <TextBlock Text="默认使用 vv 音色；可从官方音色列表选择其他语音合成 2.0 音色。"
+                                               TextWrapping="Wrap" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                    <HyperlinkButton Content="查看可用的系统音色" NavigateUri="https://www.volcengine.com/docs/6561/1257544" />
+                                    <Slider x:Name="ReadingSpeed" Header="语速（0 为正常，负值减慢，正值加快）" Minimum="-50" Maximum="100" StepFrequency="10" Value="0" />
+                                    <Button Content="保存朗读设置" Click="ReadingSave_Click" />
+                                </StackPanel>
+                            </Border>
+                            <Border Padding="18" CornerRadius="8" BorderThickness="1"
+                                    Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}">
+                                <StackPanel Spacing="12">
+                                    <TextBox x:Name="ReadingTextBox" Header="试用朗读" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="100" MaxHeight="220"
+                                             MaxLength="30000" PlaceholderText="在这里粘贴想听的段落，或使用全局快捷键。" />
+                                    <StackPanel Orientation="Horizontal" Spacing="8">
+                                        <Button x:Name="ReadingButton" Content="朗读文字" Click="ReadingButton_Click" />
+                                        <Button x:Name="ReadingClipboardButton" Content="朗读剪贴板" Click="ReadingClipboard_Click" />
+                                        <Button x:Name="ReadingPause" Content="暂停" IsEnabled="False" Click="ReadingPause_Click" />
+                                        <Button x:Name="ReadingStop" Content="停止" IsEnabled="False" Click="ReadingStop_Click" />
+                                    </StackPanel>
+                                    <TextBlock x:Name="ReadingStatus" Text="开启并保存后即可使用。选区读取失败时，请复制后使用朗读剪贴板。" TextWrapping="Wrap" />
                                 </StackPanel>
                             </Border>
                         </StackPanel>

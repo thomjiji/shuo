@@ -8,7 +8,7 @@ public sealed partial class MainWindow
     private CancellationTokenSource? _translationCancellation;
     private Task? _translationTask;
 
-    private bool CanStartTranslation => !_exiting && !_closed && !_installingUpdate
+    private bool CanStartTranslation => _readingCancellation is null && !_exiting && !_closed && !_installingUpdate
         && !_dictationActive && !_togglePending && !_modelChanging && _pendingPastes == 0;
 
     private void InitializeTranslation()

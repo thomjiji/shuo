@@ -8,6 +8,8 @@
 
 按改动范围运行 npm test、test/TextCleanup.Tests 或 test/Translation.Tests；macOS 的服务端验证见[自托管部署](selfhosted.md)。WinUI 界面与宿主代码需要在 Windows 构建验证。
 
+朗读协议验证使用 `dotnet run --project test/Reading.Tests --artifacts-path artifacts/test/reading`，覆盖长文本分段、SSE 音频及结束事件、服务错误和取消，不调用真实云端。选区获取和实际播放另在 Windows 预览中验证。
+
 安装器构建命令见[安装指南](setup.md#1-在构建电脑生成安装包)。`scripts/package.mjs` 固定使用 `.config/dotnet-tools.json` 中的 Velopack CLI，应用依赖与 CLI 版本必须一致。独立输出目录避免旧版本文件混入新包。
 
 ## 输入流程
@@ -23,6 +25,8 @@
 `TranscriptHistory` 将最终文字、完成时间和模型名称追加到 `%LOCALAPPDATA%\Shuo\history.jsonl`，每次写入后刷新到磁盘。读取时跳过空行，将 JSON 行紧凑序列化为可读 UTF-8，保留正文内空格，以原子替换和独立备份保留原文件，未知字段和损坏行保持原有内容；随后跳过并报告损坏行；仅在文件末尾缺少换行时补换行，避免残行吞掉新记录，每次追加恰好一行。历史页按写入顺序倒序显示，每次增加 50 条，不截断磁盘记录。保存失败会显示错误并继续粘贴；粘贴失败不删除已保存记录。`partial` 只更新浮窗，不进入历史。
 
 ## 进程协议
+
+实时朗读由 C# 宿主直接执行：`ReadingInput` 在工作线程上通过 UI Automation 获取前台选区，剪贴板入口单次读取文字；`ReadingText` 按 UTF-8 字节数分段，`DoubaoSpeechClient` 调用豆包 V3 SSE 接口并将 24 kHz 单声道 PCM 交给 `ReadingPlayback`。播放器限制缓冲大小，暂停时停止消费，取消时释放网络和播放设备。未收到成功结束事件的连接按失败处理。`ReadingSettings` 仅保存开关、音色和语速，独立 Key 进入凭据管理器；复用模式使用已有火山语音 Key。朗读期间禁止听写、系统音频翻译和安装更新。
 
 宿主向 worker 的标准输入逐行发送 `toggle`、`shutdown` 或用于刷新模型列表的 `models`。切换模型使用 JSON 行 `{"type":"select-model","path":"模型绝对路径"}`。worker 的标准输出只发送 JSONL 事件，诊断写入标准错误。
 

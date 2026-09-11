@@ -9,7 +9,7 @@ import soundfile as sf
 from fastapi.testclient import TestClient
 
 from shuo_tts.profiles import VoiceProfile, load_profiles, register_voice
-from shuo_tts.server import MODEL_PROMPT_PREFIX, MlxCosyVoice, create_app
+from shuo_tts.server import MODEL_PROMPT_PREFIX, MlxCosyVoice, MlxQwen3Voice, create_app
 
 
 class FakeEngine:
@@ -51,6 +51,26 @@ class TtsServerTests(unittest.TestCase):
         engine.synthesize("你好", same_language)
         self.assertEqual(
             model.kwargs["ref_text"], MODEL_PROMPT_PREFIX + "这是参考音频。")
+
+    def test_qwen_generation_uses_transcript_for_cross_lingual_clone(self):
+        class FakeMlxModel:
+            def generate(self, **kwargs):
+                self.kwargs = kwargs
+                return [type("Result", (), {"audio": np.array([0.1], dtype=np.float32)})()]
+
+        model = FakeMlxModel()
+        engine = MlxQwen3Voice("unused")
+        engine.model = model
+        engine.reference_audio["voice"] = np.zeros(24000, dtype=np.float32)
+        profile = VoiceProfile(
+            "voice", "日文参考音色", "これは参照音声です。", Path("unused.wav"), 4, True)
+
+        self.assertEqual(len(engine.synthesize("你好", profile)), 2)
+        self.assertEqual(model.kwargs["text"], "你好")
+        self.assertEqual(model.kwargs["ref_text"], "これは参照音声です。")
+        self.assertEqual(model.kwargs["lang_code"], "auto")
+        self.assertEqual(model.kwargs["split_pattern"], "")
+        self.assertFalse(model.kwargs["stream"])
 
     def test_registers_canonical_private_voice(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -108,6 +128,7 @@ class TtsServerTests(unittest.TestCase):
             with TestClient(create_app(engine, profiles)) as client:
                 health = client.get("/health").json()
                 self.assertTrue(health["ready"])
+                self.assertEqual(health["engine"], "test")
                 self.assertEqual(health["voices"], [{"id": "voice", "name": "测试声音"}])
                 response = client.post("/v1/tts", json={"protocol": 1, "text": " 你好 ", "voice": "voice"})
                 self.assertEqual(response.status_code, 200)

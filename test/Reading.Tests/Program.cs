@@ -61,6 +61,7 @@ new ReadingOptions(Provider: "cosyvoice", CosyVoiceUrl: "my-mac", CosyVoiceVoice
 await Fails<ArgumentException>(() => { new ReadingOptions(Provider: "cosyvoice", CosyVoiceUrl: "", CosyVoiceVoice: "my-voice").Validate(); return Task.CompletedTask; }, "self-hosted service address is required");
 await Fails<ArgumentException>(() => { new ReadingOptions(Provider: "cosyvoice", CosyVoiceUrl: "my-mac", CosyVoiceVoice: "Bad Voice").Validate(); return Task.CompletedTask; }, "self-hosted voice ID is bounded");
 Check(CosyVoiceAddress.ToUrl("my-mac") == "http://my-mac:18766" && CosyVoiceAddress.ToDisplay("http://my-mac:18766") == "my-mac", "CosyVoice host uses private service port");
+Check(CosyVoiceAddress.ToUrl("my-mac:18767") == "http://my-mac:18767", "self-hosted TTS accepts an explicit Qwen port");
 byte[] CopyMetadata(string value)
 {
     using var memory = new MemoryStream();

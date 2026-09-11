@@ -15,6 +15,10 @@ from .profiles import VoiceProfile, load_profiles
 logger = logging.getLogger("shuo_tts")
 SAMPLE_RATE = 24000
 MODEL_PROMPT_PREFIX = "You are a helpful assistant.<|endofprompt|>"
+DEFAULT_MODELS = {
+    "cosyvoice": "mlx-community/Fun-CosyVoice3-0.5B-2512-4bit",
+    "qwen3": "mlx-community/Qwen3-TTS-12Hz-1.7B-Base-4bit",
+}
 
 
 class SynthesisRequest(BaseModel):
@@ -30,8 +34,11 @@ class SpeechEngine(Protocol):
 
 
 class MlxCosyVoice:
+    engine_id = "cosyvoice"
+
     def __init__(self, model_path: str):
         self.model_path = model_path
+        self.model_name = model_path.rsplit("/", 1)[-1]
         self.model = None
         self.reference_audio = {}
 
@@ -88,6 +95,52 @@ class MlxCosyVoice:
         return (np.clip(samples, -1, 1) * 32767).astype("<i2").tobytes()
 
 
+class MlxQwen3Voice:
+    engine_id = "qwen3"
+
+    def __init__(self, model_path: str):
+        self.model_path = model_path
+        self.model_name = model_path.rsplit("/", 1)[-1]
+        self.model = None
+        self.reference_audio = {}
+
+    def load(self, profiles: dict[str, VoiceProfile]) -> None:
+        from mlx_audio.tts.utils import load_model
+        from mlx_audio.utils import load_audio
+
+        self.model = load_model(self.model_path)
+        if getattr(self.model, "model_type", None) != "qwen3_tts":
+            raise RuntimeError("指定的模型不是 Qwen3-TTS。")
+        if self.model.sample_rate != SAMPLE_RATE:
+            raise RuntimeError(f"模型采样率 {self.model.sample_rate} 与服务协议不兼容。")
+        self.reference_audio = {
+            voice_id: load_audio(str(profile.prompt_wav), sample_rate=SAMPLE_RATE)
+            for voice_id, profile in profiles.items()
+        }
+
+    def synthesize(self, text: str, profile: VoiceProfile) -> bytes:
+        import numpy as np
+
+        if self.model is None:
+            raise RuntimeError("模型尚未加载。")
+        results = self.model.generate(
+            text=text,
+            ref_audio=self.reference_audio[profile.id],
+            ref_text=profile.prompt_text,
+            lang_code="auto",
+            split_pattern="",
+            stream=False,
+            verbose=False,
+        )
+        audio = [np.asarray(result.audio, dtype=np.float32) for result in results]
+        if not audio:
+            raise RuntimeError("模型没有返回音频。")
+        samples = np.concatenate(audio)
+        if samples.size == 0 or not np.isfinite(samples).all():
+            raise RuntimeError("模型返回了无效音频。")
+        return (np.clip(samples, -1, 1) * 32767).astype("<i2").tobytes()
+
+
 def create_app(engine: SpeechEngine, profiles: dict[str, VoiceProfile], *, timeout_seconds: float = 120) -> FastAPI:
     pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix="mlx-tts")
     busy = asyncio.Lock()
@@ -111,7 +164,8 @@ def create_app(engine: SpeechEngine, profiles: dict[str, VoiceProfile], *, timeo
         return {
             "ready": ready,
             "protocol": 1,
-            "model": "Fun-CosyVoice3-0.5B-2512-4bit",
+            "engine": getattr(engine, "engine_id", "test"),
+            "model": getattr(engine, "model_name", type(engine).__name__),
             "sample_rate": SAMPLE_RATE,
             "busy": busy.locked(),
             "voices": [{"id": item.id, "name": item.name} for item in profiles.values()],
@@ -140,7 +194,7 @@ def create_app(engine: SpeechEngine, profiles: dict[str, VoiceProfile], *, timeo
             await asyncio.shield(future)
             raise
         except Exception:
-            logger.exception("CosyVoice synthesis failed")
+            logger.exception("TTS synthesis failed")
             raise HTTPException(500, "Mac 语音合成失败，请检查服务日志。") from None
         finally:
             busy.release()
@@ -158,8 +212,9 @@ def create_app(engine: SpeechEngine, profiles: dict[str, VoiceProfile], *, timeo
 def main():
     import uvicorn
 
-    parser = argparse.ArgumentParser(description="Shuo CosyVoice service for Apple Silicon")
-    parser.add_argument("--model", default="mlx-community/Fun-CosyVoice3-0.5B-2512-4bit")
+    parser = argparse.ArgumentParser(description="Shuo MLX TTS service for Apple Silicon")
+    parser.add_argument("--engine", choices=sorted(DEFAULT_MODELS), default="cosyvoice")
+    parser.add_argument("--model")
     parser.add_argument("--voices-dir", type=Path, default=Path("voices"))
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=18766)
@@ -169,7 +224,12 @@ def main():
     profiles = load_profiles(args.voices_dir.resolve())
     if not profiles:
         parser.error("没有可用音色；请先运行 shuo-tts-voice 注册参考声音。")
-    app = create_app(MlxCosyVoice(args.model), profiles, timeout_seconds=args.timeout_seconds)
+    model_path = args.model or DEFAULT_MODELS[args.engine]
+    if args.engine == "cosyvoice":
+        engine = MlxCosyVoice(model_path)
+    else:
+        engine = MlxQwen3Voice(model_path)
+    app = create_app(engine, profiles, timeout_seconds=args.timeout_seconds)
     uvicorn.run(app, host=args.host, port=args.port, timeout_graceful_shutdown=150)
 
 

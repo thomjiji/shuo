@@ -870,6 +870,8 @@ public sealed partial class MainWindow : Window
 
     private void ApplyHotkey(HotkeyBinding? binding)
     {
+        if (ReadingEnabled.IsOn && binding == _readingHotkeyBinding)
+            throw new ArgumentException("此组合已用于朗读，请选择其他转录快捷键。");
         GlobalHotkey? replacement = null;
         try
         {
@@ -998,7 +1000,6 @@ public sealed partial class MainWindow : Window
         _readingCancellation?.Cancel();
         if (_readingTask is not null) await _readingTask;
         _readingSelectionHotkey?.Dispose();
-        _readingClipboardHotkey?.Dispose();
         _translationCancellation?.Cancel();
         if (_translationTask is not null) await _translationTask;
         _tray.Dispose();

@@ -1,5 +1,6 @@
 using Microsoft.UI.Xaml;
 using Shuo.Services;
+using System.Text.Json;
 
 namespace Shuo;
 
@@ -23,22 +24,33 @@ public sealed partial class MainWindow
         {
             var options = ReadingSettings.Load();
             ReadingEnabled.IsOn = options.Enabled;
+            ReadingProviderPicker.SelectedIndex = options.Provider == "cosyvoice" ? 1 : 0;
             ReadingUseExistingKey.IsOn = options.UseExistingKey;
             ReadingApiKey.Password = ReadingSettings.LoadApiKey();
             ReadingSpeaker.Text = options.Speaker;
             ReadingSpeed.Value = options.SpeechRate;
+            ReadingCosyVoiceUrl.Text = CosyVoiceAddress.ToDisplay(options.CosyVoiceUrl);
+            ReadingCosyVoiceVoice.Text = options.CosyVoiceVoice;
             _readingHotkeyBinding = options.Hotkey;
             ReadingShortcutButton.Content = _readingHotkeyBinding.DisplayText;
             RegisterReadingHotkeys();
         }
         catch (Exception error) { ReadingStatus.Text = "无法初始化朗读：" + error.Message; }
         _readingLoaded = true;
+        UpdateReadingProviderFields();
         UpdateReadingControls();
     }
 
-    private ReadingOptions CurrentReadingOptions() => new(ReadingEnabled.IsOn, ReadingUseExistingKey.IsOn,
-        ReadingSpeaker.Text.Trim(), (int)ReadingSpeed.Value,
-        _readingHotkeyBinding.Modifiers, _readingHotkeyBinding.VirtualKey);
+    private ReadingOptions CurrentReadingOptions() => new(
+        Enabled: ReadingEnabled.IsOn,
+        Provider: ReadingProviderPicker.SelectedIndex == 1 ? "cosyvoice" : "doubao",
+        UseExistingKey: ReadingUseExistingKey.IsOn,
+        Speaker: ReadingSpeaker.Text.Trim(),
+        SpeechRate: (int)ReadingSpeed.Value,
+        CosyVoiceUrl: CosyVoiceAddress.ToUrl(ReadingCosyVoiceUrl.Text),
+        CosyVoiceVoice: ReadingCosyVoiceVoice.Text.Trim(),
+        HotkeyModifiers: _readingHotkeyBinding.Modifiers,
+        HotkeyVirtualKey: _readingHotkeyBinding.VirtualKey);
 
     private async void ReadingShortcut_Click(object sender, RoutedEventArgs args)
     {
@@ -131,6 +143,33 @@ public sealed partial class MainWindow
         UpdateReadingControls();
     }
 
+    private void ReadingProvider_SelectionChanged(object sender, Microsoft.UI.Xaml.Controls.SelectionChangedEventArgs args)
+    {
+        if (!_readingLoaded) return;
+        UpdateReadingProviderFields();
+        UpdateReadingControls();
+    }
+
+    private void UpdateReadingProviderFields()
+    {
+        if (ReadingProviderPicker is null) return;
+        var cosyVoice = ReadingProviderPicker.SelectedIndex == 1;
+        var doubao = cosyVoice ? Visibility.Collapsed : Visibility.Visible;
+        var cosy = cosyVoice ? Visibility.Visible : Visibility.Collapsed;
+        ReadingUseExistingKey.Visibility = doubao;
+        ReadingApiKey.Visibility = doubao;
+        ReadingDoubaoTitle.Visibility = doubao;
+        ReadingSpeaker.Visibility = doubao;
+        ReadingDoubaoHint.Visibility = doubao;
+        ReadingDoubaoLink.Visibility = doubao;
+        ReadingSpeed.Visibility = doubao;
+        ReadingCosyVoiceTitle.Visibility = cosy;
+        ReadingCosyVoiceUrl.Visibility = cosy;
+        ReadingCosyVoiceVoice.Visibility = cosy;
+        ReadingCosyVoiceHint.Visibility = cosy;
+        ReadingCosyVoiceTest.Visibility = cosy;
+    }
+
     private void UpdateReadingControls()
     {
         if (ReadingButton is null) return;
@@ -140,7 +179,34 @@ public sealed partial class MainWindow
         ReadingPause.IsEnabled = _readingPlayback is not null;
         ReadingPause.Content = _readingPlayback?.Paused == true ? "继续" : "暂停";
         foreach (var control in ReadingConfiguration.Children.OfType<Microsoft.UI.Xaml.Controls.Control>()) control.IsEnabled = !active;
-        ReadingApiKey.IsEnabled = !active && !ReadingUseExistingKey.IsOn;
+        ReadingApiKey.IsEnabled = !active && ReadingProviderPicker.SelectedIndex == 0 && !ReadingUseExistingKey.IsOn;
+    }
+
+    private async void ReadingCosyVoiceTest_Click(object sender, RoutedEventArgs args)
+    {
+        if (_readingCancellation is not null) return;
+        try
+        {
+            var options = CurrentReadingOptions();
+            options.Validate();
+            ReadingStatus.Text = "正在测试 Mac 上的 CosyVoice 服务...";
+            using var client = new System.Net.Http.HttpClient(new System.Net.Http.HttpClientHandler { UseProxy = false })
+            {
+                Timeout = TimeSpan.FromSeconds(10),
+            };
+            using var response = await client.GetAsync(CosyVoiceAddress.Health(options.CosyVoiceUrl));
+            if (!response.IsSuccessStatusCode)
+                throw new HttpRequestException($"服务返回 HTTP {(int)response.StatusCode}。");
+            using var document = JsonDocument.Parse(await response.Content.ReadAsStreamAsync());
+            var root = document.RootElement;
+            if (!root.TryGetProperty("ready", out var ready) || !ready.GetBoolean())
+                throw new IOException("服务尚未准备好。");
+            var found = root.GetProperty("voices").EnumerateArray()
+                .Any(voice => voice.GetProperty("id").GetString() == options.CosyVoiceVoice);
+            if (!found) throw new IOException("服务已连接，但没有所选音色。");
+            ReadingStatus.Text = "CosyVoice 服务连接正常，音色可用。";
+        }
+        catch (Exception error) { ReadingStatus.Text = "CosyVoice 测试失败：" + error.Message; }
     }
 
     private void ReadingButton_Click(object sender, RoutedEventArgs args) => StartReading("text");
@@ -171,8 +237,11 @@ public sealed partial class MainWindow
             var token = cancellation.Token;
             var options = CurrentReadingOptions();
             options.Validate();
-            var key = options.UseExistingKey ? _cloudOptions.ApiKey : ReadingApiKey.Password.Trim();
-            if (string.IsNullOrWhiteSpace(key)) throw new ArgumentException("请填写语音 API Key，或在转录服务中配置火山引擎语音 API Key。");
+            var key = options.Provider == "doubao"
+                ? options.UseExistingKey ? _cloudOptions.ApiKey : ReadingApiKey.Password.Trim()
+                : "";
+            if (options.Provider == "doubao" && string.IsNullOrWhiteSpace(key))
+                throw new ArgumentException("请填写语音 API Key，或在转录服务中配置火山引擎语音 API Key。");
             string text;
             if (source == "selection")
             {
@@ -186,12 +255,19 @@ public sealed partial class MainWindow
             }
             else text = ReadingTextBox.Text;
             token.ThrowIfCancellationRequested();
-            var chunks = ReadingText.Split(text);
+            var chunks = ReadingText.Split(text, options.Provider == "cosyvoice" ? 240 : ReadingText.MaximumRequestBytes);
             ReadingSettings.Save(options, ReadingApiKey.Password);
-            ReadingStatus.Text = "正在连接豆包语音合成...";
+            ReadingStatus.Text = options.Provider == "cosyvoice" ? "正在连接 Mac 上的 CosyVoice..." : "正在连接豆包语音合成...";
             _overlay.Begin(true);
-            using var client = new System.Net.Http.HttpClient { Timeout = Timeout.InfiniteTimeSpan };
-            var service = new DoubaoSpeechClient(client);
+            using var client = options.Provider == "cosyvoice"
+                ? new System.Net.Http.HttpClient(new System.Net.Http.HttpClientHandler { UseProxy = false })
+                : new System.Net.Http.HttpClient();
+            client.Timeout = Timeout.InfiniteTimeSpan;
+            var doubao = options.Provider == "doubao" ? new DoubaoSpeechClient(client) : null;
+            var cosyVoice = options.Provider == "cosyvoice" ? new CosyVoiceSpeechClient(client) : null;
+            IAsyncEnumerable<byte[]> Synthesize(string chunk) => options.Provider == "cosyvoice"
+                ? cosyVoice!.SynthesizeAsync(chunk, options, token)
+                : doubao!.SynthesizeAsync(chunk, options, key, token);
             using var playback = new ReadingPlayback();
             _readingPlayback = playback;
             UpdateReadingControls();
@@ -208,7 +284,7 @@ public sealed partial class MainWindow
                 foreach (var chunk in chunks)
                 {
                     var length = 0L;
-                    await foreach (var audio in service.SynthesizeAsync(chunk, options, key, token))
+                    await foreach (var audio in Synthesize(chunk))
                     {
                         length += audio.Length;
                         await playback.WriteAsync(audio, token);

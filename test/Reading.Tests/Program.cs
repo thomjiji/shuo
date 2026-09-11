@@ -41,6 +41,7 @@ Check(ReadingText.Split(latestParagraph + new string('c', 500))[0] == latestPara
 var sentence = new string('汉', 400) + "。";
 Check(ReadingText.Split(sentence + new string('字', 300))[0] == sentence, "oversized single paragraph falls back to a sentence boundary");
 Check(ReadingText.Split(new string('a', 1800)).Count == 1, "exact request byte budget remains a single request");
+Check(ReadingText.Split("第一句。第二句。", 12).SequenceEqual(new[] { "第一句。", "第二句。" }), "self-hosted request budget prefers complete sentences");
 var crlfBoundary = new string('a', 1799) + "\r\n" + "end";
 Check(ReadingText.Split(crlfBoundary).SequenceEqual(new[] { new string('a', 1799), "\r\nend" }), "CRLF is not split at the request byte boundary");
 Check((await Parse(": keepalive\n\nevent: audio\ndata: {\"code\":0,\"data\":\"AQIDBA==\"}\n\ndata: {\"code\":20000000}\n\n")).SequenceEqual(new byte[] {1,2,3,4}), "SSE audio and completion decoded");
@@ -52,10 +53,14 @@ await Fails<FormatException>(() => Parse("data: {\"code\":0,\"data\":\"!\"}\n\n"
 await Fails<JsonException>(() => Parse("data: not-json\n\n"), "invalid event rejected");
 
 var migrated = JsonSerializer.Deserialize<ReadingOptions>("{\"Enabled\":true}")!;
-Check(migrated.Hotkey == new HotkeyBinding(3, 0x20), "missing shortcut uses Ctrl Alt Space");
+Check(migrated.Provider == "doubao" && migrated.Hotkey == new HotkeyBinding(3, 0x20), "missing provider and shortcut use compatible defaults");
 var custom = new ReadingOptions(HotkeyModifiers: 6, HotkeyVirtualKey: 0x79);
 Check(JsonSerializer.Deserialize<ReadingOptions>(JsonSerializer.Serialize(custom))!.Hotkey == custom.Hotkey, "custom reading shortcut survives settings roundtrip");
 await Fails<ArgumentException>(() => { new ReadingOptions(HotkeyModifiers: 0).Validate(); return Task.CompletedTask; }, "invalid reading shortcut rejected");
+new ReadingOptions(Provider: "cosyvoice", CosyVoiceUrl: "my-mac", CosyVoiceVoice: "my-voice").Validate();
+await Fails<ArgumentException>(() => { new ReadingOptions(Provider: "cosyvoice", CosyVoiceUrl: "", CosyVoiceVoice: "my-voice").Validate(); return Task.CompletedTask; }, "self-hosted service address is required");
+await Fails<ArgumentException>(() => { new ReadingOptions(Provider: "cosyvoice", CosyVoiceUrl: "my-mac", CosyVoiceVoice: "Bad Voice").Validate(); return Task.CompletedTask; }, "self-hosted voice ID is bounded");
+Check(CosyVoiceAddress.ToUrl("my-mac") == "http://my-mac:18766" && CosyVoiceAddress.ToDisplay("http://my-mac:18766") == "my-mac", "CosyVoice host uses private service port");
 byte[] CopyMetadata(string value)
 {
     using var memory = new MemoryStream();
@@ -82,7 +87,7 @@ Check(handler.Resource == "seed-tts-2.0" && handler.ApiKey == "test-key", "TTS u
 using (var body = JsonDocument.Parse(handler.Body!))
 {
     var req = body.RootElement.GetProperty("req_params");
-    Check(req.GetProperty("speaker").GetString() == "zh_female_vv_uranus_bigtts" && req.GetProperty("audio_params").GetProperty("sample_rate").GetInt32() == 24000, "voice ID and PCM sample rate reach service");
+    Check(req.GetProperty("speaker").GetString() == "zh_female_wenroumama_uranus_bigtts" && req.GetProperty("audio_params").GetProperty("sample_rate").GetInt32() == 24000, "voice ID and PCM sample rate reach service");
 }
 await Fails<ArgumentException>(async () =>
 {
@@ -96,6 +101,15 @@ using (var cancelled = new CancellationTokenSource())
         await foreach (var _ in tts.SynthesizeAsync("hello", new(), "test-key", cancelled.Token)) { }
     }, "cancelled request does not play");
 }
+var cosyHandler = new CosyHandler();
+using var cosyHttp = new HttpClient(cosyHandler);
+var cosy = new CosyVoiceSpeechClient(cosyHttp);
+var cosyAudio = new List<byte>();
+var cosyOptions = new ReadingOptions(Provider: "cosyvoice", CosyVoiceUrl: "my-mac", CosyVoiceVoice: "my-voice");
+await foreach (var bytes in cosy.SynthesizeAsync("你好", cosyOptions, default)) cosyAudio.AddRange(bytes);
+Check(cosyHandler.Uri == "http://my-mac:18766/v1/tts" && cosyAudio.SequenceEqual(new byte[] { 1, 0, 2, 0 }), "CosyVoice PCM response reaches playback");
+using (var body = JsonDocument.Parse(cosyHandler.Body!))
+    Check(body.RootElement.GetProperty("protocol").GetInt32() == 1 && body.RootElement.GetProperty("voice").GetString() == "my-voice", "CosyVoice request sends protocol and voice ID");
 Console.WriteLine($"Passed {checks} checks.");
 
 sealed class RecordingHandler : HttpMessageHandler
@@ -108,5 +122,20 @@ sealed class RecordingHandler : HttpMessageHandler
         ApiKey = request.Headers.GetValues("X-Api-Key").Single();
         Body = await request.Content!.ReadAsStringAsync(token);
         return new(HttpStatusCode.OK) { Content = new StringContent("data: {\"code\":20000000,\"data\":\"AAA=\"}\n\n") };
+    }
+}
+
+sealed class CosyHandler : HttpMessageHandler
+{
+    public string? Uri, Body;
+    protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken token)
+    {
+        Uri = request.RequestUri!.ToString();
+        Body = await request.Content!.ReadAsStringAsync(token);
+        var response = new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent([1, 0, 2, 0]) };
+        response.Headers.Add("X-Shuo-Protocol", "1");
+        response.Headers.Add("X-Shuo-Audio-Format", "pcm_s16le");
+        response.Headers.Add("X-Shuo-Sample-Rate", "24000");
+        return response;
     }
 }

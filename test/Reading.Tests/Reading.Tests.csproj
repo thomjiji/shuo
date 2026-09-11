@@ -8,8 +8,10 @@
   <ItemGroup>
     <Compile Include="../../src/Shuo/Services/HotkeyBinding.cs" Link="HotkeyBinding.cs" />
     <Compile Include="../../src/Shuo/Services/ReadingOptions.cs" Link="ReadingOptions.cs" />
+    <Compile Include="../../src/Shuo/Services/CosyVoiceAddress.cs" Link="CosyVoiceAddress.cs" />
     <Compile Include="../../src/Shuo/Services/ClipboardSelectionMetadata.cs" Link="ClipboardSelectionMetadata.cs" />
     <Compile Include="../../src/Shuo/Services/ReadingText.cs" Link="ReadingText.cs" />
     <Compile Include="../../src/Shuo/Services/DoubaoSpeechClient.cs" Link="DoubaoSpeechClient.cs" />
+    <Compile Include="../../src/Shuo/Services/CosyVoiceSpeechClient.cs" Link="CosyVoiceSpeechClient.cs" />
   </ItemGroup>
 </Project>

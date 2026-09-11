@@ -8,7 +8,7 @@
 
 按改动范围运行 npm test、test/TextCleanup.Tests 或 test/Translation.Tests；macOS 的服务端验证见[自托管部署](selfhosted.md)。WinUI 界面与宿主代码需要在 Windows 构建验证。
 
-朗读协议验证使用 `dotnet run --project test/Reading.Tests --artifacts-path artifacts/test/reading`，覆盖长文本分段、SSE 音频及结束事件、服务错误和取消，不调用真实云端。Windows 播放测试使用 `dotnet run --project test/Reading.Playback.Tests --artifacts-path artifacts/test/reading-playback`，通过静音 PCM 验证设备播放完成、暂停和取消。系统复制事务使用 `dotnet run --project test/Reading.Input.Tests` 验证选区、空选区、富文本恢复和并发复制保护。跨应用选区另在 Windows 预览中验证。
+朗读协议验证使用 `dotnet run --project test/Reading.Tests --artifacts-path artifacts/test/reading`，覆盖长文本分段、豆包 SSE、CosyVoice PCM、服务错误和取消，不调用真实服务。CosyVoice 服务端使用 `uv run --project tts-server --frozen python -m unittest discover -s tts-server/tests -v`，测试不加载模型。Windows 播放测试使用 `dotnet run --project test/Reading.Playback.Tests --artifacts-path artifacts/test/reading-playback`，通过静音 PCM 验证设备播放完成、暂停和取消。系统复制事务使用 `dotnet run --project test/Reading.Input.Tests` 验证选区、空选区、富文本恢复和并发复制保护。跨应用选区另在 Windows 预览中验证。
 
 安装器构建命令见[安装指南](setup.md#1-在构建电脑生成安装包)。`scripts/package.mjs` 固定使用 `.config/dotnet-tools.json` 中的 Velopack CLI，应用依赖与 CLI 版本必须一致。独立输出目录避免旧版本文件混入新包。
 
@@ -26,7 +26,7 @@
 
 ## 进程协议
 
-实时朗读由 C# 宿主直接执行：`ReadingInput` 在工作线程通过 UI Automation 查询前台选区；未获取到文字时，`ClipboardSelection` 暂存剪贴板各格式、向原前台窗口发送复制操作，核对剪贴板序号和所有者后读取文本，再有条件地恢复原剪贴板。复制结果中的空选区标记用于排除整行复制。`ReadingText` 按 UTF-8 字节数限制长请求，普通段落保留上下文；`DoubaoSpeechClient` 调用豆包 V3 SSE 接口，将 24 kHz 单声道 PCM 持续写入 `ReadingAudioBuffer`。整个会话只创建一个 WASAPI 播放器；缓冲不足时输出静音，只有明确完成后才返回 EOF。环形缓冲保留跨包采样，音量由设备读取的 PCM 计算，主线程定时更新状态指示器。未收到成功结束事件的连接按失败处理。`ReadingSettings` 保存开关、音色、语速和快捷键，独立 Key 进入凭据管理器。朗读期间禁止听写、系统音频翻译和安装更新。
+实时朗读由 C# 宿主直接执行：`ReadingInput` 在工作线程通过 UI Automation 查询前台选区；未获取到文字时，`ClipboardSelection` 暂存剪贴板各格式、向原前台窗口发送复制操作，核对剪贴板序号和所有者后读取文本，再有条件地恢复原剪贴板。复制结果中的空选区标记用于排除整行复制。`ReadingText` 按服务对应的 UTF-8 字节预算限制请求，普通段落保留上下文；`DoubaoSpeechClient` 调用豆包 V3 SSE 接口，`CosyVoiceSpeechClient` 调用 Mac 的 `/v1/tts` 接口并校验协议和采样率。两者都把 24 kHz 单声道 PCM 写入 `ReadingAudioBuffer`。整个会话只创建一个 WASAPI 播放器；缓冲不足时输出静音，只有明确完成后才返回 EOF。环形缓冲保留跨包采样，音量由设备读取的 PCM 计算，主线程定时更新状态指示器。`ReadingSettings` 保存服务、地址、音色、语速和快捷键，独立 Key 进入凭据管理器。朗读期间禁止听写、系统音频翻译和安装更新。
 
 宿主向 worker 的标准输入逐行发送 `toggle`、`shutdown` 或用于刷新模型列表的 `models`。切换模型使用 JSON 行 `{"type":"select-model","path":"模型绝对路径"}`。worker 的标准输出只发送 JSONL 事件，诊断写入标准错误。
 

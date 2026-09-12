@@ -4,7 +4,12 @@ using System.Text.RegularExpressions;
 
 namespace Shuo.Services;
 
-internal sealed record TranslationOptions(string Region = "cn-beijing", string WorkspaceId = "", string TargetLanguage = "zh");
+internal sealed record TranslationOptions(string Region = "cn-beijing", string WorkspaceId = "", string TargetLanguage = "zh",
+    bool Enabled = false, uint HotkeyModifiers = HotkeyBinding.Control | HotkeyBinding.Alt, uint HotkeyVirtualKey = 0x54)
+{
+    [System.Text.Json.Serialization.JsonIgnore]
+    internal HotkeyBinding Hotkey => new(HotkeyModifiers, HotkeyVirtualKey);
+}
 
 internal sealed class TranslationSession(TranslationOptions options, string apiKey,
     Action ready, Action<string> transcript, Action<double> audioLevel,

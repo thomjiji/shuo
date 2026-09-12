@@ -54,43 +54,24 @@ public sealed partial class MainWindow
         var value = (int)Math.Round(args.NewValue);
         ReadingSpeedValue.Text = value switch
         {
-            < 0 => $"当前值：{value}（减慢）",
-            > 0 => $"当前值：+{value}（加快）",
-            _ => "当前值：0（正常）",
+            < 0 => $"{value}（减慢）",
+            > 0 => $"+{value}",
+            _ => "0（正常）",
         };
     }
 
     private async void ReadingShortcut_Click(object sender, RoutedEventArgs args)
     {
         var previous = _readingHotkeyBinding;
-        var selected = previous;
-        var capture = new Microsoft.UI.Xaml.Controls.TextBox
-        {
-            IsReadOnly = true, Text = previous.DisplayText,
-            Header = "点击输入框，按住修饰键并按另一个键",
-        };
-        var dialog = new Microsoft.UI.Xaml.Controls.ContentDialog
-        {
-            XamlRoot = Content.XamlRoot, Title = "朗读快捷键", Content = capture,
-            PrimaryButtonText = "保存", CloseButtonText = "取消",
-        };
-        capture.KeyDown += (_, key) =>
-        {
-            if (key.Key == Windows.System.VirtualKey.Escape) return;
-            key.Handled = true;
-            var binding = new HotkeyBinding(CurrentModifiers(), (uint)key.Key);
-            if (!binding.IsValid) return;
-            selected = binding;
-            capture.Text = binding.DisplayText;
-        };
-        dialog.Opened += (_, _) => capture.Focus(FocusState.Programmatic);
         _readingSelectionHotkey?.Dispose();
         _readingSelectionHotkey = null;
         try
         {
-            if (await dialog.ShowAsync() == Microsoft.UI.Xaml.Controls.ContentDialogResult.Primary)
+            if (await CaptureHotkeyAsync("朗读快捷键", previous) is { } selected)
             {
                 if (selected == _hotkeyBinding) throw new ArgumentException("此组合已用于听写，请选择其他快捷键。");
+                if (TranslationEnabled.IsOn && selected == _translationHotkeyBinding)
+                    throw new ArgumentException("此组合已用于翻译，请选择其他快捷键。");
                 _readingHotkeyBinding = selected;
                 RegisterReadingHotkeys();
                 var saved = ReadingSettings.Load() with { HotkeyModifiers = selected.Modifiers, HotkeyVirtualKey = selected.VirtualKey };
@@ -113,6 +94,8 @@ public sealed partial class MainWindow
     {
         if (ReadingEnabled.IsOn && _readingHotkeyBinding == _hotkeyBinding)
             throw new ArgumentException("朗读与转录不能使用同一个快捷键，请更换其中一个。");
+        if (ReadingEnabled.IsOn && TranslationEnabled.IsOn && _readingHotkeyBinding == _translationHotkeyBinding)
+            throw new ArgumentException("朗读与翻译不能使用同一个快捷键，请更换其中一个。");
         _readingSelectionHotkey?.Dispose();
         _readingSelectionHotkey = null;
         if (!ReadingEnabled.IsOn) return;
@@ -159,8 +142,14 @@ public sealed partial class MainWindow
         ReadingStop.IsEnabled = active;
         ReadingPause.IsEnabled = _readingPlayback is not null;
         ReadingPause.Content = _readingPlayback?.Paused == true ? "继续" : "暂停";
-        foreach (var control in ReadingConfiguration.Children.OfType<Microsoft.UI.Xaml.Controls.Control>()) control.IsEnabled = !active;
+        ReadingEnabled.IsEnabled = !active;
+        ReadingShortcutButton.IsEnabled = !active;
+        ReadingUseExistingKey.IsEnabled = !active;
+        ReadingSpeaker.IsEnabled = !active;
+        ReadingSpeed.IsEnabled = !active;
+        ReadingSaveButton.IsEnabled = !active;
         ReadingSpeedLabels.Opacity = active ? 0.5 : 1;
+        ReadingApiKeyCard.Visibility = ReadingUseExistingKey.IsOn ? Visibility.Collapsed : Visibility.Visible;
         ReadingApiKey.IsEnabled = !active && !ReadingUseExistingKey.IsOn;
     }
 
@@ -177,6 +166,7 @@ public sealed partial class MainWindow
 
     private void StartReading(string source)
     {
+        if (_capturingHotkey) return;
         if (_readingCancellation is not null) { StopReading(); return; }
         if (!ReadingEnabled.IsOn || !CanStartReading) return;
         var foreground = NativeMethods.GetForegroundWindow();

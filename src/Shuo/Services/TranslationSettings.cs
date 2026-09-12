@@ -14,9 +14,15 @@ internal static class TranslationSettings
         if (!File.Exists(path)) return new();
         var root = JsonNode.Parse(File.ReadAllText(path)) as JsonObject
             ?? throw new InvalidDataException("Dictation settings must be a JSON object.");
-        return new("cn-beijing",
-            root["translation"]?["workspaceId"]?.GetValue<string>() ?? "",
-            root["translation"]?["targetLanguage"]?.GetValue<string>() == "en" ? "en" : "zh");
+        if (root["translation"] is not JsonObject translation) return new();
+        var defaults = new TranslationOptions();
+        return new(
+            translation["region"]?.GetValue<string>() is "ap-southeast-1" ? "ap-southeast-1" : "cn-beijing",
+            translation["workspaceId"]?.GetValue<string>() ?? "",
+            translation["targetLanguage"]?.GetValue<string>() == "en" ? "en" : "zh",
+            translation["enabled"]?.GetValue<bool>() ?? true,
+            translation["hotkeyModifiers"]?.GetValue<uint>() ?? defaults.HotkeyModifiers,
+            translation["hotkeyVirtualKey"]?.GetValue<uint>() ?? defaults.HotkeyVirtualKey);
     }
 
     internal static string LoadApiKey()
@@ -44,7 +50,8 @@ internal static class TranslationSettings
             catch (Exception error) when (error.HResult == unchecked((int)0x80070490)) { }
         }
         root["translation"] = new JsonObject { ["region"] = options.Region, ["workspaceId"] = options.WorkspaceId,
-            ["targetLanguage"] = options.TargetLanguage };
+            ["targetLanguage"] = options.TargetLanguage, ["enabled"] = options.Enabled,
+            ["hotkeyModifiers"] = options.HotkeyModifiers, ["hotkeyVirtualKey"] = options.HotkeyVirtualKey };
         var temporary = path + "." + Guid.NewGuid().ToString("N") + ".tmp";
         try
         {

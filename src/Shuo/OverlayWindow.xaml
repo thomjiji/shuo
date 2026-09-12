@@ -43,8 +43,8 @@
                 <Canvas.Clip>
                     <RectangleGeometry x:Name="TextClip" />
                 </Canvas.Clip>
-                <TextBlock x:Name="TranscriptText" FontSize="14" LineHeight="22"
-                           TextWrapping="NoWrap">
+                <TextBlock x:Name="TranscriptText" LineHeight="22" TextWrapping="NoWrap"
+                           Style="{StaticResource BodyTextBlockStyle}">
                     <TextBlock.Foreground><SolidColorBrush x:Name="TranscriptBrush" Color="#F5F5F5" /></TextBlock.Foreground>
                     <TextBlock.RenderTransform>
                         <TranslateTransform x:Name="TextOffset" />

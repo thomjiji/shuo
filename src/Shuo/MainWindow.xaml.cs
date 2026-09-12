@@ -1,14 +1,13 @@
 using Windows.ApplicationModel.DataTransfer;
+using System.Numerics;
 using System.Text.Json;
-using Microsoft.UI.Text;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
-using Microsoft.UI.Xaml.Input;
-using Microsoft.UI.Xaml.Media;
+using Microsoft.UI.Xaml.Hosting;
 using Windows.Graphics;
 using Windows.System;
-using Windows.UI;
+using Windows.UI.ViewManagement;
 using Shuo.Services;
 using WinRT.Interop;
 
@@ -18,11 +17,12 @@ public sealed partial class MainWindow : Window
 {
     private const int MinimumWindowWidth = 840;
     private const int MinimumWindowHeight = 600;
-    private static readonly Brush ShortcutKeyBrush = new SolidColorBrush(Color.FromArgb(255, 76, 185, 242));
-    private static readonly Brush ShortcutKeyForeground = new SolidColorBrush(Color.FromArgb(255, 10, 10, 10));
-
+    private const float SettingsPageOffset = 24;
+    private static readonly TimeSpan SettingsPageMotionDuration = TimeSpan.FromMilliseconds(250);
+    private static readonly TimeSpan SettingsPageFadeDuration = TimeSpan.FromMilliseconds(167);
     private readonly DaemonClient _daemon = new();
     private readonly OverlayWindow _overlay = new();
+    private readonly UISettings _uiSettings = new();
     private readonly IntPtr _window;
     private readonly TrayIcon _tray;
     private readonly CancellationTokenSource _shutdown = new();
@@ -31,10 +31,9 @@ public sealed partial class MainWindow : Window
     private bool _updatingCleanupControls = true;
     private bool _exiting;
     private HotkeyBinding? _hotkeyBinding;
-    private HotkeyBinding? _draftHotkey;
     private GlobalHotkey? _hotkey;
+    private bool _capturingHotkey;
     private string? _autocorrectPath;
-    private bool _shortcutEditorOpen;
     private bool _togglePending;
     private bool _started;
     private bool _daemonReady;
@@ -53,6 +52,7 @@ public sealed partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        ElementCompositionPreview.SetIsTranslationEnabled(PageSurface, true);
         SettingsNavigation.SelectedItem = TranscriptionNavigationItem;
         ExtendsContentIntoTitleBar = true;
         SetTitleBar(AppTitleBar);
@@ -148,14 +148,12 @@ public sealed partial class MainWindow : Window
     {
         if (_exiting) return;
         args.Cancel = true;
-        if (_shortcutEditorOpen) CloseShortcutEditor(false);
         AppWindow.Hide();
     }
 
     private void SettingsNavigation_SelectionChanged(NavigationView sender, NavigationViewSelectionChangedEventArgs args)
     {
         if (GeneralPage is null || TranscriptionPage is null || CleanupPage is null) return;
-        if (_shortcutEditorOpen) CloseShortcutEditor(false);
         var section = (args.SelectedItem as NavigationViewItem)?.Tag as string ?? "transcription";
         GeneralPage.Visibility = section == "general" ? Visibility.Visible : Visibility.Collapsed;
         TranscriptionPage.Visibility = section == "transcription" ? Visibility.Visible : Visibility.Collapsed;
@@ -168,6 +166,32 @@ public sealed partial class MainWindow : Window
         if (section == "transcription") _ = RefreshModelsAsync();
         PageTitle.Text = section switch { "general" => "常规", "cleanup" => "文本整理", "history" => "转录历史", "translation" => "实时翻译", "reading" => "实时朗读", _ => "转录服务" };
         PageScroll.ChangeView(null, 0, null, disableAnimation: true);
+        PlaySettingsPageTransition();
+    }
+
+    private void PlaySettingsPageTransition()
+    {
+        var visual = ElementCompositionPreview.GetElementVisual(PageSurface);
+        visual.StopAnimation("Opacity");
+        visual.Properties.StopAnimation("Translation");
+        visual.Opacity = 1;
+        visual.Properties.InsertVector3("Translation", Vector3.Zero);
+        if (!_uiSettings.AnimationsEnabled) return;
+
+        var easing = visual.Compositor.CreateCubicBezierEasingFunction(
+            new Vector2(0.1f, 0.9f), new Vector2(0.2f, 1));
+        var translation = visual.Compositor.CreateVector3KeyFrameAnimation();
+        translation.InsertKeyFrame(0, new Vector3(0, SettingsPageOffset, 0));
+        translation.InsertKeyFrame(1, Vector3.Zero, easing);
+        translation.Duration = SettingsPageMotionDuration;
+
+        var opacity = visual.Compositor.CreateScalarKeyFrameAnimation();
+        opacity.InsertKeyFrame(0, 0);
+        opacity.InsertKeyFrame(1, 1, easing);
+        opacity.Duration = SettingsPageFadeDuration;
+
+        visual.Properties.StartAnimation("Translation", translation);
+        visual.StartAnimation("Opacity", opacity);
     }
 
     private void PageViewport_SizeChanged(object sender, SizeChangedEventArgs args)
@@ -366,7 +390,8 @@ public sealed partial class MainWindow : Window
         foreach (var control in new Control[] { ProviderPicker, DoubaoModelPicker, CloudApiKey, CloudAppId, CloudAccessToken, CloudResourceId, QwenApiKey, QwenModelPicker, SelfHostedUrl, SelfHostedModelPicker, SelfHostedTestButton }) control.IsEnabled = cloudIdle;
         ModelPicker.IsEnabled = idle && !_cloudOptions.Enabled && ModelPicker.Items.Count > 0;
         UpdateModelDownloadControls();
-        EditShortcutButton.IsEnabled = !_modelChanging;
+        TranscriptionShortcutButton.IsEnabled = !_modelChanging && !_dictationActive && !_togglePending
+            && _readingCancellation is null && _translationCancellation is null;
         TrimTrailingPeriodToggle.IsEnabled = !_modelChanging;
         UpdateTranslationControls();
         UpdateReadingControls();
@@ -407,7 +432,6 @@ public sealed partial class MainWindow : Window
             SelectCurrentModel();
             return;
         }
-        if (_shortcutEditorOpen) CloseShortcutEditor(false);
         _modelChanging = true;
         UpdateModelControls();
         try
@@ -474,8 +498,8 @@ public sealed partial class MainWindow : Window
 
     private async Task ToggleAsync()
     {
-        if (_readingCancellation is not null) { StopReading(); return; }
-        if (_translationCancellation is { } translation) { translation.Cancel(); return; }
+        if (_capturingHotkey) return;
+        if (_readingCancellation is not null || _translationCancellation is not null) return;
         if (_exiting || _closed || _installingUpdate) return;
         if (_togglePending || _modelChanging) return;
         _togglePending = true;
@@ -770,109 +794,68 @@ public sealed partial class MainWindow : Window
         catch (Exception error) { HistoryNotice.Text = "复制失败：" + error.Message; }
     }
 
-    private void EditShortcutButton_Click(object sender, RoutedEventArgs eventArgs)
+    private async void TranscriptionShortcut_Click(object sender, RoutedEventArgs eventArgs)
     {
-        if (_shortcutEditorOpen) return;
-        _shortcutEditorOpen = true;
-        _draftHotkey = _hotkeyBinding;
+        var previous = _hotkeyBinding;
         _hotkey?.Dispose();
         _hotkey = null;
-        RenderShortcutEditor();
-        ShortcutEditorPanel.Visibility = Visibility.Visible;
-        EditShortcutButton.Visibility = Visibility.Collapsed;
-        HotkeyPreview.Visibility = Visibility.Collapsed;
-        FocusShortcutCapture();
-    }
-
-    private void ShortcutCaptureSurface_KeyDown(object sender, KeyRoutedEventArgs eventArgs)
-    {
-        eventArgs.Handled = true;
-
-        if (eventArgs.Key == VirtualKey.Escape)
-        {
-            CloseShortcutEditor(false);
-            return;
-        }
-
-        var virtualKey = (uint)eventArgs.Key;
-        if (HotkeyBinding.IsModifierKey(virtualKey)) return;
-
-        var binding = new HotkeyBinding(CurrentModifiers(), virtualKey);
-        if (!binding.IsValid)
-        {
-            SetShortcutEditorValidation("请按住 Windows、Ctrl、Alt 或 Shift，再按另一个按键。", false);
-            return;
-        }
-
-        _draftHotkey = binding;
-        RenderShortcutEditor();
-    }
-
-    private void ResetShortcutButton_Click(object sender, RoutedEventArgs eventArgs)
-    {
-        _draftHotkey = HotkeyBinding.Default;
-        RenderShortcutEditor();
-        FocusShortcutCapture();
-    }
-
-    private void ClearShortcutButton_Click(object sender, RoutedEventArgs eventArgs)
-    {
-        _draftHotkey = null;
-        RenderShortcutEditor();
-        FocusShortcutCapture();
-    }
-
-    private void SaveShortcutButton_Click(object sender, RoutedEventArgs eventArgs)
-    {
         try
         {
-            ApplyHotkey(_draftHotkey);
-            CloseShortcutEditor(true);
+            if (await CaptureHotkeyAsync("听写快捷键", previous ?? HotkeyBinding.Default) is { } selected)
+                ApplyHotkey(selected);
+            else
+                RestoreHotkey();
         }
         catch (Exception error)
         {
-            SetShortcutEditorValidation($"无法使用此快捷键：{error.Message}", true);
+            RestoreHotkey();
+            ShowError("快捷键未更改", error.Message);
         }
+        finally { UpdateHotkeyPreview(); }
     }
 
-    private void CancelShortcutButton_Click(object sender, RoutedEventArgs eventArgs) => CloseShortcutEditor(false);
-
-    private void CloseShortcutEditor(bool saved)
+    private async Task<HotkeyBinding?> CaptureHotkeyAsync(string title, HotkeyBinding current)
     {
-        if (!saved) RestoreHotkey();
-        ShortcutEditorPanel.Visibility = Visibility.Collapsed;
-        EditShortcutButton.Visibility = Visibility.Visible;
-        HotkeyPreview.Visibility = Visibility.Visible;
-        _shortcutEditorOpen = false;
-    }
-
-    private void RenderShortcutEditor()
-    {
-        SetKeyChips(ShortcutEditorKeys, _draftHotkey);
-        ShortcutEditorPlaceholder.Visibility = _draftHotkey is null ? Visibility.Visible : Visibility.Collapsed;
-        ShortcutEditorPlaceholder.Text = _draftHotkey is null ? "未设置" : "按下新的快捷键";
-        SetShortcutEditorValidation(
-            _draftHotkey is null
-                ? "清除后将无法通过全局快捷键开始听写。"
-                : "按下新的组合键后，点击保存应用。",
-            true);
-    }
-
-    private void SetShortcutEditorValidation(string text, bool canSave)
-    {
-        ShortcutEditorValidation.Text = text;
-        SaveShortcutButton.IsEnabled = canSave;
-    }
-
-    private void FocusShortcutCapture()
-    {
-        DispatcherQueue.TryEnqueue(() => { ShortcutCaptureSurface.Focus(FocusState.Programmatic); });
+        var selected = current;
+        var capture = new TextBox
+        {
+            IsReadOnly = true,
+            Text = current.DisplayText,
+            Header = "点击输入框，按住修饰键并按另一个键",
+        };
+        var dialog = new ContentDialog
+        {
+            XamlRoot = Content.XamlRoot,
+            Title = title,
+            Content = capture,
+            PrimaryButtonText = "保存",
+            CloseButtonText = "取消",
+        };
+        capture.KeyDown += (_, key) =>
+        {
+            if (key.Key == VirtualKey.Escape) return;
+            key.Handled = true;
+            var binding = new HotkeyBinding(CurrentModifiers(), (uint)key.Key);
+            if (!binding.IsValid)
+            {
+                capture.Text = "请按住 Windows、Ctrl、Alt 或 Shift，再按另一个按键";
+                return;
+            }
+            selected = binding;
+            capture.Text = binding.DisplayText;
+        };
+        dialog.Opened += (_, _) => capture.Focus(FocusState.Programmatic);
+        _capturingHotkey = true;
+        try { return await dialog.ShowAsync() == ContentDialogResult.Primary ? selected : null; }
+        finally { _capturingHotkey = false; }
     }
 
     private void ApplyHotkey(HotkeyBinding? binding)
     {
         if (ReadingEnabled.IsOn && binding == _readingHotkeyBinding)
             throw new ArgumentException("此组合已用于朗读，请选择其他转录快捷键。");
+        if (TranslationEnabled.IsOn && binding == _translationHotkeyBinding)
+            throw new ArgumentException("此组合已用于翻译，请选择其他转录快捷键。");
         GlobalHotkey? replacement = null;
         try
         {
@@ -922,51 +905,8 @@ public sealed partial class MainWindow : Window
 
     private void UpdateHotkeyPreview()
     {
-        HotkeyPreview.Children.Clear();
-        if (_hotkeyBinding is not { } binding)
-        {
-            HotkeyPreview.Children.Add(new TextBlock
-            {
-                Text = "未设置",
-                VerticalAlignment = VerticalAlignment.Center,
-            });
-            return;
-        }
-
-        SetKeyChips(HotkeyPreview, binding);
-    }
-
-    private static void SetKeyChips(StackPanel target, HotkeyBinding? binding)
-    {
-        target.Children.Clear();
-        if (binding is not { } hotkey) return;
-
-        foreach (var label in hotkey.KeyLabels)
-        {
-            target.Children.Add(CreateKeyChip(label));
-        }
-    }
-
-    private static Border CreateKeyChip(string label)
-    {
-        return new Border
-        {
-            MinWidth = 32,
-            Height = 32,
-            Padding = new Thickness(8, 4, 8, 4),
-            Background = ShortcutKeyBrush,
-            CornerRadius = new CornerRadius(5),
-            Child = new TextBlock
-            {
-                Text = label,
-                HorizontalAlignment = HorizontalAlignment.Center,
-                VerticalAlignment = VerticalAlignment.Center,
-                Foreground = ShortcutKeyForeground,
-                FontFamily = new FontFamily(label is "⊞" or "⇧" ? "Segoe UI Symbol" : "Segoe UI"),
-                FontSize = 12,
-                FontWeight = FontWeights.SemiBold,
-            },
-        };
+        if (TranscriptionShortcutButton is not null)
+            TranscriptionShortcutButton.Content = _hotkeyBinding?.DisplayText ?? "未设置";
     }
 
     private static uint CurrentModifiers()
@@ -1003,6 +943,7 @@ public sealed partial class MainWindow : Window
         _readingSelectionHotkey?.Dispose();
         _translationCancellation?.Cancel();
         if (_translationTask is not null) await _translationTask;
+        _translationHotkey?.Dispose();
         _tray.Dispose();
         _hotkey?.Dispose();
         _overlay.Hide();

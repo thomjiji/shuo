@@ -8,8 +8,16 @@
     <Window.SystemBackdrop>
         <MicaBackdrop />
     </Window.SystemBackdrop>
-
     <Grid>
+        <Grid.Resources>
+            <Style x:Key="SettingsCardStyle" TargetType="Border">
+                <Setter Property="Padding" Value="16" />
+                <Setter Property="Background" Value="{ThemeResource CardBackgroundFillColorDefaultBrush}" />
+                <Setter Property="BorderBrush" Value="{ThemeResource CardStrokeColorDefaultBrush}" />
+                <Setter Property="BorderThickness" Value="1" />
+                <Setter Property="CornerRadius" Value="8" />
+            </Style>
+        </Grid.Resources>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
@@ -23,27 +31,12 @@
 
         <NavigationView x:Name="SettingsNavigation" Grid.Row="1"
                         PaneDisplayMode="Left" OpenPaneLength="200"
+                        IsPaneOpen="False"
                         IsSettingsVisible="False" IsBackButtonVisible="Collapsed"
                         AlwaysShowHeader="False" SelectionChanged="SettingsNavigation_SelectionChanged">
             <NavigationView.Resources>
-                <ResourceDictionary>
-                    <ResourceDictionary.ThemeDictionaries>
-                        <ResourceDictionary x:Key="Default">
-                            <AcrylicBrush x:Key="NavigationViewExpandedPaneBackground"
-                                          TintColor="#202020" TintOpacity="0.10"
-                                          TintLuminosityOpacity="0.65" FallbackColor="#2C2C2C" />
-                        </ResourceDictionary>
-                        <ResourceDictionary x:Key="Light">
-                            <AcrylicBrush x:Key="NavigationViewExpandedPaneBackground"
-                                          TintColor="#FCFCFC" TintOpacity="0.0"
-                                          TintLuminosityOpacity="0.65" FallbackColor="#F9F9F9" />
-                        </ResourceDictionary>
-                        <ResourceDictionary x:Key="HighContrast">
-                            <SolidColorBrush x:Key="NavigationViewExpandedPaneBackground"
-                                             Color="{ThemeResource SystemColorWindowColor}" />
-                        </ResourceDictionary>
-                    </ResourceDictionary.ThemeDictionaries>
-                </ResourceDictionary>
+                <SolidColorBrush x:Key="NavigationViewContentBackground" Color="Transparent" />
+                <SolidColorBrush x:Key="NavigationViewContentGridBorderBrush" Color="Transparent" />
             </NavigationView.Resources>
             <NavigationView.MenuItems>
                 <NavigationViewItem x:Name="GeneralNavigationItem" Content="常规" Tag="general" Icon="Setting">
@@ -63,8 +56,10 @@
                               HorizontalContentAlignment="Stretch">
                     <StackPanel x:Name="SettingsContent" Width="640" HorizontalAlignment="Center"
                                 Margin="0,36,0,36" Spacing="24">
-                        <TextBlock x:Name="PageTitle" Text="转录服务" FontSize="28"
-                                   FontWeight="SemiBold" />
+                        <StackPanel x:Name="PageSurface" Spacing="24">
+                            <TextBlock x:Name="PageTitle" Text="转录服务"
+                                       Style="{StaticResource TitleTextBlockStyle}" />
+                            <Grid>
                         <StackPanel x:Name="HistoryPage" Spacing="12" Visibility="Collapsed">
                             <TextBlock Text="完成转录后自动保存最终文字。记录仅保存在这台电脑上，重启后仍可查看。"
                                        TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
@@ -91,9 +86,11 @@
                                                         <ColumnDefinition Width="Auto" />
                                                     </Grid.ColumnDefinitions>
                                                     <StackPanel Spacing="4" VerticalAlignment="Center">
-                                                        <TextBlock Text="{Binding DisplayTime}" FontSize="12"
+                                                        <TextBlock Text="{Binding DisplayTime}"
+                                                                   Style="{StaticResource CaptionTextBlockStyle}"
                                                                    Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                                                        <TextBlock Text="{Binding DisplayProvider}" FontSize="12" TextWrapping="Wrap"
+                                                        <TextBlock Text="{Binding DisplayProvider}" TextWrapping="Wrap"
+                                                                   Style="{StaticResource CaptionTextBlockStyle}"
                                                                    Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
                                                     </StackPanel>
                                                     <Button Grid.Column="1" Content="复制" Tag="{Binding Text}" Click="CopyHistory_Click" />
@@ -111,7 +108,7 @@
                                     Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
                                     BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}">
                                 <StackPanel Spacing="12">
-                                    <TextBlock Text="版本与更新" FontSize="16" FontWeight="SemiBold" />
+                                    <TextBlock Text="版本与更新" Style="{StaticResource BodyStrongTextBlockStyle}" />
                                     <TextBlock x:Name="AppVersionLabel" IsTextSelectionEnabled="True" />
                                     <TextBlock x:Name="UpdateStatus" TextWrapping="Wrap" />
                                     <StackPanel Orientation="Horizontal" Spacing="12">
@@ -121,203 +118,206 @@
                                     <ProgressBar x:Name="UpdateProgress" Minimum="0" Maximum="100" Visibility="Collapsed" />
                                 </StackPanel>
                             </Border>
-                            <Border
-                                Padding="16"
-                                Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                                BorderThickness="1"
-                                CornerRadius="8">
-                                <StackPanel>
-                                    <Grid ColumnSpacing="16">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="Auto" />
-                                            <ColumnDefinition Width="*" />
-                                            <ColumnDefinition Width="Auto" />
-                                            <ColumnDefinition Width="Auto" />
-                                        </Grid.ColumnDefinitions>
-
-                                        <FontIcon
-                                            VerticalAlignment="Center"
-                                            FontFamily="Segoe MDL2 Assets"
-                                            FontSize="24"
-                                            Glyph="&#xE720;" />
-
-                                        <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="4">
-                                            <TextBlock FontSize="16" FontWeight="SemiBold" Text="录音触发快捷键" />
-                                            <TextBlock
-                                                FontSize="12"
-                                                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                                Text="开始或停止听写。" />
-                                        </StackPanel>
-
-                                        <StackPanel
-                                            x:Name="HotkeyPreview"
-                                            Grid.Column="2"
-                                            VerticalAlignment="Center"
-                                            Orientation="Horizontal"
-                                            Spacing="8" />
-
-                                        <Button
-                                            x:Name="EditShortcutButton"
-                                            Grid.Column="3"
-                                            Margin="8,0,0,0"
-                                            Padding="8"
-                                            automation:AutomationProperties.Name="编辑录音触发快捷键"
-                                            Click="EditShortcutButton_Click">
-                                            <FontIcon FontFamily="Segoe MDL2 Assets" FontSize="14" Glyph="&#xE70F;" />
-                                        </Button>
-                                    </Grid>
-
-                                    <Border
-                                        x:Name="ShortcutEditorPanel"
-                                        Margin="0,16,0,0"
-                                        Padding="0,16,0,0"
-                                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                                        BorderThickness="0,1,0,0"
-                                        Visibility="Collapsed">
-                                        <StackPanel Spacing="12">
-                                            <TextBlock
-                                                FontSize="12"
-                                                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                                Text="按下新的组合键，或选择重置、清除。" />
-
-                                            <Button
-                                                x:Name="ShortcutCaptureSurface"
-                                                MinHeight="48"
-                                                HorizontalAlignment="Stretch"
-                                                HorizontalContentAlignment="Center"
-                                                VerticalContentAlignment="Center"
-                                                automation:AutomationProperties.Name="快捷键捕获区域"
-                                                KeyDown="ShortcutCaptureSurface_KeyDown">
-                                                <Grid>
-                                                    <TextBlock
-                                                        x:Name="ShortcutEditorPlaceholder"
-                                                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                                        Text="按下新的快捷键" />
-                                                    <StackPanel
-                                                        x:Name="ShortcutEditorKeys"
-                                                        HorizontalAlignment="Center"
-                                                        VerticalAlignment="Center"
-                                                        Orientation="Horizontal"
-                                                        Spacing="8" />
-                                                </Grid>
-                                            </Button>
-
-                                            <Grid ColumnSpacing="12">
-                                                <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="*" />
-                                                    <ColumnDefinition Width="Auto" />
-                                                </Grid.ColumnDefinitions>
-                                                <StackPanel Orientation="Horizontal" Spacing="8">
-                                                    <Button
-                                                        Padding="8,4"
-                                                        automation:AutomationProperties.Name="重置快捷键"
-                                                        Click="ResetShortcutButton_Click">
-                                                        <StackPanel Orientation="Horizontal" Spacing="8">
-                                                            <FontIcon FontFamily="Segoe MDL2 Assets" FontSize="12" Glyph="&#xE72C;" />
-                                                            <TextBlock FontSize="12" Text="重置" />
-                                                        </StackPanel>
-                                                    </Button>
-                                                    <Button
-                                                        Padding="8,4"
-                                                        automation:AutomationProperties.Name="清除快捷键"
-                                                        Click="ClearShortcutButton_Click">
-                                                        <StackPanel Orientation="Horizontal" Spacing="8">
-                                                            <FontIcon FontFamily="Segoe MDL2 Assets" FontSize="12" Glyph="&#xE711;" />
-                                                            <TextBlock FontSize="12" Text="清除" />
-                                                        </StackPanel>
-                                                    </Button>
-                                                </StackPanel>
-                                                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
-                                                    <Button
-                                                        x:Name="SaveShortcutButton"
-                                                        MinWidth="80"
-                                                        MinHeight="32"
-                                                        Click="SaveShortcutButton_Click"
-                                                        Content="保存"
-                                                        Style="{StaticResource AccentButtonStyle}" />
-                                                    <Button
-                                                        MinWidth="80"
-                                                        MinHeight="32"
-                                                        Click="CancelShortcutButton_Click"
-                                                        Content="取消" />
-                                                </StackPanel>
-                                            </Grid>
-
-                                            <TextBlock
-                                                x:Name="ShortcutEditorValidation"
-                                                FontSize="12"
-                                                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                                TextWrapping="Wrap" />
-                                        </StackPanel>
-                                    </Border>
-                                </StackPanel>
-                            </Border>
-                                <TextBlock FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                           Text="关闭窗口后仍在托盘运行。右键托盘图标可退出。" TextWrapping="Wrap" />
+                            <TextBlock Style="{StaticResource CaptionTextBlockStyle}"
+                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                       Text="关闭窗口后仍在托盘运行。右键托盘图标可退出。" TextWrapping="Wrap" />
                         </StackPanel>
                         <StackPanel x:Name="TranscriptionPage" Spacing="16">
-                            <Border Padding="16"
-                                    Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                                    BorderThickness="1" CornerRadius="8">
-                                <StackPanel Spacing="12">
-                                    <TextBlock Text="转录服务" />
-                                    <StackPanel x:Name="CloudControls" Spacing="12">
-                                        <ComboBox x:Name="ProviderPicker" SelectedIndex="0" HorizontalAlignment="Stretch"
+                            <StackPanel x:Name="TranscriptionConfiguration" Spacing="4">
+                                <Border Style="{StaticResource SettingsCardStyle}">
+                                    <Grid ColumnSpacing="24">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="听写快捷键" VerticalAlignment="Center"
+                                                   Style="{StaticResource BodyTextBlockStyle}" />
+                                        <Button x:Name="TranscriptionShortcutButton" Grid.Column="1"
+                                                Content="Ctrl + Alt + \" Click="TranscriptionShortcut_Click"
+                                                automation:AutomationProperties.Name="更改听写快捷键" />
+                                    </Grid>
+                                </Border>
+                                <Border Style="{StaticResource SettingsCardStyle}">
+                                    <Grid ColumnSpacing="24">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="2*" MinWidth="120" />
+                                            <ColumnDefinition Width="3*" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="转录服务" VerticalAlignment="Center"
+                                                   Style="{StaticResource BodyTextBlockStyle}" />
+                                        <ComboBox x:Name="ProviderPicker" Grid.Column="1" SelectedIndex="0"
+                                                  HorizontalAlignment="Stretch" VerticalAlignment="Center"
                                                   SelectionChanged="ProviderPicker_SelectionChanged">
                                             <ComboBoxItem Content="本地模型" />
                                             <ComboBoxItem Content="火山引擎" />
                                             <ComboBoxItem Content="阿里云百炼" />
                                             <ComboBoxItem Content="自托管（MLX）" />
                                         </ComboBox>
-                                        <StackPanel x:Name="CloudFields" Spacing="8" Visibility="Collapsed">
-                                            <ComboBox x:Name="DoubaoModelPicker" Header="识别模型" HorizontalAlignment="Stretch" SelectedIndex="0">
+                                    </Grid>
+                                </Border>
+                                <StackPanel x:Name="CloudFields" Spacing="4" Visibility="Collapsed">
+                                    <Border Style="{StaticResource SettingsCardStyle}">
+                                        <Grid ColumnSpacing="24">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="2*" MinWidth="120" />
+                                                <ColumnDefinition Width="3*" />
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Text="识别模型" VerticalAlignment="Center"
+                                                       Style="{StaticResource BodyTextBlockStyle}" />
+                                            <ComboBox x:Name="DoubaoModelPicker" Grid.Column="1" SelectedIndex="0"
+                                                      HorizontalAlignment="Stretch" VerticalAlignment="Center">
                                                 <ComboBoxItem Content="豆包流式语音识别模型 2.0" />
                                                 <ComboBoxItem Content="豆包流式语音识别模型 1.0" />
                                                 <ComboBoxItem Content="自定义资源" />
                                             </ComboBox>
-                                            <PasswordBox x:Name="CloudApiKey" Header="语音控制台 API Key" PasswordRevealMode="Peek" />
-                                            <Expander x:Name="DoubaoResourceSettings" Header="旧版控制台凭据与资源设置" HorizontalAlignment="Stretch"
-                                                      HorizontalContentAlignment="Stretch">
-                                                <StackPanel Spacing="8">
-                                                    <TextBox x:Name="CloudAppId" Header="App ID（旧版控制台）" />
-                                                    <PasswordBox x:Name="CloudAccessToken" Header="Access Token（旧版控制台）" PasswordRevealMode="Peek" />
-                                                    <TextBox x:Name="CloudResourceId" Header="资源 ID"
-                                                             Text="volc.seedasr.sauc.duration" />
-                                                </StackPanel>
-                                            </Expander>
+                                        </Grid>
+                                    </Border>
+                                    <Border Style="{StaticResource SettingsCardStyle}">
+                                        <Grid ColumnSpacing="24">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="2*" MinWidth="120" />
+                                                <ColumnDefinition Width="3*" />
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Text="语音控制台 API Key" VerticalAlignment="Center"
+                                                       Style="{StaticResource BodyTextBlockStyle}" />
+                                            <PasswordBox x:Name="CloudApiKey" Grid.Column="1" PasswordRevealMode="Peek"
+                                                         VerticalAlignment="Center" />
+                                        </Grid>
+                                    </Border>
+                                    <Expander x:Name="DoubaoResourceSettings" Header="旧版控制台凭据与资源设置"
+                                              Margin="0,4,0,0" HorizontalAlignment="Stretch"
+                                              HorizontalContentAlignment="Stretch">
+                                        <StackPanel Spacing="4" Margin="0,4,0,0">
+                                            <Border Style="{StaticResource SettingsCardStyle}">
+                                                <Grid ColumnSpacing="24">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="2*" MinWidth="120" />
+                                                        <ColumnDefinition Width="3*" />
+                                                    </Grid.ColumnDefinitions>
+                                                    <TextBlock Text="App ID" VerticalAlignment="Center"
+                                                               Style="{StaticResource BodyTextBlockStyle}" />
+                                                    <TextBox x:Name="CloudAppId" Grid.Column="1" VerticalAlignment="Center" />
+                                                </Grid>
+                                            </Border>
+                                            <Border Style="{StaticResource SettingsCardStyle}">
+                                                <Grid ColumnSpacing="24">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="2*" MinWidth="120" />
+                                                        <ColumnDefinition Width="3*" />
+                                                    </Grid.ColumnDefinitions>
+                                                    <TextBlock Text="Access Token" VerticalAlignment="Center"
+                                                               Style="{StaticResource BodyTextBlockStyle}" />
+                                                    <PasswordBox x:Name="CloudAccessToken" Grid.Column="1"
+                                                                 PasswordRevealMode="Peek" VerticalAlignment="Center" />
+                                                </Grid>
+                                            </Border>
+                                            <Border Style="{StaticResource SettingsCardStyle}">
+                                                <Grid ColumnSpacing="24">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="2*" MinWidth="120" />
+                                                        <ColumnDefinition Width="3*" />
+                                                    </Grid.ColumnDefinitions>
+                                                    <TextBlock Text="资源 ID" VerticalAlignment="Center"
+                                                               Style="{StaticResource BodyTextBlockStyle}" />
+                                                    <TextBox x:Name="CloudResourceId" Grid.Column="1"
+                                                             Text="volc.seedasr.sauc.duration" VerticalAlignment="Center" />
+                                                </Grid>
+                                            </Border>
                                         </StackPanel>
-                                        <StackPanel x:Name="SelfHostedFields" Spacing="8" Visibility="Collapsed">
-                                            <ComboBox x:Name="SelfHostedModelPicker" Header="识别模型" HorizontalAlignment="Stretch" SelectedIndex="0">
-                                                <ComboBoxItem Content="Qwen3-ASR 1.7B" />
-                                                <ComboBoxItem Content="Qwen3-ASR 0.6B" />
-                                            </ComboBox>
-                                            <TextBox x:Name="SelfHostedUrl" Header="主机 IP"
-                                                     PlaceholderText="输入 Mac 的 Tailscale IP，如 100.x.x.x"
-                                                     automation:AutomationProperties.Name="自托管主机 IP" />
-                                            <TextBlock Text="音频发送到你部署的识别服务。服务所在电脑需保持在线。"
-                                                       FontSize="12" TextWrapping="Wrap"
-                                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                                            <Button x:Name="SelfHostedTestButton" Content="测试连接" Click="SelfHostedTest_Click" />
-                                        </StackPanel>
-                                        <StackPanel x:Name="QwenFields" Spacing="8" Visibility="Collapsed">
-                                            <ComboBox x:Name="QwenModelPicker" Header="识别模型" SelectedIndex="0" HorizontalAlignment="Stretch">
+                                    </Expander>
+                                </StackPanel>
+                                <StackPanel x:Name="QwenFields" Spacing="4" Visibility="Collapsed">
+                                    <Border Style="{StaticResource SettingsCardStyle}">
+                                        <Grid ColumnSpacing="24">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="2*" MinWidth="120" />
+                                                <ColumnDefinition Width="3*" />
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Text="识别模型" VerticalAlignment="Center"
+                                                       Style="{StaticResource BodyTextBlockStyle}" />
+                                            <ComboBox x:Name="QwenModelPicker" Grid.Column="1" SelectedIndex="0"
+                                                      HorizontalAlignment="Stretch" VerticalAlignment="Center">
                                                 <ComboBoxItem Content="Fun-ASR-Realtime" />
                                                 <ComboBoxItem Content="Qwen3-ASR-Flash-Realtime" />
                                             </ComboBox>
-                                            <PasswordBox x:Name="QwenApiKey" Header="百炼 API Key"
-                                                         automation:AutomationProperties.Name="百炼 API Key" PasswordRevealMode="Peek" />
-                                        </StackPanel>
-                                    </StackPanel>
-                                    <StackPanel x:Name="LocalModelCard" Spacing="8">
-                                        <TextBlock Text="模型" />
-                                        <Grid RowSpacing="8">
+                                        </Grid>
+                                    </Border>
+                                    <Border Style="{StaticResource SettingsCardStyle}">
+                                        <Grid ColumnSpacing="24">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="2*" MinWidth="120" />
+                                                <ColumnDefinition Width="3*" />
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Text="百炼 API Key" VerticalAlignment="Center"
+                                                       Style="{StaticResource BodyTextBlockStyle}" />
+                                            <PasswordBox x:Name="QwenApiKey" Grid.Column="1"
+                                                         automation:AutomationProperties.Name="百炼 API Key"
+                                                         PasswordRevealMode="Peek" VerticalAlignment="Center" />
+                                        </Grid>
+                                    </Border>
+                                </StackPanel>
+                                <StackPanel x:Name="SelfHostedFields" Spacing="4" Visibility="Collapsed">
+                                    <Border Style="{StaticResource SettingsCardStyle}">
+                                        <Grid ColumnSpacing="24">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="2*" MinWidth="120" />
+                                                <ColumnDefinition Width="3*" />
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Text="识别模型" VerticalAlignment="Center"
+                                                       Style="{StaticResource BodyTextBlockStyle}" />
+                                            <ComboBox x:Name="SelfHostedModelPicker" Grid.Column="1" SelectedIndex="0"
+                                                      HorizontalAlignment="Stretch" VerticalAlignment="Center">
+                                                <ComboBoxItem Content="Qwen3-ASR 1.7B" />
+                                                <ComboBoxItem Content="Qwen3-ASR 0.6B" />
+                                            </ComboBox>
+                                        </Grid>
+                                    </Border>
+                                    <Border Style="{StaticResource SettingsCardStyle}">
+                                        <Grid ColumnSpacing="24">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="2*" MinWidth="120" />
+                                                <ColumnDefinition Width="3*" />
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Text="主机 IP" VerticalAlignment="Center"
+                                                       Style="{StaticResource BodyTextBlockStyle}" />
+                                            <TextBox x:Name="SelfHostedUrl" Grid.Column="1"
+                                                     PlaceholderText="输入 Mac 的 Tailscale IP，如 100.x.x.x"
+                                                     automation:AutomationProperties.Name="自托管主机 IP"
+                                                     VerticalAlignment="Center" />
+                                        </Grid>
+                                    </Border>
+                                    <Border Style="{StaticResource SettingsCardStyle}">
+                                        <Grid ColumnSpacing="24">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel VerticalAlignment="Center" Spacing="4">
+                                                <TextBlock Text="自托管连接" Style="{StaticResource BodyTextBlockStyle}" />
+                                                <TextBlock Text="音频发送到你部署的识别服务。服务所在电脑需保持在线。"
+                                                           Style="{StaticResource CaptionTextBlockStyle}" TextWrapping="Wrap"
+                                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                            </StackPanel>
+                                            <Button x:Name="SelfHostedTestButton" Grid.Column="1" Content="测试连接"
+                                                    VerticalAlignment="Center" Click="SelfHostedTest_Click" />
+                                        </Grid>
+                                    </Border>
+                                </StackPanel>
+                                <Border x:Name="LocalModelCard" Style="{StaticResource SettingsCardStyle}">
+                                    <Grid ColumnSpacing="24">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="2*" MinWidth="120" />
+                                            <ColumnDefinition Width="3*" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="识别模型" VerticalAlignment="Center"
+                                                   Style="{StaticResource BodyTextBlockStyle}" />
+                                        <Grid Grid.Column="1" RowSpacing="8">
                                             <Grid.ColumnDefinitions>
                                                 <ColumnDefinition Width="*" />
                                                 <ColumnDefinition Width="Auto" />
                                             </Grid.ColumnDefinitions>
                                             <Grid.RowDefinitions>
+                                                <RowDefinition Height="Auto" />
                                                 <RowDefinition Height="Auto" />
                                                 <RowDefinition Height="Auto" />
                                             </Grid.RowDefinitions>
@@ -330,21 +330,22 @@
                                                     Visibility="Collapsed" VerticalAlignment="Top"
                                                     ToolTipService.ToolTip="下载 Qwen3-ASR-0.6B Q8_0，约 811 MB"
                                                     Click="DownloadModelButton_Click" />
-                                            <ProgressBar x:Name="ModelDownloadProgress" Grid.Row="1"
+                                            <ProgressBar x:Name="ModelDownloadProgress" Grid.Row="1" Grid.ColumnSpan="2"
                                                          Visibility="Collapsed" Maximum="100" />
+                                            <TextBlock x:Name="ModelDownloadStatus" Grid.Row="2" Grid.ColumnSpan="2"
+                                                       Visibility="Collapsed" TextWrapping="Wrap"
+                                                       Style="{StaticResource CaptionTextBlockStyle}"
+                                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                                         </Grid>
-                                        <TextBlock x:Name="ModelDownloadStatus" Visibility="Collapsed" FontSize="12" TextWrapping="Wrap"
-                                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                                    </StackPanel>
-                                    <TextBlock x:Name="CloudStatus" Visibility="Collapsed" FontSize="12"
-                                               Margin="0,8,0,0" TextWrapping="Wrap" />
-                                </StackPanel>
-                            </Border>
-                            <Border x:Name="DictationTrialCard" Padding="16" CornerRadius="8"
-                                    Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1">
+                                    </Grid>
+                                </Border>
+                                <TextBlock x:Name="CloudStatus" Visibility="Collapsed"
+                                           Style="{StaticResource CaptionTextBlockStyle}"
+                                           Margin="0,8,0,0" TextWrapping="Wrap" />
+                            </StackPanel>
+                            <Border x:Name="DictationTrialCard" Style="{StaticResource SettingsCardStyle}">
                                 <StackPanel Spacing="12">
-                                    <TextBlock Text="试用听写" FontSize="16" FontWeight="SemiBold" />
+                                    <TextBlock Text="试用听写" Style="{StaticResource BodyStrongTextBlockStyle}" />
                                     <TextBox MinHeight="100" AcceptsReturn="True" TextWrapping="Wrap"
                                              PlaceholderText="今天的天气不错，我们来试试语音输入。"
                                              automation:AutomationProperties.Name="听写试用输入框" />
@@ -352,41 +353,124 @@
                             </Border>
                         </StackPanel>
                         <StackPanel x:Name="ReadingPage" Spacing="16" Visibility="Collapsed">
-                            <Border Padding="16" CornerRadius="8" BorderThickness="1"
-                                    Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}">
-                                <StackPanel x:Name="ReadingConfiguration" Spacing="12">
-                                    <ToggleSwitch x:Name="ReadingEnabled" Header="启用实时朗读" OffContent="关闭" OnContent="开启" Toggled="ReadingToggle_Changed" />
-                                    <TextBlock Text="朗读快捷键" />
-                                    <Button x:Name="ReadingShortcutButton" Content="Ctrl + Alt + Space" Click="ReadingShortcut_Click" automation:AutomationProperties.Name="更改朗读快捷键" />
-                                    <ToggleSwitch x:Name="ReadingUseExistingKey" Header="使用转录服务中的火山引擎 API Key" IsOn="True"
-                                                  OffContent="单独配置" OnContent="使用已有 Key" Toggled="ReadingToggle_Changed" />
-                                    <PasswordBox x:Name="ReadingApiKey" Header="朗读 API Key" PasswordRevealMode="Peek" />
-                                    <ComboBox x:Name="ReadingSpeaker" Header="音色" HorizontalAlignment="Stretch"
-                                              DisplayMemberPath="Name" MaxDropDownHeight="320"
-                                              automation:AutomationProperties.Name="朗读音色" />
-                                    <Slider x:Name="ReadingSpeed" Header="语速" Minimum="-50" Maximum="100"
-                                            StepFrequency="10" SmallChange="10" LargeChange="20" SnapsTo="StepValues"
-                                            TickFrequency="10" TickPlacement="BottomRight" IsThumbToolTipEnabled="True"
-                                            Value="0" ValueChanged="ReadingSpeed_ValueChanged"
-                                            automation:AutomationProperties.Name="语速"
-                                            automation:AutomationProperties.HelpText="0 为正常，负值减慢，正值加快；每档 10。" />
-                                    <Grid x:Name="ReadingSpeedLabels" Margin="0,-8,0,0">
+                            <StackPanel x:Name="ReadingConfiguration" Spacing="4">
+                                <Border Padding="16" CornerRadius="8" BorderThickness="1"
+                                        Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}">
+                                    <Grid ColumnSpacing="24">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*" />
-                                            <ColumnDefinition Width="*" />
-                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
                                         </Grid.ColumnDefinitions>
-                                        <TextBlock Text="较慢 -50" FontSize="12"
-                                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                                        <TextBlock x:Name="ReadingSpeedValue" Grid.Column="1" Text="当前值：0（正常）"
-                                                   FontSize="12" HorizontalAlignment="Center" />
-                                        <TextBlock Grid.Column="2" Text="较快 +100" FontSize="12" HorizontalAlignment="Right"
-                                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                        <TextBlock Text="启用实时朗读" VerticalAlignment="Center"
+                                                   Style="{StaticResource BodyTextBlockStyle}" />
+                                        <ToggleSwitch x:Name="ReadingEnabled" Grid.Column="1" MinWidth="0"
+                                                      OffContent="" OnContent="" VerticalAlignment="Center"
+                                                      automation:AutomationProperties.Name="启用实时朗读"
+                                                      Toggled="ReadingToggle_Changed" />
                                     </Grid>
-                                    <Button Content="保存朗读设置" Click="ReadingSave_Click" />
-                                </StackPanel>
-                            </Border>
+                                </Border>
+                                <Border Padding="16" CornerRadius="8" BorderThickness="1"
+                                        Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}">
+                                    <Grid ColumnSpacing="24">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="朗读快捷键" VerticalAlignment="Center"
+                                                   Style="{StaticResource BodyTextBlockStyle}" />
+                                        <Button x:Name="ReadingShortcutButton" Grid.Column="1" Content="Ctrl + Alt + Space"
+                                                Click="ReadingShortcut_Click"
+                                                automation:AutomationProperties.Name="更改朗读快捷键" />
+                                    </Grid>
+                                </Border>
+                                <Border Padding="16" CornerRadius="8" BorderThickness="1"
+                                        Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}">
+                                    <Grid ColumnSpacing="24">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="使用转录服务 API Key" VerticalAlignment="Center"
+                                                   Style="{StaticResource BodyTextBlockStyle}" />
+                                        <ToggleSwitch x:Name="ReadingUseExistingKey" Grid.Column="1" IsOn="True" MinWidth="0"
+                                                      OffContent="" OnContent="" VerticalAlignment="Center"
+                                                      automation:AutomationProperties.Name="使用转录服务 API Key"
+                                                      Toggled="ReadingToggle_Changed" />
+                                    </Grid>
+                                </Border>
+                                <Border x:Name="ReadingApiKeyCard" Padding="16" CornerRadius="8" BorderThickness="1"
+                                        Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                                        Visibility="Collapsed">
+                                    <Grid ColumnSpacing="24">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="2*" MinWidth="120" />
+                                            <ColumnDefinition Width="3*" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="朗读 API Key" VerticalAlignment="Center"
+                                                   Style="{StaticResource BodyTextBlockStyle}" />
+                                        <PasswordBox x:Name="ReadingApiKey" Grid.Column="1" VerticalAlignment="Center"
+                                                     PasswordRevealMode="Peek"
+                                                     automation:AutomationProperties.Name="朗读 API Key" />
+                                    </Grid>
+                                </Border>
+                                <Border Padding="16" CornerRadius="8" BorderThickness="1"
+                                        Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}">
+                                    <Grid ColumnSpacing="24">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="2*" MinWidth="120" />
+                                            <ColumnDefinition Width="3*" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="音色" VerticalAlignment="Center"
+                                                   Style="{StaticResource BodyTextBlockStyle}" />
+                                        <ComboBox x:Name="ReadingSpeaker" Grid.Column="1" HorizontalAlignment="Stretch"
+                                                  VerticalAlignment="Center"
+                                                  DisplayMemberPath="Name" MaxDropDownHeight="320"
+                                                  automation:AutomationProperties.Name="朗读音色" />
+                                    </Grid>
+                                </Border>
+                                <Border Padding="16" CornerRadius="8" BorderThickness="1"
+                                        Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}">
+                                    <Grid ColumnSpacing="24">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="2*" MinWidth="120" />
+                                            <ColumnDefinition Width="3*" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="语速" VerticalAlignment="Center"
+                                                   Style="{StaticResource BodyTextBlockStyle}" />
+                                        <StackPanel Grid.Column="1" Spacing="4">
+                                            <Slider x:Name="ReadingSpeed" Minimum="-50" Maximum="100"
+                                                    StepFrequency="10" SmallChange="10" LargeChange="20" SnapsTo="StepValues"
+                                                    TickFrequency="10" TickPlacement="BottomRight" IsThumbToolTipEnabled="True"
+                                                    Value="0" ValueChanged="ReadingSpeed_ValueChanged"
+                                                    automation:AutomationProperties.Name="语速"
+                                                    automation:AutomationProperties.HelpText="0 为正常，负值减慢，正值加快；每档 10。" />
+                                            <Grid x:Name="ReadingSpeedLabels" Margin="0,-8,0,0">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="*" />
+                                                </Grid.ColumnDefinitions>
+                                                <TextBlock Text="-50" Style="{StaticResource CaptionTextBlockStyle}"
+                                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                                <TextBlock x:Name="ReadingSpeedValue" Grid.Column="1" Text="0（正常）"
+                                                           Style="{StaticResource CaptionTextBlockStyle}" HorizontalAlignment="Center" />
+                                                <TextBlock Grid.Column="2" Text="+100" HorizontalAlignment="Right"
+                                                           Style="{StaticResource CaptionTextBlockStyle}"
+                                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                            </Grid>
+                                        </StackPanel>
+                                    </Grid>
+                                </Border>
+                                <Button x:Name="ReadingSaveButton" Margin="0,12,0,0" HorizontalAlignment="Right"
+                                        Content="保存朗读设置" Style="{StaticResource AccentButtonStyle}"
+                                        Click="ReadingSave_Click" />
+                            </StackPanel>
                             <Border Padding="16" CornerRadius="8" BorderThickness="1"
                                     Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
                                     BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}">
@@ -403,24 +487,123 @@
                             </Border>
                         </StackPanel>
                         <StackPanel x:Name="TranslationPage" Spacing="16" Visibility="Collapsed">
+                            <StackPanel x:Name="TranslationConfiguration" Spacing="4">
+                                <Border Padding="16" CornerRadius="8" BorderThickness="1"
+                                        Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}">
+                                    <Grid ColumnSpacing="24">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="启用实时翻译" VerticalAlignment="Center"
+                                                   Style="{StaticResource BodyTextBlockStyle}" />
+                                        <ToggleSwitch x:Name="TranslationEnabled" Grid.Column="1" MinWidth="0"
+                                                      OffContent="" OnContent="" VerticalAlignment="Center"
+                                                      automation:AutomationProperties.Name="启用实时翻译"
+                                                      Toggled="TranslationToggle_Changed" />
+                                    </Grid>
+                                </Border>
+                                <Border Padding="16" CornerRadius="8" BorderThickness="1"
+                                        Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}">
+                                    <Grid ColumnSpacing="24">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="翻译快捷键" VerticalAlignment="Center"
+                                                   Style="{StaticResource BodyTextBlockStyle}" />
+                                        <Button x:Name="TranslationShortcutButton" Grid.Column="1" Content="Ctrl + Alt + T"
+                                                Click="TranslationShortcut_Click"
+                                                automation:AutomationProperties.Name="更改翻译快捷键" />
+                                    </Grid>
+                                </Border>
+                                <Border Padding="16" CornerRadius="8" BorderThickness="1"
+                                        Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}">
+                                    <Grid ColumnSpacing="24">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="2*" MinWidth="120" />
+                                            <ColumnDefinition Width="3*" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="翻译模型" VerticalAlignment="Center"
+                                                   Style="{StaticResource BodyTextBlockStyle}" />
+                                        <ComboBox x:Name="TranslationModelPicker" Grid.Column="1" SelectedIndex="0"
+                                                  HorizontalAlignment="Stretch" VerticalAlignment="Center">
+                                            <ComboBoxItem Content="Qwen3.5 LiveTranslate Flash" />
+                                        </ComboBox>
+                                    </Grid>
+                                </Border>
+                                <Border Padding="16" CornerRadius="8" BorderThickness="1"
+                                        Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}">
+                                    <Grid ColumnSpacing="24">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="2*" MinWidth="120" />
+                                            <ColumnDefinition Width="3*" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="Workspace ID" VerticalAlignment="Center"
+                                                   Style="{StaticResource BodyTextBlockStyle}" />
+                                        <TextBox x:Name="TranslationWorkspace" Grid.Column="1" PlaceholderText="ws-..."
+                                                 VerticalAlignment="Center" />
+                                    </Grid>
+                                </Border>
+                                <Border Padding="16" CornerRadius="8" BorderThickness="1"
+                                        Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}">
+                                    <Grid ColumnSpacing="24">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="2*" MinWidth="120" />
+                                            <ColumnDefinition Width="3*" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="翻译 API Key" VerticalAlignment="Center"
+                                                   Style="{StaticResource BodyTextBlockStyle}" />
+                                        <PasswordBox x:Name="TranslationApiKey" Grid.Column="1"
+                                                     PlaceholderText="填写翻译服务的 API Key（必填）"
+                                                     PasswordRevealMode="Peek" VerticalAlignment="Center" />
+                                    </Grid>
+                                </Border>
+                                <Border Padding="16" CornerRadius="8" BorderThickness="1"
+                                        Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}">
+                                    <Grid ColumnSpacing="24">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="2*" MinWidth="120" />
+                                            <ColumnDefinition Width="3*" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="字幕语言" VerticalAlignment="Center"
+                                                   Style="{StaticResource BodyTextBlockStyle}" />
+                                        <ComboBox x:Name="TranslationLanguage" Grid.Column="1" SelectedIndex="0"
+                                                  HorizontalAlignment="Stretch" VerticalAlignment="Center">
+                                            <ComboBoxItem Content="中文" />
+                                            <ComboBoxItem Content="English" />
+                                        </ComboBox>
+                                    </Grid>
+                                </Border>
+                                <Button x:Name="TranslationSaveButton" Margin="0,12,0,0" HorizontalAlignment="Right"
+                                        Content="保存翻译设置" Style="{StaticResource AccentButtonStyle}"
+                                        Click="TranslationSave_Click" />
+                            </StackPanel>
                             <Border Padding="16" CornerRadius="8" BorderThickness="1"
                                     Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
                                     BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}">
-                                <StackPanel Spacing="12">
-
-                                    <ComboBox x:Name="TranslationModelPicker" Header="翻译模型"
-                                              SelectedIndex="0" HorizontalAlignment="Stretch">
-                                        <ComboBoxItem Content="Qwen3.5 LiveTranslate Flash" />
-                                    </ComboBox>
-                                    <TextBox x:Name="TranslationWorkspace" Header="Workspace ID" PlaceholderText="ws-..." />
-                                    <PasswordBox x:Name="TranslationApiKey" Header="翻译 API Key" PlaceholderText="填写翻译服务的 API Key（必填）" PasswordRevealMode="Peek" />
-                                    <ComboBox x:Name="TranslationLanguage" Header="字幕语言" SelectedIndex="0" HorizontalAlignment="Stretch">
-                                        <ComboBoxItem Content="中文" />
-                                        <ComboBoxItem Content="English" />
-                                    </ComboBox>
-                                    <Button x:Name="TranslationButton" Content="开始翻译" Click="TranslationButton_Click" />
-                                    <TextBlock x:Name="TranslationStatus" Text="自动识别源语言；停止后等待最后一段译文返回。" TextWrapping="Wrap" />
-                                </StackPanel>
+                                <Grid ColumnSpacing="24">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel VerticalAlignment="Center" Spacing="4">
+                                        <TextBlock Text="实时翻译" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                                        <TextBlock x:Name="TranslationStatus"
+                                                   Text="自动识别源语言；停止后等待最后一段译文返回。"
+                                                   Style="{StaticResource CaptionTextBlockStyle}"
+                                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                                   TextWrapping="Wrap" />
+                                    </StackPanel>
+                                    <Button x:Name="TranslationButton" Grid.Column="1" Content="开始翻译"
+                                            VerticalAlignment="Center" Click="TranslationButton_Click" />
+                                </Grid>
                             </Border>
                         </StackPanel>
                         <StackPanel x:Name="CleanupPage" Spacing="16" Visibility="Collapsed">
@@ -437,8 +620,9 @@
                                             <ColumnDefinition Width="Auto" />
                                         </Grid.ColumnDefinitions>
                                         <StackPanel VerticalAlignment="Center" Spacing="4">
-                                            <TextBlock FontSize="16" FontWeight="SemiBold" Text="去掉末尾句号" />
-                                            <TextBlock FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                            <TextBlock Text="去掉末尾句号" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                                            <TextBlock Style="{StaticResource CaptionTextBlockStyle}"
+                                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                                                        Text="保留句中标点、问号和感叹号。" TextWrapping="Wrap" />
                                         </StackPanel>
                                         <ToggleSwitch x:Name="TrimTrailingPeriodToggle" Grid.Column="1" VerticalAlignment="Center"
@@ -448,6 +632,8 @@
                                     </Grid>
                                 </StackPanel>
                             </Border>
+                        </StackPanel>
+                            </Grid>
                         </StackPanel>
                         <InfoBar x:Name="ErrorInfo" IsClosable="True" IsOpen="False" Severity="Error" />
                     </StackPanel>

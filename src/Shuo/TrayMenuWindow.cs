@@ -17,8 +17,8 @@ internal sealed class TrayMenuWindow : Window
     private readonly MenuFlyout _menu = new();
     private readonly Func<IReadOnlyList<TrayChoice>> _providers;
     private readonly Func<IReadOnlyList<TrayChoice>> _models;
-    private readonly MenuFlyoutSubItem _providerMenu = new() { Text = "转录服务", FontSize = 13, MinHeight = 30, Padding = new Thickness(12, 4, 12, 4) };
-    private readonly MenuFlyoutSubItem _modelMenu = new() { Text = "本地模型", FontSize = 13, MinHeight = 30, Padding = new Thickness(12, 4, 12, 4) };
+    private readonly MenuFlyoutSubItem _providerMenu = new() { Text = "转录服务", MinHeight = 30, Padding = new Thickness(12, 4, 12, 4) };
+    private readonly MenuFlyoutSubItem _modelMenu = new() { Text = "本地模型", MinHeight = 30, Padding = new Thickness(12, 4, 12, 4) };
     private bool _requested;
     private bool _closed;
 
@@ -54,7 +54,7 @@ internal sealed class TrayMenuWindow : Window
 
     private void AddItem(string text, Action action)
     {
-        var item = new MenuFlyoutItem { Text = text, FontSize = 13, MinHeight = 30, Padding = new Thickness(12, 4, 12, 4) };
+        var item = new MenuFlyoutItem { Text = text, MinHeight = 30, Padding = new Thickness(12, 4, 12, 4) };
         item.Click += (_, _) =>
         {
             HideMenu();
@@ -71,13 +71,13 @@ internal sealed class TrayMenuWindow : Window
             var item = new ToggleMenuFlyoutItem
             {
                 Text = choice.Name, IsChecked = choice.Selected, IsEnabled = choice.Enabled,
-                FontSize = 13, MinHeight = 30, Padding = new Thickness(12, 4, 12, 4)
+                MinHeight = 30, Padding = new Thickness(12, 4, 12, 4)
             };
             item.Click += (_, _) => { HideMenu(); choice.Select(); };
             menu.Items.Add(item);
         }
         if (choices.Count == 0)
-            menu.Items.Add(new MenuFlyoutItem { Text = "暂无可用模型", IsEnabled = false, FontSize = 13 });
+            menu.Items.Add(new MenuFlyoutItem { Text = "暂无可用模型", IsEnabled = false });
     }
 
     internal void ShowMenu(int x, int y)

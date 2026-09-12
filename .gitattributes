@@ -1,0 +1,5 @@
+# Use CRLF for text files in working trees on every platform.
+* text=auto eol=crlf
+
+# This file is executed directly by Bash, so its shebang must remain LF.
+scripts/shuo-services text eol=lf

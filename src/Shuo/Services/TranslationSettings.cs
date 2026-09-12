@@ -22,7 +22,9 @@ internal static class TranslationSettings
             translation["targetLanguage"]?.GetValue<string>() == "en" ? "en" : "zh",
             translation["enabled"]?.GetValue<bool>() ?? true,
             translation["hotkeyModifiers"]?.GetValue<uint>() ?? defaults.HotkeyModifiers,
-            translation["hotkeyVirtualKey"]?.GetValue<uint>() ?? defaults.HotkeyVirtualKey);
+            translation["hotkeyVirtualKey"]?.GetValue<uint>() ?? defaults.HotkeyVirtualKey,
+            translation["backend"]?.GetValue<string>() == "self-hosted" ? "self-hosted" : "cloud",
+            translation["host"]?.GetValue<string>() ?? "");
     }
 
     internal static string LoadApiKey()
@@ -51,7 +53,8 @@ internal static class TranslationSettings
         }
         root["translation"] = new JsonObject { ["region"] = options.Region, ["workspaceId"] = options.WorkspaceId,
             ["targetLanguage"] = options.TargetLanguage, ["enabled"] = options.Enabled,
-            ["hotkeyModifiers"] = options.HotkeyModifiers, ["hotkeyVirtualKey"] = options.HotkeyVirtualKey };
+            ["hotkeyModifiers"] = options.HotkeyModifiers, ["hotkeyVirtualKey"] = options.HotkeyVirtualKey,
+            ["backend"] = options.Backend, ["host"] = options.Host };
         var temporary = path + "." + Guid.NewGuid().ToString("N") + ".tmp";
         try
         {

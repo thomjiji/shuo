@@ -10,6 +10,10 @@
     <PackageReference Include="NAudio.Wasapi" Version="2.2.1" />
     <Compile Include="../../src/Shuo/Services/TranscriptFormatter.cs" Link="TranscriptFormatter.cs" />
     <Compile Include="../../src/Shuo/Services/TranslationSession.cs" Link="TranslationSession.cs" />
+    <Compile Include="../../src/Shuo/Services/SelfHostedTranslationSession.cs" Link="SelfHostedTranslationSession.cs" />
+    <Compile Include="../../src/Shuo/Services/SelfHostedReadingClient.cs" Link="SelfHostedReadingClient.cs" />
+    <Compile Include="../../src/Shuo/Services/OmniReadingClient.cs" Link="OmniReadingClient.cs" />
+    <Compile Include="../../src/Shuo/Services/ReadingText.cs" Link="ReadingText.cs" />
     <Compile Include="../../src/Shuo/Services/SystemAudioSource.cs" Link="SystemAudioSource.cs" />
     <Compile Include="../../src/Shuo/Services/TranslationSettings.cs" Link="TranslationSettings.cs" />
     <Compile Include="../../src/Shuo/Services/CloudSettings.cs" Link="CloudSettings.cs" />

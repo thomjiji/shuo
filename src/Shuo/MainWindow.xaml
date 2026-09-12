@@ -376,6 +376,12 @@
                                         <ComboBoxItem Content="中文译读" />
                                     </ComboBox>
                                     <TextBlock x:Name="ReadingModeHint" TextWrapping="Wrap" />
+                                    <ComboBox x:Name="ReadingOriginalBackend" Header="原文朗读服务" SelectedIndex="0"
+                                              HorizontalAlignment="Stretch" SelectionChanged="ReadingLocalSettings_Changed"
+                                              automation:AutomationProperties.Name="原文朗读服务">
+                                        <ComboBoxItem Content="豆包云端" />
+                                        <ComboBoxItem Content="自托管 Mac（Serena）" />
+                                    </ComboBox>
                                     <ComboBox x:Name="ReadingTranslationBackend" Header="中文译读服务" SelectedIndex="0"
                                               HorizontalAlignment="Stretch" Visibility="Collapsed"
                                               SelectionChanged="ReadingLocalSettings_Changed"
@@ -385,9 +391,9 @@
                                     </ComboBox>
                                     <StackPanel x:Name="ReadingLocalSettings" Spacing="12" Visibility="Collapsed">
                                         <TextBox x:Name="ReadingLocalHost" Header="Mac 主机 IP" PlaceholderText="填写 Mac 的 Tailscale IP"
-                                                 LostFocus="ReadingLocalHost_LostFocus" automation:AutomationProperties.Name="译读 Mac 主机 IP" />
+                                                 LostFocus="ReadingLocalHost_LostFocus" automation:AutomationProperties.Name="朗读 Mac 主机 IP" />
                                         <ComboBox x:Name="ReadingLocalSpeed" Header="播放速度" SelectedIndex="1" HorizontalAlignment="Stretch"
-                                                  SelectionChanged="ReadingLocalSettings_Changed" automation:AutomationProperties.Name="本地译读播放速度">
+                                                  SelectionChanged="ReadingLocalSettings_Changed" automation:AutomationProperties.Name="本地朗读播放速度">
                                             <ComboBoxItem Content="0.85 倍" />
                                             <ComboBoxItem Content="1 倍" />
                                             <ComboBoxItem Content="1.15 倍" />
@@ -583,8 +589,9 @@
                                         <TextBlock Text="翻译模型" VerticalAlignment="Center"
                                                    Style="{StaticResource BodyTextBlockStyle}" />
                                         <ComboBox x:Name="TranslationModelPicker" Grid.Column="1" SelectedIndex="0"
-                                                  HorizontalAlignment="Stretch" VerticalAlignment="Center">
-                                            <ComboBoxItem Content="Qwen3.5 LiveTranslate Flash" />
+                                                  HorizontalAlignment="Stretch" VerticalAlignment="Center" SelectionChanged="TranslationBackend_Changed">
+                                            <ComboBoxItem Content="百炼 Qwen3.5 LiveTranslate Flash" />
+                                            <ComboBoxItem Content="自托管 Mac（Qwen3 ASR + Qwen3 8B）" />
                                         </ComboBox>
                                     </Grid>
                                 </Border>
@@ -596,13 +603,15 @@
                                             <ColumnDefinition Width="2*" MinWidth="120" />
                                             <ColumnDefinition Width="3*" />
                                         </Grid.ColumnDefinitions>
-                                        <TextBlock Text="Workspace ID" VerticalAlignment="Center"
+                                        <TextBlock x:Name="TranslationHostLabel" Text="Workspace ID" VerticalAlignment="Center"
                                                    Style="{StaticResource BodyTextBlockStyle}" />
                                         <TextBox x:Name="TranslationWorkspace" Grid.Column="1" PlaceholderText="ws-..."
                                                  VerticalAlignment="Center" />
+                                        <TextBox x:Name="TranslationHost" Grid.Column="1" Visibility="Collapsed"
+                                                 PlaceholderText="Mac 的 Tailscale 主机 IP" VerticalAlignment="Center" />
                                     </Grid>
                                 </Border>
-                                <Border Padding="16" CornerRadius="8" BorderThickness="1"
+                                <Border x:Name="TranslationCredentialCard" Padding="16" CornerRadius="8" BorderThickness="1"
                                         Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
                                         BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}">
                                     <Grid ColumnSpacing="24">

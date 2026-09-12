@@ -10,15 +10,18 @@ public sealed partial class MainWindow
     private GlobalHotkey? _translationHotkey;
     private HotkeyBinding _translationHotkeyBinding = new TranslationOptions().Hotkey;
     private bool _translationLoaded;
+    private bool _translationPaused;
+    private bool _keepTranslationOverlay;
+    private string? _pausedTranslationText;
 
     private bool CanStartTranslation => _readingCancellation is null && !_exiting && !_closed && !_installingUpdate
         && !_dictationActive && !_togglePending && !_modelChanging && _pendingPastes == 0;
 
     private void InitializeTranslation()
     {
-        _overlay.TranslationCloseRequested += StopTranslation;
-        Microsoft.UI.Xaml.Controls.ToolTipService.SetToolTip(TranslationModelPicker, TranslationSession.Model);
-        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(TranslationModelPicker, "翻译模型：" + TranslationSession.Model);
+        _overlay.TranslationCloseRequested += CloseTranslation;
+        _overlay.TranslationPauseRequested += PauseTranslation;
+        _overlay.TranslationStopRequested += StopTranslation;
         try
         {
             var options = TranslationSettings.Load();
@@ -26,6 +29,8 @@ public sealed partial class MainWindow
             TranslationWorkspace.Text = options.WorkspaceId;
             TranslationApiKey.Password = TranslationSettings.LoadApiKey();
             TranslationLanguage.SelectedIndex = options.TargetLanguage == "en" ? 1 : 0;
+            TranslationModelPicker.SelectedIndex = options.Backend == "self-hosted" ? 1 : 0;
+            TranslationHost.Text = string.IsNullOrWhiteSpace(options.Host) ? ReadingSettings.Load().SelfHostedHost : options.Host;
             _translationHotkeyBinding = options.Hotkey;
             TranslationShortcutButton.Content = _translationHotkeyBinding.DisplayText;
             RegisterTranslationHotkey();
@@ -40,7 +45,24 @@ public sealed partial class MainWindow
         TargetLanguage: TranslationLanguage.SelectedIndex == 1 ? "en" : "zh",
         Enabled: TranslationEnabled.IsOn,
         HotkeyModifiers: _translationHotkeyBinding.Modifiers,
-        HotkeyVirtualKey: _translationHotkeyBinding.VirtualKey);
+        HotkeyVirtualKey: _translationHotkeyBinding.VirtualKey,
+        Backend: TranslationModelPicker.SelectedIndex == 1 ? "self-hosted" : "cloud",
+        Host: TranslationHost.Text.Trim());
+
+    private void TranslationBackend_Changed(object sender, Microsoft.UI.Xaml.Controls.SelectionChangedEventArgs args)
+    {
+        if (_translationLoaded) UpdateTranslationControls();
+    }
+
+    private static void ValidateTranslation(TranslationOptions options, string apiKey)
+    {
+        if (options.Backend == "self-hosted") SelfHostedTranslationSession.Endpoint(options.Host);
+        else
+        {
+            TranslationSession.Endpoint(options);
+            if (string.IsNullOrWhiteSpace(apiKey)) throw new ArgumentException("请填写翻译 API Key。");
+        }
+    }
 
     private async void TranslationShortcut_Click(object sender, RoutedEventArgs args)
     {
@@ -106,9 +128,7 @@ public sealed partial class MainWindow
             var options = CurrentTranslationOptions();
             if (options.Enabled)
             {
-                TranslationSession.Endpoint(options);
-                if (string.IsNullOrWhiteSpace(TranslationApiKey.Password))
-                    throw new ArgumentException("请填写翻译 API Key。");
+                ValidateTranslation(options, TranslationApiKey.Password);
             }
             RegisterTranslationHotkey();
             TranslationSettings.Save(options, TranslationApiKey.Password);
@@ -133,9 +153,32 @@ public sealed partial class MainWindow
     private void StopTranslation()
     {
         if (_translationCancellation is not { } active) return;
+        _keepTranslationOverlay = true;
+        Volatile.Write(ref _translationPaused, false);
+        _pausedTranslationText = null;
         TranslationStatus.Text = "正在停止采集并等待最后一段译文...";
-        _overlay.Hide();
+        _overlay.FinishTranslation();
         active.Cancel();
+    }
+
+    private void CloseTranslation()
+    {
+        if (_translationCancellation is not null) StopTranslation();
+        _keepTranslationOverlay = false;
+        _overlay.Hide();
+    }
+
+    private void PauseTranslation()
+    {
+        if (_translationCancellation is not { IsCancellationRequested: false }) return;
+        Volatile.Write(ref _translationPaused, !_translationPaused);
+        _overlay.TranslationPaused(_translationPaused);
+        if (!_translationPaused && _pausedTranslationText is { } text)
+        {
+            _overlay.UpdateTranscript(text);
+            _pausedTranslationText = null;
+        }
+        TranslationStatus.Text = _translationPaused ? "翻译已暂停，暂停期间的系统声音不会进入字幕。" : "正在翻译系统声音。";
     }
 
     private void UpdateTranslationControls()
@@ -148,6 +191,12 @@ public sealed partial class MainWindow
         TranslationEnabled.IsEnabled = !settingsBusy;
         TranslationShortcutButton.IsEnabled = !settingsBusy;
         TranslationModelPicker.IsEnabled = !settingsBusy;
+        TranslationHost.IsEnabled = !settingsBusy;
+        var local = TranslationModelPicker.SelectedIndex == 1;
+        TranslationHostLabel.Text = local ? "Mac 主机 IP" : "Workspace ID";
+        TranslationHost.Visibility = local ? Visibility.Visible : Visibility.Collapsed;
+        TranslationWorkspace.Visibility = local ? Visibility.Collapsed : Visibility.Visible;
+        TranslationCredentialCard.Visibility = local ? Visibility.Collapsed : Visibility.Visible;
         TranslationWorkspace.IsEnabled = !settingsBusy;
         TranslationApiKey.IsEnabled = !settingsBusy;
         TranslationLanguage.IsEnabled = !settingsBusy;
@@ -166,14 +215,16 @@ public sealed partial class MainWindow
         string apiKey;
         try
         {
-            TranslationSession.Endpoint(options);
             apiKey = TranslationApiKey.Password.Trim();
-            if (string.IsNullOrWhiteSpace(apiKey)) throw new ArgumentException("请填写翻译 API Key。");
+            ValidateTranslation(options, apiKey);
             TranslationSettings.Save(options, TranslationApiKey.Password);
         }
         catch (Exception error) { TranslationStatus.Text = error.Message; return; }
         var cancellation = _translationCancellation = CancellationTokenSource.CreateLinkedTokenSource(_shutdown.Token);
-        TranslationStatus.Text = "正在连接百炼实时翻译...";
+        _keepTranslationOverlay = true;
+        Volatile.Write(ref _translationPaused, false);
+        _pausedTranslationText = null;
+        TranslationStatus.Text = options.Backend == "self-hosted" ? "正在连接 Mac 实时翻译..." : "正在连接百炼实时翻译...";
         _overlay.Begin(true, translation: true);
         UpdateModelControls();
         _translationTask = RunTranslationAsync(options, apiKey, cancellation);
@@ -188,16 +239,26 @@ public sealed partial class MainWindow
         });
         try
         {
-            await Task.Run(() => new TranslationSession(options, apiKey,
-                () => Dispatch(() =>
+            void Ready() => Dispatch(() =>
                 {
                     if (cancellation.IsCancellationRequested) return;
-                    _overlay.Recording();
-                    TranslationStatus.Text = $"正在翻译系统声音。再次按 {_translationHotkeyBinding.DisplayText} 可收起并停止。";
-                }),
-                text => Dispatch(() => _overlay.UpdateTranscript(text)),
-                level => Dispatch(() => _overlay.UpdateAudioLevel(level)),
-                (text, token) => TranscriptFormatter.FormatAsync(text, _autocorrectPath, token)).RunAsync(cancellation.Token));
+                    _overlay.TranslationPaused(_translationPaused);
+                    TranslationStatus.Text = _translationPaused ? "翻译已暂停。" : $"正在翻译系统声音。再次按 {_translationHotkeyBinding.DisplayText} 可停止。";
+                });
+            void Caption(string text) => Dispatch(() =>
+            {
+                if (_translationPaused) _pausedTranslationText = text;
+                else _overlay.UpdateTranscript(text);
+            });
+            void Level(double level) => Dispatch(() => { if (!_translationPaused) _overlay.UpdateAudioLevel(level); });
+            Task<string> Format(string text, CancellationToken token) => TranscriptFormatter.FormatAsync(text, _autocorrectPath, token);
+            await Task.Run(() =>
+            {
+                var audio = SystemAudioSource.ReadAsync(Level, cancellation.Token, () => Volatile.Read(ref _translationPaused));
+                return options.Backend == "self-hosted"
+                    ? new SelfHostedTranslationSession(options, Ready, Caption, Format).RunAsync(audio, cancellation.Token)
+                    : new TranslationSession(options, apiKey, Ready, Caption, Level, Format).RunAsync(cancellation.Token, audio);
+            });
             if (!_closed && !_exiting) TranslationStatus.Text = "翻译已停止。";
         }
         catch (OperationCanceledException) when (cancellation.IsCancellationRequested)
@@ -212,7 +273,11 @@ public sealed partial class MainWindow
         {
             _translationCancellation = null;
             cancellation.Dispose();
-            if (!_closed && !_exiting) { _overlay.Hide(); UpdateModelControls(); }
+            if (!_closed && !_exiting)
+            {
+                if (_keepTranslationOverlay) _overlay.FinishTranslation(); else _overlay.Hide();
+                UpdateModelControls();
+            }
         }
     }
 }

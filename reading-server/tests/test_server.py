@@ -18,6 +18,20 @@ class Reader:
     def load(self):
         pass
 
+    def translation_events(self, text, target, stopped):
+        self.started.set()
+        try:
+            if self.block:
+                stopped.wait(3)
+                return
+            yield "text", "会议是明天。" if target == "zh" else "The meeting is tomorrow."
+        finally:
+            self.closed.set()
+
+    def original_events(self, text, speed, stopped):
+        yield "text", text
+        yield "audio", b"\x01\x00" * 120
+
     def events(self, text, speed, stopped):
         try:
             self.started.set()
@@ -35,6 +49,51 @@ class Reader:
 
 
 class ProtocolTests(unittest.TestCase):
+    def test_original_speech_preserves_source_and_requires_ack(self):
+        with TestClient(create_app(Reader())) as client:
+            with client.websocket_connect("/v1/speech") as ws:
+                ws.send_json(START)
+                self.assertEqual(ws.receive_json()["voice"], "Serena")
+                self.assertEqual(ws.receive_json(), dict(type="text", text=START["text"]))
+                self.assertEqual(ws.receive_bytes(), b"\x01\x00" * 120)
+                self.assertTrue(client.get("/health").json()["busy"])
+                ws.send_json(dict(type="ack"))
+                self.assertEqual(ws.receive_json(), dict(type="done"))
+            self.wait_idle(client)
+
+    def test_translation_only_in_both_languages(self):
+        for target, expected in (("zh", "会议是明天。"), ("en", "The meeting is tomorrow.")):
+            reader = Reader()
+            with TestClient(create_app(reader)) as client:
+                with client.websocket_connect("/v1/translation") as ws:
+                    ws.send_json({**START, "target": target})
+                    self.assertEqual(ws.receive_json(), dict(type="ready", protocol=1))
+                    self.assertEqual(ws.receive_json(), dict(type="text", text=expected))
+                    self.assertEqual(ws.receive_json(), dict(type="done"))
+                self.wait_idle(client)
+                self.assertEqual(reader.chunks, 0)
+
+    def test_translation_cancellation_and_shared_busy_slot(self):
+        reader = Reader(block=True)
+        with TestClient(create_app(reader)) as client:
+            with client.websocket_connect("/v1/translation") as ws:
+                ws.send_json(START)
+                ws.receive_json()
+                self.assertTrue(reader.started.wait(1))
+                with client.websocket_connect("/v1/reading") as other:
+                    self.assertEqual(other.receive_json()["type"], "error")
+                ws.send_json(dict(type="cancel"))
+                self.assertTrue(reader.closed.wait(1))
+                self.wait_idle(client)
+
+    def test_invalid_translation_language(self):
+        reader = Reader()
+        with TestClient(create_app(reader)) as client:
+            with client.websocket_connect("/v1/translation") as ws:
+                ws.send_json({**START, "target": "unsupported"})
+                self.assertEqual(ws.receive_json()["type"], "error")
+            self.assertFalse(reader.started.is_set())
+
     def wait_idle(self, client):
         deadline = time.monotonic() + 2
         while client.get("/health").json()["busy"] and time.monotonic() < deadline:

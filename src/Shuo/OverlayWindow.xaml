@@ -8,12 +8,13 @@
         <Border.Background><SolidColorBrush x:Name="SurfaceBrush" Color="#0C0C0C" /></Border.Background>
         <Border.BorderBrush><SolidColorBrush x:Name="SurfaceBorderBrush" Color="#303030" /></Border.BorderBrush>
         <Grid x:Name="TrackGrid" ColumnSpacing="0">
+            <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="24" />
                 <ColumnDefinition Width="*" />
 
             </Grid.ColumnDefinitions>
-            <Grid Width="24" Height="24" VerticalAlignment="Center" IsHitTestVisible="False">
+            <Grid x:Name="VoiceSlot" Width="24" Height="24" VerticalAlignment="Center" IsHitTestVisible="False">
                 <Grid x:Name="VoiceIndicator">
                     <Ellipse x:Name="VoiceHalo" Width="14" Height="14" Opacity="0.10"
                              Fill="{ThemeResource SystemControlHighlightAccentBrush}"
@@ -51,33 +52,30 @@
                     </TextBlock.RenderTransform>
                 </TextBlock>
             </Canvas>
-            <Button x:Name="CaptionCloseButton" Grid.Column="1" HorizontalAlignment="Right" Width="28" Height="28"
-                    Padding="0" Margin="4,3,0,0" VerticalAlignment="Top" Visibility="Collapsed"
-                    Background="Transparent" BorderThickness="0" IsTabStop="False"
-                    AutomationProperties.Name="停止翻译" ToolTipService.ToolTip="停止翻译"
-                    Click="CaptionCloseButton_Click">
-                <FontIcon Glyph="&#xE8BB;" FontSize="14" />
-            </Button>
             <StackPanel x:Name="ReadingControls" Grid.Column="1" Orientation="Horizontal" Spacing="4"
                         VerticalAlignment="Center" HorizontalAlignment="Left" Visibility="Collapsed">
                 <Button x:Name="ReadingPauseButton" Width="32" Height="32" Padding="0"
                         Background="Transparent" BorderThickness="0" IsTabStop="False"
                         AutomationProperties.Name="暂停朗读" ToolTipService.ToolTip="暂停朗读" Click="ReadingPauseButton_Click">
-                    <FontIcon x:Name="ReadingPauseIcon" Glyph="&#xE769;" FontSize="16" />
+                    <Grid Width="16" Height="16">
+                        <PathIcon x:Name="ReadingPauseBars" Width="10" Height="14"
+                                  Data="M 0,0 L 1.2,0 L 1.2,14 L 0,14 Z M 8.8,0 L 10,0 L 10,14 L 8.8,14 Z" />
+                        <FontIcon x:Name="ReadingPauseIcon" Glyph="&#xE768;" FontSize="16" Visibility="Collapsed" />
+                    </Grid>
                 </Button>
                 <Button x:Name="ReadingStopButton" Width="32" Height="32" Padding="0"
                         Background="Transparent" BorderThickness="0" IsTabStop="False"
                         AutomationProperties.Name="停止朗读" ToolTipService.ToolTip="停止朗读" Click="ReadingStopButton_Click">
                     <FontIcon Glyph="&#xE71A;" FontSize="14" />
                 </Button>
-            </StackPanel>
-            <Button x:Name="ReadingCloseButton" Grid.ColumnSpan="2" HorizontalAlignment="Right" VerticalAlignment="Top"
-                    Width="20" Height="20" Padding="0" Visibility="Collapsed"
+            <Button x:Name="ReadingCloseButton"
+                    Width="32" Height="32" Padding="0" Visibility="Collapsed"
                     Background="Transparent" BorderThickness="0" IsTabStop="False"
                     AutomationProperties.Name="关闭朗读播放器" ToolTipService.ToolTip="停止朗读并关闭"
                     Click="ReadingCloseButton_Click">
-                <FontIcon Glyph="&#xE8BB;" FontSize="10" />
+                <FontIcon Glyph="&#xE8BB;" FontSize="14" />
             </Button>
+            </StackPanel>
         </Grid>
     </Border>
 </Window>

@@ -9,6 +9,23 @@ using System.Net.WebSockets;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
 
+if (args.Length == 4 && args[0] == "--self-hosted")
+{
+    var pcm = await File.ReadAllBytesAsync(args[2]);
+    var captionsReceived = new List<string>();
+    var watch = Stopwatch.StartNew();
+    using var timeout = new CancellationTokenSource(TimeSpan.FromMinutes(2));
+    await new SelfHostedTranslationSession(new(Backend: "self-hosted", Host: args[1], TargetLanguage: args[3]),
+        () => Console.WriteLine("Mac ASR ready"), text =>
+        {
+            captionsReceived.Add(text);
+            Console.WriteLine($"{watch.Elapsed.TotalSeconds:F2}s: {text}");
+        }).RunAsync(Replay(pcm), timeout.Token);
+    if (captionsReceived.Count == 0) throw new Exception("No translated captions received.");
+    Console.WriteLine("Mac ASR -> Qwen3 -> Windows captions and final tail passed.");
+    return;
+}
+
 if (args.Length == 6 && args[0] == "--latency")
 {
     var options = new TranslationOptions(args[1], args[2], "zh");
@@ -112,6 +129,7 @@ Assert(TranslationSession.Endpoint(new(WorkspaceId: "ws-example")).Host == "ws-e
 await CheckWire(false, false);
 await CheckWire(true, false);
 await CheckWire(false, true);
+await LocalTranslationTests.RunAsync();
 Console.WriteLine("Passed caption revision, endpoint validation, audio framing, graceful stop, tail delivery, and server error tests.");
 
 async Task CheckWire(bool cancelCapture, bool fail)

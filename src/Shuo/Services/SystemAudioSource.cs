@@ -7,7 +7,7 @@ namespace Shuo.Services;
 internal static class SystemAudioSource
 {
     internal static async IAsyncEnumerable<byte[]> ReadAsync(Action<double> level,
-        [EnumeratorCancellation] CancellationToken cancellationToken)
+        [EnumeratorCancellation] CancellationToken cancellationToken, Func<bool>? paused = null)
     {
         using var capture = new WasapiLoopbackCapture();
         var buffer = new BufferedWaveProvider(capture.WaveFormat)
@@ -42,6 +42,8 @@ internal static class SystemAudioSource
                 if (Volatile.Read(ref failure) is { } error)
                     throw new IOException("无法继续采集系统音频。", error);
                 var count = samples.Read(floats, 0, floats.Length);
+                // Consume and discard paused audio. Silence keeps VAD and connection timeouts healthy.
+                if (paused?.Invoke() == true) Array.Clear(floats, 0, count);
                 var pcm = new byte[count * 2];
                 double energy = 0;
                 for (var i = 0; i < count; i++)

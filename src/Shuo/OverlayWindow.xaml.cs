@@ -6,6 +6,7 @@ using Microsoft.UI.Composition.SystemBackdrops;
 using WinRT;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
 using Windows.Foundation;
 using Windows.Graphics;
@@ -50,6 +51,8 @@ public sealed partial class OverlayWindow : Window
     private PointInt32 _dragOrigin;
     private uint? _dragPointer;
     internal event Action? TranslationCloseRequested;
+    internal event Action? TranslationPauseRequested;
+    internal event Action? TranslationStopRequested;
     internal event Action? ReadingPauseRequested;
     internal event Action? ReadingStopRequested;
     internal event Action? ReadingCloseRequested;
@@ -138,20 +141,30 @@ public sealed partial class OverlayWindow : Window
         _hasText = false;
         _translation = translation;
         _reading = false;
-        ReadingControls.Visibility = Visibility.Collapsed;
-        ReadingCloseButton.Visibility = Visibility.Collapsed;
+        ReadingControls.Visibility = translation ? Visibility.Visible : Visibility.Collapsed;
+        ReadingCloseButton.Visibility = translation ? Visibility.Visible : Visibility.Collapsed;
+        Grid.SetRow(VoiceSlot, 1);
+        Grid.SetRow(ReadingControls, 1);
+        Grid.SetRow(TextViewport, translation ? 0 : 1);
+        Grid.SetColumn(TextViewport, translation ? 0 : 1);
+        Grid.SetColumnSpan(TextViewport, translation ? 2 : 1);
+        VoiceSlot.Margin = translation ? new Thickness(0, 4, 0, 0) : new Thickness(0);
+        ReadingControls.Margin = translation ? new Thickness(0, 4, 0, 0) : new Thickness(0);
+        ReadingPauseButton.IsEnabled = ReadingStopButton.IsEnabled = true;
+        SetPlaybackPaused(false);
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(ReadingStopButton, translation ? "停止翻译" : "停止朗读");
+        Microsoft.UI.Xaml.Controls.ToolTipService.SetToolTip(ReadingStopButton, translation ? "停止翻译" : "停止朗读");
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(ReadingCloseButton, "停止并关闭浮窗");
+        Microsoft.UI.Xaml.Controls.ToolTipService.SetToolTip(ReadingCloseButton, "停止并关闭浮窗");
         TextViewport.Visibility = Visibility.Visible;
-        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(CaptionCloseButton, "停止翻译");
-        Microsoft.UI.Xaml.Controls.ToolTipService.SetToolTip(CaptionCloseButton, "停止翻译");
         Microsoft.UI.Xaml.Controls.ToolTipService.SetToolTip(OverlaySurface, null);
         _panelWidth = translation ? CaptionWidth : 36;
-        _panelHeight = translation ? CaptionMaxLines * CaptionLineHeight + 16 : OverlayHeight;
+        _panelHeight = translation ? CaptionMaxLines * CaptionLineHeight + 52 : OverlayHeight;
         TextViewport.Height = translation ? CaptionMaxLines * CaptionLineHeight : 22;
-        TextViewport.Margin = translation ? new Thickness(0, 0, 40, 0) : new Thickness(0);
+        TextViewport.Margin = translation ? new Thickness(0, 8, 0, 0) : new Thickness(0);
         TranscriptText.Width = double.NaN;
         TranscriptText.LineHeight = translation ? CaptionLineHeight : 22;
         TranscriptText.FontSize = translation ? 18 : 14;
-        CaptionCloseButton.Visibility = translation ? Visibility.Visible : Visibility.Collapsed;
         TranscriptText.TextWrapping = translation ? TextWrapping.Wrap : TextWrapping.NoWrap;
         TranscriptText.LineStackingStrategy = translation ? LineStackingStrategy.BlockLineHeight : LineStackingStrategy.MaxHeight;
         ElementCompositionPreview.GetElementVisual(TranscriptText).Opacity = translation ? 1 : 0;
@@ -227,7 +240,7 @@ public sealed partial class OverlayWindow : Window
             TextViewport.Height = visibleLines * lineHeight;
             // Scroll by complete rows, leaving the most recent two lines visible.
             TextOffset.Y = -Math.Max(0, lines - CaptionMaxLines) * lineHeight;
-            var height = 16 + visibleLines * lineHeight;
+            var height = 52 + visibleLines * lineHeight;
             if (_panelHeight != height)
             {
                 _panelHeight = height;
@@ -274,26 +287,58 @@ public sealed partial class OverlayWindow : Window
         _reading = true;
         if (_readingPosition is { } saved)
             _workArea = DisplayArea.GetFromPoint(saved, DisplayAreaFallback.Nearest).WorkArea;
-        _panelWidth = 148;
-        _panelHeight = 52;
+        _panelWidth = 156;
+        _panelHeight = 44;
         OverlaySurface.Padding = new Thickness(10, 0, 4, 0);
         TrackGrid.ColumnSpacing = 6;
         TextViewport.Visibility = Visibility.Collapsed;
         ReadingControls.Visibility = Visibility.Visible;
         ReadingCloseButton.Visibility = Visibility.Visible;
         ReadingPauseButton.IsEnabled = ReadingStopButton.IsEnabled = true;
-        ReadingPauseIcon.Glyph = "\uE769";
+        SetPlaybackPaused(false);
         Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(ReadingPauseButton, "暂停朗读");
         Microsoft.UI.Xaml.Controls.ToolTipService.SetToolTip(ReadingPauseButton, "暂停朗读");
         Position();
     }
 
-    private void ReadingPauseButton_Click(object sender, RoutedEventArgs args) => ReadingPauseRequested?.Invoke();
-    private void ReadingStopButton_Click(object sender, RoutedEventArgs args) => ReadingStopRequested?.Invoke();
+    private void ReadingPauseButton_Click(object sender, RoutedEventArgs args)
+    {
+        if (_translation) TranslationPauseRequested?.Invoke(); else ReadingPauseRequested?.Invoke();
+    }
+    private void ReadingStopButton_Click(object sender, RoutedEventArgs args)
+    {
+        if (_translation) TranslationStopRequested?.Invoke(); else ReadingStopRequested?.Invoke();
+    }
     private void ReadingCloseButton_Click(object sender, RoutedEventArgs args)
     {
         Hide();
-        ReadingCloseRequested?.Invoke();
+        if (_translation) TranslationCloseRequested?.Invoke(); else ReadingCloseRequested?.Invoke();
+    }
+
+    private void SetPlaybackPaused(bool paused)
+    {
+        ReadingPauseBars.Visibility = paused ? Visibility.Collapsed : Visibility.Visible;
+        ReadingPauseIcon.Visibility = paused ? Visibility.Visible : Visibility.Collapsed;
+        var label = (paused ? "继续" : "暂停") + (_translation ? "翻译" : "朗读");
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(ReadingPauseButton, label);
+        Microsoft.UI.Xaml.Controls.ToolTipService.SetToolTip(ReadingPauseButton, label);
+    }
+
+    internal void TranslationPaused(bool paused)
+    {
+        if (!_translation || !_visible) return;
+        SetPlaybackPaused(paused);
+        SetBusy(false);
+        if (paused) StopVoiceAnimation();
+    }
+
+    internal void FinishTranslation()
+    {
+        if (!_translation || !_visible) return;
+        SetBusy(false);
+        StopVoiceAnimation();
+        SetPlaybackPaused(false);
+        ReadingPauseButton.IsEnabled = ReadingStopButton.IsEnabled = false;
     }
 
     internal void FinishReading()
@@ -302,7 +347,7 @@ public sealed partial class OverlayWindow : Window
         if (!_visible) return;
         SetBusy(false);
         StopVoiceAnimation();
-        ReadingPauseIcon.Glyph = "\uE769";
+        SetPlaybackPaused(false);
         ReadingPauseButton.IsEnabled = ReadingStopButton.IsEnabled = false;
         Microsoft.UI.Xaml.Controls.ToolTipService.SetToolTip(OverlaySurface, "朗读已停止");
     }
@@ -315,7 +360,7 @@ public sealed partial class OverlayWindow : Window
         Microsoft.UI.Xaml.Controls.ToolTipService.SetToolTip(OverlaySurface, status);
         if (_reading)
         {
-            ReadingPauseIcon.Glyph = paused ? "\uE768" : "\uE769";
+            SetPlaybackPaused(paused);
             Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(ReadingPauseButton, paused ? "继续朗读" : "暂停朗读");
             Microsoft.UI.Xaml.Controls.ToolTipService.SetToolTip(ReadingPauseButton, paused ? "继续朗读" : "暂停朗读");
         }
@@ -483,12 +528,6 @@ public sealed partial class OverlayWindow : Window
         }
         return new RectInt32(_workArea.X + (_workArea.Width - width) / 2,
             _workArea.Y + _workArea.Height - height - margin, width, height);
-    }
-
-    private void CaptionCloseButton_Click(object sender, RoutedEventArgs args)
-    {
-        Hide();
-        TranslationCloseRequested?.Invoke();
     }
 
     private PointInt32 PointerScreenPosition(Microsoft.UI.Xaml.Input.PointerRoutedEventArgs args)

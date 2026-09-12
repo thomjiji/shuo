@@ -5,6 +5,8 @@ using Shuo.Services;
 
 if (args.Length == 0) throw new ArgumentException("Pass the Mac host, optionally followed by --play.");
 var endpoint = SelfHostedReadingClient.Endpoint(args[0]);
+var original = args.Contains("--original");
+if (original) endpoint = new UriBuilder(endpoint) { Path = "/v1/speech" }.Uri;
 using var timeout = new CancellationTokenSource(TimeSpan.FromMinutes(3));
 await SelfHostedReadingClient.TestAsync(args[0], timeout.Token);
 using var http = new HttpClient(new HttpClientHandler { UseProxy = false });
@@ -50,6 +52,7 @@ foreach (var (source, speed) in new[]
     }
     if (playback is not null) await playback.CompleteAsync(timeout.Token);
     if (bytes < 9600 || translated.Length == 0) throw new Exception("Missing local translation/audio");
+    if (original && translated.ToString() != source) throw new Exception("Original text was modified");
     Console.WriteLine(JsonSerializer.Serialize(new { speed, firstAudioSeconds = firstAudio, audioSeconds = bytes / 48000.0, translation = translated.ToString() }));
     await WaitIdle();
 }

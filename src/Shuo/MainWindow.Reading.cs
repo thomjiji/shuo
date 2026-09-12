@@ -46,6 +46,7 @@ public sealed partial class MainWindow
                 ? SelfHostedAddress.ToDisplay(_cloudOptions.SelfHostedUrl) : options.SelfHostedHost;
             ReadingLocalSpeed.SelectedIndex = Math.Max(0, Array.IndexOf(LocalReadingSpeeds, options.LocalPlaybackSpeed));
             ReadingTranslationBackend.SelectedIndex = options.UseSelfHostedTranslation ? 1 : 0;
+            ReadingOriginalBackend.SelectedIndex = options.UseSelfHostedOriginal ? 1 : 0;
             ReadingMode.SelectedIndex = options.TranslateToChinese ? 1 : 0;
             _readingHotkeyBinding = options.Hotkey;
             ReadingShortcutButton.Content = _readingHotkeyBinding.DisplayText;
@@ -60,7 +61,8 @@ public sealed partial class MainWindow
         (ReadingSpeaker.SelectedItem as ReadingVoice)?.Id ?? "", (int)ReadingSpeed.Value,
         _readingHotkeyBinding.Modifiers, _readingHotkeyBinding.VirtualKey, ReadingMode.SelectedIndex == 1,
         ReadingTranslationSpeed.SelectedIndex - 1, ReadingTranslationBackend.SelectedIndex == 1,
-        ReadingLocalHost.Text.Trim(), LocalReadingSpeeds[Math.Max(0, ReadingLocalSpeed.SelectedIndex)]);
+        ReadingLocalHost.Text.Trim(), LocalReadingSpeeds[Math.Max(0, ReadingLocalSpeed.SelectedIndex)],
+        ReadingOriginalBackend.SelectedIndex == 1);
 
     private void ReadingLocalSettings_Changed(object sender, Microsoft.UI.Xaml.Controls.SelectionChangedEventArgs args)
     {
@@ -81,13 +83,14 @@ public sealed partial class MainWindow
             var saved = ReadingSettings.Load() with
             {
                 UseSelfHostedTranslation = ReadingTranslationBackend.SelectedIndex == 1,
+                UseSelfHostedOriginal = ReadingOriginalBackend.SelectedIndex == 1,
                 SelfHostedHost = ReadingLocalHost.Text.Trim(),
                 LocalPlaybackSpeed = LocalReadingSpeeds[Math.Max(0, ReadingLocalSpeed.SelectedIndex)],
             };
             ReadingSettings.Save(saved, ReadingSettings.LoadApiKey());
-            ReadingStatus.Text = "译读服务设置已保存，下次朗读生效。";
+            ReadingStatus.Text = "朗读服务设置已保存，下次朗读生效。";
         }
-        catch (Exception error) { ReadingStatus.Text = "译读服务设置未保存：" + error.Message; }
+        catch (Exception error) { ReadingStatus.Text = "朗读服务设置未保存：" + error.Message; }
     }
 
     private async void ReadingLocalTest_Click(object sender, RoutedEventArgs args)
@@ -230,17 +233,19 @@ public sealed partial class MainWindow
         if (ReadingButton is null) return;
         var active = _readingCancellation is not null;
         var translate = ReadingMode.SelectedIndex == 1;
-        var local = ReadingTranslationBackend.SelectedIndex == 1;
+        var local = (translate ? ReadingTranslationBackend : ReadingOriginalBackend).SelectedIndex == 1;
         ReadingMode.IsEnabled = !active;
         ReadingTextBox.IsReadOnly = active;
         ReadingButton.Content = translate ? "中文译读" : "原文朗读";
         ReadingModeHint.Text = translate
             ? $"选中文字后按 {_readingHotkeyBinding.DisplayText}，自动识别原文语言并译成中文朗读，支持英文、日文等。"
                 + (local ? "翻译和 Serena 语音均在 Mac 上生成。" : "使用实时翻译中的百炼凭据，无需开启实时翻译。")
-            : $"选中文字后按 {_readingHotkeyBinding.DisplayText}，使用豆包按原文朗读。再次按快捷键停止。";
+            : $"选中文字后按 {_readingHotkeyBinding.DisplayText}，" + (local ? "在 Mac 上按原文语言朗读，使用 Serena 音色。" : "使用豆包按原文朗读。") + "再次按快捷键停止。";
+        ReadingOriginalBackend.Visibility = translate ? Visibility.Collapsed : Visibility.Visible;
+        ReadingOriginalBackend.IsEnabled = !active && !_testingReadingHost;
         ReadingTranslationBackend.Visibility = translate ? Visibility.Visible : Visibility.Collapsed;
         ReadingTranslationBackend.IsEnabled = !active && !_testingReadingHost;
-        ReadingLocalSettings.Visibility = translate && local ? Visibility.Visible : Visibility.Collapsed;
+        ReadingLocalSettings.Visibility = local ? Visibility.Visible : Visibility.Collapsed;
         ReadingLocalHost.IsEnabled = ReadingLocalSpeed.IsEnabled = ReadingLocalTest.IsEnabled = !active && !_testingReadingHost;
         ReadingTranslationSettings.Visibility = translate && !local ? Visibility.Visible : Visibility.Collapsed;
         ReadingTranslationSpeed.Visibility = translate && !local ? Visibility.Visible : Visibility.Collapsed;
@@ -252,13 +257,13 @@ public sealed partial class MainWindow
         ReadingPause.Content = _readingPlayback?.Paused == true ? "继续" : "暂停";
         ReadingEnabled.IsEnabled = !active;
         ReadingShortcutButton.IsEnabled = !active;
-        ReadingUseExistingKey.IsEnabled = !active && !translate;
-        ReadingSpeaker.IsEnabled = !active && !translate;
-        ReadingSpeed.IsEnabled = !active && !translate;
+        ReadingUseExistingKey.IsEnabled = !active && !translate && !local;
+        ReadingSpeaker.IsEnabled = !active && !translate && !local;
+        ReadingSpeed.IsEnabled = !active && !translate && !local;
         ReadingSaveButton.IsEnabled = !active;
-        ReadingSpeedLabels.Opacity = active || translate ? 0.5 : 1;
-        ReadingApiKeyCard.Visibility = ReadingUseExistingKey.IsOn || translate ? Visibility.Collapsed : Visibility.Visible;
-        ReadingApiKey.IsEnabled = !active && !translate && !ReadingUseExistingKey.IsOn;
+        ReadingSpeedLabels.Opacity = active || translate || local ? 0.5 : 1;
+        ReadingApiKeyCard.Visibility = ReadingUseExistingKey.IsOn || translate || local ? Visibility.Collapsed : Visibility.Visible;
+        ReadingApiKey.IsEnabled = !active && !translate && !local && !ReadingUseExistingKey.IsOn;
     }
 
     private void ReadingButton_Click(object sender, RoutedEventArgs args) => StartReading("text");
@@ -305,7 +310,7 @@ public sealed partial class MainWindow
             var options = CurrentReadingOptions();
             options.Validate();
             var translate = options.TranslateToChinese;
-            var local = translate && options.UseSelfHostedTranslation;
+            var local = translate ? options.UseSelfHostedTranslation : options.UseSelfHostedOriginal;
             var label = translate ? "中文译读" : "原文朗读";
             var key = translate ? TranslationApiKey.Password.Trim()
                 : options.UseExistingKey ? _cloudOptions.ApiKey : ReadingApiKey.Password.Trim();
@@ -313,6 +318,7 @@ public sealed partial class MainWindow
             if (local)
             {
                 endpoint = SelfHostedReadingClient.Endpoint(options.SelfHostedHost);
+                if (!translate) endpoint = new UriBuilder(endpoint) { Path = "/v1/speech" }.Uri;
             }
             else if (translate)
             {
@@ -335,10 +341,10 @@ public sealed partial class MainWindow
             }
             else text = ReadingTextBox.Text;
             token.ThrowIfCancellationRequested();
-            var chunks = ReadingText.Split(text, translate ? OmniReadingClient.PassageBytes : ReadingText.MaximumRequestBytes);
+            var chunks = ReadingText.Split(text, translate || local ? OmniReadingClient.PassageBytes : ReadingText.MaximumRequestBytes);
             if (source == "selection") ReadingTextBox.Text = text;
             ReadingSettings.Save(options, ReadingApiKey.Password);
-            ReadingStatus.Text = local ? "正在连接 Mac 中文译读..." : translate ? "正在连接千问中文译读..." : "正在连接豆包语音合成...";
+            ReadingStatus.Text = local ? "正在连接 Mac " + label + "..." : translate ? "正在连接千问中文译读..." : "正在连接豆包语音合成...";
             _overlay.BeginReading();
             using var client = new System.Net.Http.HttpClient { Timeout = Timeout.InfiniteTimeSpan };
             var service = new DoubaoSpeechClient(client);
@@ -365,6 +371,7 @@ public sealed partial class MainWindow
                     var length = 0L;
                     Action<string> onText = part =>
                     {
+                        if (!translate) return;
                         // Generated text can lead playback; keep the display explicitly labelled.
                         if (ReadingTranslatedText.Text.Length + part.Length > 60000)
                             throw new IOException("译文过长，请分段选择。");

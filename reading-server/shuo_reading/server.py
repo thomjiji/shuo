@@ -45,6 +45,8 @@ def create_app(reader):
                     format="pcm_s16le", busy=busy.locked(), speeds=SPEEDS)
 
     @app.websocket("/v1/reading")
+    @app.websocket("/v1/translation")
+    @app.websocket("/v1/speech")
     async def reading(ws: WebSocket):
         # Native clients send no Origin. Reject browser cross-site requests to this private service.
         if ws.headers.get("origin"):
@@ -78,10 +80,21 @@ def create_app(reader):
                 return
             await busy.acquire()
             acquired = True
-            text, speed = validate_start(await asyncio.wait_for(ws.receive_json(), 10))
+            config = await asyncio.wait_for(ws.receive_json(), 10)
+            text, speed = validate_start(config)
+            translating = ws.url.path == "/v1/translation"
+            target = config.get("target", "zh")
+            if translating and target not in ("zh", "en"):
+                raise ValueError("不支持此字幕语言。")
             watcher = asyncio.create_task(controls())
-            await ws.send_json(dict(type="ready", protocol=1, sample_rate=SAMPLE_RATE, format="pcm_s16le", voice=VOICE))
-            iterator = reader.events(text, speed, stopped)
+            await ws.send_json(dict(type="ready", protocol=1) if translating else
+                               dict(type="ready", protocol=1, sample_rate=SAMPLE_RATE, format="pcm_s16le", voice=VOICE))
+            if translating:
+                iterator = reader.translation_events(text, target, stopped)
+            elif ws.url.path == "/v1/speech":
+                iterator = reader.original_events(text, speed, stopped)
+            else:
+                iterator = reader.events(text, speed, stopped)
             while True:
                 pending = loop.run_in_executor(pool, next, iterator, None)
                 event = await asyncio.shield(pending)

@@ -181,6 +181,12 @@ using (var omniHttp = new HttpClient(new OmniHandler("private service body", Htt
     }, "Omni HTTP failures are reported");
 }
 checks += await LocalProtocolChecks.Run();
+var originalLocal = new ReadingOptions(UseSelfHostedOriginal: true, Speaker: "", SelfHostedHost: "100.119.85.74");
+originalLocal.Validate();
+var originalRestored = JsonSerializer.Deserialize<ReadingOptions>(JsonSerializer.Serialize(originalLocal))!;
+Check(originalRestored.UseSelfHostedOriginal && !originalRestored.UseSelfHostedTranslation,
+    "original local backend persists independently and needs no cloud voice");
+Check(!JsonSerializer.Deserialize<ReadingOptions>("{}")!.UseSelfHostedOriginal, "old settings retain cloud original reading");
 Console.WriteLine($"Passed {checks} checks.");
 
 sealed class OmniHandler(string events, HttpStatusCode status = HttpStatusCode.OK) : HttpMessageHandler

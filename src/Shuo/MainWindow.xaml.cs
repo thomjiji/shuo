@@ -163,6 +163,7 @@ public sealed partial class MainWindow : Window
         HistoryPage.Visibility = section == "history" ? Visibility.Visible : Visibility.Collapsed;
         TranslationPage.Visibility = section == "translation" ? Visibility.Visible : Visibility.Collapsed;
         ReadingPage.Visibility = section == "reading" ? Visibility.Visible : Visibility.Collapsed;
+        if (section == "general") AcknowledgeAvailableUpdate();
         if (section == "history" && _historyEntries is null) LoadHistory();
         if (section == "transcription") _ = RefreshModelsAsync();
         PageTitle.Text = section switch { "general" => "常规", "cleanup" => "文本整理", "history" => "转录历史", "translation" => "实时翻译", "reading" => "实时朗读", _ => "转录服务" };

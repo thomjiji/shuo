@@ -13,7 +13,6 @@
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
-            <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
         <TitleBar x:Name="AppTitleBar" Title="说">
@@ -48,7 +47,11 @@
                 </ResourceDictionary>
             </NavigationView.Resources>
             <NavigationView.MenuItems>
-                <NavigationViewItem x:Name="GeneralNavigationItem" Content="常规" Tag="general" Icon="Setting" />
+                <NavigationViewItem x:Name="GeneralNavigationItem" Content="常规" Tag="general" Icon="Setting">
+                    <NavigationViewItem.InfoBadge>
+                        <InfoBadge x:Name="UpdateInfoBadge" Visibility="Collapsed" />
+                    </NavigationViewItem.InfoBadge>
+                </NavigationViewItem>
                 <NavigationViewItem x:Name="TranscriptionNavigationItem" Content="转录服务" Tag="transcription" Icon="Microphone" />
                 <NavigationViewItem Content="实时翻译" Tag="translation" Icon="Globe" />
                 <NavigationViewItem x:Name="ReadingNavigationItem" Content="实时朗读" Tag="reading" Icon="Volume" />
@@ -439,11 +442,5 @@
                 </ScrollViewer>
             </Grid>
         </NavigationView>
-        <InfoBar x:Name="UpdateBanner" Grid.Row="2" Margin="12,0,12,12" IsOpen="False" Visibility="Collapsed" Closed="UpdateBanner_Closed"
-                 IsClosable="True" Severity="Informational" Title="有新版本可用">
-            <InfoBar.ActionButton>
-                <Button x:Name="BannerUpdateButton" Content="更新并重启" Click="InstallUpdate_Click" />
-            </InfoBar.ActionButton>
-        </InfoBar>
     </Grid>
 </Window>

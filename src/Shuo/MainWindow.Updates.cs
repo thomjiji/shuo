@@ -16,6 +16,7 @@ public sealed partial class MainWindow
     private bool _checkingUpdate;
     private bool _installingUpdate;
     private int _pendingPastes;
+    private string? _acknowledgedUpdateVersion;
     private string? _notifiedVersion;
 
     private void InitializeUpdates()
@@ -48,10 +49,12 @@ public sealed partial class MainWindow
     private void ShowAvailableUpdate(string version)
     {
         UpdateStatus.Text = $"发现新版本 {version}。";
-        UpdateBanner.Message = $"版本 {version} 已发布，点击下载并重启。";
-        UpdateBanner.Visibility = Visibility.Visible;
-        UpdateBanner.IsOpen = true;
         InstallUpdateButton.Visibility = Visibility.Visible;
+        if ((SettingsNavigation.SelectedItem as Microsoft.UI.Xaml.Controls.NavigationViewItem)?.Tag as string == "general")
+            _acknowledgedUpdateVersion = version;
+        UpdateInfoBadge.Visibility = _acknowledgedUpdateVersion == version
+            ? Visibility.Collapsed
+            : Visibility.Visible;
         UpdateInstallControls();
         if (_notifiedVersion != version)
         {
@@ -60,14 +63,20 @@ public sealed partial class MainWindow
         }
     }
 
-    private void UpdateBanner_Closed(Microsoft.UI.Xaml.Controls.InfoBar sender, Microsoft.UI.Xaml.Controls.InfoBarClosedEventArgs args)
-        => sender.Visibility = Visibility.Collapsed;
+    private void AcknowledgeAvailableUpdate()
+    {
+        var version = _availableUpdate?.TargetFullRelease.Version.ToString()
+            ?? _downloadedUpdate?.Version.ToString();
+        if (version is null) return;
+        _acknowledgedUpdateVersion = version;
+        UpdateInfoBadge.Visibility = Visibility.Collapsed;
+    }
 
     private void UpdateInstallControls()
     {
-        if (InstallUpdateButton is null || BannerUpdateButton is null) return;
+        if (InstallUpdateButton is null || CheckUpdateButton is null) return;
         var idle = _readingCancellation is null && _translationCancellation is null && !_exiting && !_closed && !_dictationActive && !_togglePending && !_modelChanging && _pendingPastes == 0;
-        InstallUpdateButton.IsEnabled = BannerUpdateButton.IsEnabled = idle && !_installingUpdate && !_checkingUpdate;
+        InstallUpdateButton.IsEnabled = idle && !_installingUpdate && !_checkingUpdate;
         CheckUpdateButton.IsEnabled = !_checkingUpdate && !_installingUpdate;
     }
 

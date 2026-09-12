@@ -371,7 +371,25 @@
                                     <TextBlock Text="默认使用 vv 音色；可从官方音色列表选择其他语音合成 2.0 音色。"
                                                TextWrapping="Wrap" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                                     <HyperlinkButton Content="查看可用的系统音色" NavigateUri="https://www.volcengine.com/docs/6561/1257544" />
-                                    <Slider x:Name="ReadingSpeed" Header="语速（0 为正常，负值减慢，正值加快）" Minimum="-50" Maximum="100" StepFrequency="10" Value="0" />
+                                    <Slider x:Name="ReadingSpeed" Header="语速" Minimum="-50" Maximum="100"
+                                            StepFrequency="10" SmallChange="10" LargeChange="20" SnapsTo="StepValues"
+                                            TickFrequency="10" TickPlacement="BottomRight" IsThumbToolTipEnabled="True"
+                                            Value="0" ValueChanged="ReadingSpeed_ValueChanged"
+                                            automation:AutomationProperties.Name="语速"
+                                            automation:AutomationProperties.HelpText="0 为正常，负值减慢，正值加快；每档 10。" />
+                                    <Grid x:Name="ReadingSpeedLabels" Margin="0,-8,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="较慢 -50" FontSize="12"
+                                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                        <TextBlock x:Name="ReadingSpeedValue" Grid.Column="1" Text="当前值：0（正常）"
+                                                   FontSize="12" HorizontalAlignment="Center" />
+                                        <TextBlock Grid.Column="2" Text="较快 +100" FontSize="12" HorizontalAlignment="Right"
+                                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                    </Grid>
                                     <Button Content="保存朗读设置" Click="ReadingSave_Click" />
                                 </StackPanel>
                             </Border>

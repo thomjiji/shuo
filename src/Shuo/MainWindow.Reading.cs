@@ -40,6 +40,18 @@ public sealed partial class MainWindow
         ReadingSpeaker.Text.Trim(), (int)ReadingSpeed.Value,
         _readingHotkeyBinding.Modifiers, _readingHotkeyBinding.VirtualKey);
 
+    private void ReadingSpeed_ValueChanged(object sender, Microsoft.UI.Xaml.Controls.Primitives.RangeBaseValueChangedEventArgs args)
+    {
+        if (ReadingSpeedValue is null) return;
+        var value = (int)Math.Round(args.NewValue);
+        ReadingSpeedValue.Text = value switch
+        {
+            < 0 => $"当前值：{value}（减慢）",
+            > 0 => $"当前值：+{value}（加快）",
+            _ => "当前值：0（正常）",
+        };
+    }
+
     private async void ReadingShortcut_Click(object sender, RoutedEventArgs args)
     {
         var previous = _readingHotkeyBinding;
@@ -140,6 +152,7 @@ public sealed partial class MainWindow
         ReadingPause.IsEnabled = _readingPlayback is not null;
         ReadingPause.Content = _readingPlayback?.Paused == true ? "继续" : "暂停";
         foreach (var control in ReadingConfiguration.Children.OfType<Microsoft.UI.Xaml.Controls.Control>()) control.IsEnabled = !active;
+        ReadingSpeedLabels.Opacity = active ? 0.5 : 1;
         ReadingApiKey.IsEnabled = !active && !ReadingUseExistingKey.IsOn;
     }
 

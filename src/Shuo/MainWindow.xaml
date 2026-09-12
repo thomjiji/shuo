@@ -30,8 +30,7 @@
         </TitleBar>
 
         <NavigationView x:Name="SettingsNavigation" Grid.Row="1"
-                        PaneDisplayMode="Left" OpenPaneLength="200"
-                        IsPaneOpen="False"
+                        PaneDisplayMode="Auto" OpenPaneLength="200"
                         IsSettingsVisible="False" IsBackButtonVisible="Collapsed"
                         AlwaysShowHeader="False" SelectionChanged="SettingsNavigation_SelectionChanged">
             <NavigationView.Resources>
@@ -45,7 +44,7 @@
                     </NavigationViewItem.InfoBadge>
                 </NavigationViewItem>
                 <NavigationViewItem x:Name="TranscriptionNavigationItem" Content="转录服务" Tag="transcription" Icon="Microphone" />
-                <NavigationViewItem Content="实时翻译" Tag="translation" Icon="Globe" />
+                <NavigationViewItem x:Name="TranslationNavigationItem" Content="实时翻译" Tag="translation" Icon="Globe" />
                 <NavigationViewItem x:Name="ReadingNavigationItem" Content="实时朗读" Tag="reading" Icon="Volume" />
                 <NavigationViewItem Content="转录历史" Tag="history" Icon="Clock" />
             </NavigationView.MenuItems>
@@ -366,6 +365,61 @@
                             </Border>
                         </StackPanel>
                         <StackPanel x:Name="ReadingPage" Spacing="16" Visibility="Collapsed">
+                            <Border Padding="16" CornerRadius="8" BorderThickness="1"
+                                    Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}">
+                                <StackPanel Spacing="12">
+                                    <ComboBox x:Name="ReadingMode" Header="朗读方式" SelectedIndex="0"
+                                              HorizontalAlignment="Stretch" SelectionChanged="ReadingMode_Changed"
+                                              automation:AutomationProperties.Name="朗读方式">
+                                        <ComboBoxItem Content="原文朗读" />
+                                        <ComboBoxItem Content="中文译读" />
+                                    </ComboBox>
+                                    <TextBlock x:Name="ReadingModeHint" TextWrapping="Wrap" />
+                                    <ComboBox x:Name="ReadingTranslationBackend" Header="中文译读服务" SelectedIndex="0"
+                                              HorizontalAlignment="Stretch" Visibility="Collapsed"
+                                              SelectionChanged="ReadingLocalSettings_Changed"
+                                              automation:AutomationProperties.Name="中文译读服务">
+                                        <ComboBoxItem Content="千问云端" />
+                                        <ComboBoxItem Content="自托管 Mac（Serena）" />
+                                    </ComboBox>
+                                    <StackPanel x:Name="ReadingLocalSettings" Spacing="12" Visibility="Collapsed">
+                                        <TextBox x:Name="ReadingLocalHost" Header="Mac 主机 IP" PlaceholderText="填写 Mac 的 Tailscale IP"
+                                                 LostFocus="ReadingLocalHost_LostFocus" automation:AutomationProperties.Name="译读 Mac 主机 IP" />
+                                        <ComboBox x:Name="ReadingLocalSpeed" Header="播放速度" SelectedIndex="1" HorizontalAlignment="Stretch"
+                                                  SelectionChanged="ReadingLocalSettings_Changed" automation:AutomationProperties.Name="本地译读播放速度">
+                                            <ComboBoxItem Content="0.85 倍" />
+                                            <ComboBoxItem Content="1 倍" />
+                                            <ComboBoxItem Content="1.15 倍" />
+                                            <ComboBoxItem Content="1.3 倍" />
+                                        </ComboBox>
+                                        <Button x:Name="ReadingLocalTest" Content="测试 Mac 连接" Click="ReadingLocalTest_Click" />
+                                    </StackPanel>
+                                    <ComboBox x:Name="ReadingTranslationSpeed" Header="中文译读语速" SelectedIndex="2"
+                                              HorizontalAlignment="Stretch" Visibility="Collapsed"
+                                              SelectionChanged="ReadingTranslationSpeed_Changed"
+                                              automation:AutomationProperties.Name="中文译读语速">
+                                        <ComboBoxItem Content="慢速" />
+                                        <ComboBoxItem Content="正常" />
+                                        <ComboBoxItem Content="稍快" />
+                                        <ComboBoxItem Content="快速" />
+                                    </ComboBox>
+                                    <HyperlinkButton x:Name="ReadingTranslationSettings" Content="配置百炼翻译凭据"
+                                                     Padding="0" Click="ReadingTranslationSettings_Click" Visibility="Collapsed" />
+                                    <TextBox x:Name="ReadingTextBox" Header="要朗读的文字" AcceptsReturn="True" TextWrapping="Wrap"
+                                             ScrollViewer.VerticalScrollBarVisibility="Auto" ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                             MinHeight="100" MaxHeight="220" MaxLength="30000" PlaceholderText="粘贴文字，或在其他应用选中文字后按朗读快捷键" />
+                                    <StackPanel Orientation="Horizontal" Spacing="8">
+                                        <Button x:Name="ReadingButton" Content="原文朗读" Click="ReadingButton_Click" />
+                                        <Button x:Name="ReadingPause" Content="暂停" IsEnabled="False" Click="ReadingPause_Click" />
+                                        <Button x:Name="ReadingStop" Content="停止" IsEnabled="False" Click="ReadingStop_Click" />
+                                    </StackPanel>
+                                    <TextBlock x:Name="ReadingStatus" TextWrapping="Wrap" />
+                                    <TextBox x:Name="ReadingTranslatedText" Header="中文译文（按生成进度显示）" IsReadOnly="True"
+                                             ScrollViewer.VerticalScrollBarVisibility="Auto" ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                             AcceptsReturn="True" TextWrapping="Wrap" MaxHeight="200" Visibility="Collapsed" />
+                                </StackPanel>
+                            </Border>
                             <StackPanel x:Name="ReadingConfiguration" Spacing="4">
                                 <Border Padding="16" CornerRadius="8" BorderThickness="1"
                                         Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
@@ -406,7 +460,7 @@
                                             <ColumnDefinition Width="*" />
                                             <ColumnDefinition Width="Auto" />
                                         </Grid.ColumnDefinitions>
-                                        <TextBlock Text="使用转录服务 API Key" VerticalAlignment="Center"
+                                        <TextBlock Text="原文朗读使用转录服务 API Key" VerticalAlignment="Center"
                                                    Style="{StaticResource BodyTextBlockStyle}" />
                                         <ToggleSwitch x:Name="ReadingUseExistingKey" Grid.Column="1" IsOn="True" MinWidth="0"
                                                       OffContent="" OnContent="" VerticalAlignment="Center"
@@ -423,7 +477,7 @@
                                             <ColumnDefinition Width="2*" MinWidth="120" />
                                             <ColumnDefinition Width="3*" />
                                         </Grid.ColumnDefinitions>
-                                        <TextBlock Text="朗读 API Key" VerticalAlignment="Center"
+                                        <TextBlock Text="原文朗读 API Key" VerticalAlignment="Center"
                                                    Style="{StaticResource BodyTextBlockStyle}" />
                                         <PasswordBox x:Name="ReadingApiKey" Grid.Column="1" VerticalAlignment="Center"
                                                      PasswordRevealMode="Peek"
@@ -438,7 +492,7 @@
                                             <ColumnDefinition Width="2*" MinWidth="120" />
                                             <ColumnDefinition Width="3*" />
                                         </Grid.ColumnDefinitions>
-                                        <TextBlock Text="音色" VerticalAlignment="Center"
+                                        <TextBlock Text="原文朗读音色" VerticalAlignment="Center"
                                                    Style="{StaticResource BodyTextBlockStyle}" />
                                         <ComboBox x:Name="ReadingSpeaker" Grid.Column="1" HorizontalAlignment="Stretch"
                                                   VerticalAlignment="Center"
@@ -454,7 +508,7 @@
                                             <ColumnDefinition Width="2*" MinWidth="120" />
                                             <ColumnDefinition Width="3*" />
                                         </Grid.ColumnDefinitions>
-                                        <TextBlock Text="语速" VerticalAlignment="Center"
+                                        <TextBlock Text="原文朗读语速" VerticalAlignment="Center"
                                                    Style="{StaticResource BodyTextBlockStyle}" />
                                         <StackPanel Grid.Column="1" Spacing="4">
                                             <Slider x:Name="ReadingSpeed" Minimum="-50" Maximum="100"
@@ -484,20 +538,6 @@
                                         Content="保存朗读设置" Style="{StaticResource AccentButtonStyle}"
                                         Click="ReadingSave_Click" />
                             </StackPanel>
-                            <Border Padding="16" CornerRadius="8" BorderThickness="1"
-                                    Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}">
-                                <StackPanel Spacing="12">
-                                    <TextBox x:Name="ReadingTextBox" Header="试用朗读" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="100" MaxHeight="220"
-                                             MaxLength="30000" PlaceholderText="输入要朗读的文字" />
-                                    <StackPanel Orientation="Horizontal" Spacing="8">
-                                        <Button x:Name="ReadingButton" Content="朗读文字" Click="ReadingButton_Click" />
-                                        <Button x:Name="ReadingPause" Content="暂停" IsEnabled="False" Click="ReadingPause_Click" />
-                                        <Button x:Name="ReadingStop" Content="停止" IsEnabled="False" Click="ReadingStop_Click" />
-                                    </StackPanel>
-                                    <TextBlock x:Name="ReadingStatus" TextWrapping="Wrap" />
-                                </StackPanel>
-                            </Border>
                         </StackPanel>
                         <StackPanel x:Name="TranslationPage" Spacing="16" Visibility="Collapsed">
                             <StackPanel x:Name="TranslationConfiguration" Spacing="4">

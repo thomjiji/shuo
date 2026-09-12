@@ -58,6 +58,18 @@ internal sealed class ReadingPlayback : IDisposable
         await _finished.Task.WaitAsync(token);
     }
 
+    internal async Task WaitForNextPassageAsync(CancellationToken token)
+    {
+        // Keep at most the current passage in flight; do not start another while paused.
+        while (Paused || _source.BufferedBytes > 24000 * 2 * 2)
+        {
+            token.ThrowIfCancellationRequested();
+            if (_finished.Task.IsCompleted) await _finished.Task;
+            await Task.Delay(20, token);
+        }
+        token.ThrowIfCancellationRequested();
+    }
+
     private void Start()
     {
         _started = true;

@@ -142,15 +142,16 @@ public sealed partial class MainWindow
     {
         if (TranslationButton is null) return;
         var running = _translationCancellation is not null;
+        var settingsBusy = running || _readingCancellation is not null;
         TranslationButton.Content = running ? "停止翻译" : "开始翻译";
         TranslationButton.IsEnabled = running || TranslationEnabled.IsOn && CanStartTranslation;
-        TranslationEnabled.IsEnabled = !running;
-        TranslationShortcutButton.IsEnabled = !running;
-        TranslationModelPicker.IsEnabled = !running;
-        TranslationWorkspace.IsEnabled = !running;
-        TranslationApiKey.IsEnabled = !running;
-        TranslationLanguage.IsEnabled = !running;
-        TranslationSaveButton.IsEnabled = !running;
+        TranslationEnabled.IsEnabled = !settingsBusy;
+        TranslationShortcutButton.IsEnabled = !settingsBusy;
+        TranslationModelPicker.IsEnabled = !settingsBusy;
+        TranslationWorkspace.IsEnabled = !settingsBusy;
+        TranslationApiKey.IsEnabled = !settingsBusy;
+        TranslationLanguage.IsEnabled = !settingsBusy;
+        TranslationSaveButton.IsEnabled = !settingsBusy;
     }
 
     private void TranslationButton_Click(object sender, RoutedEventArgs args) => ToggleTranslation();

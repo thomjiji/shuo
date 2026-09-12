@@ -1,18 +1,18 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <TargetFramework>net10.0</TargetFramework>
+    <TargetFramework>net10.0-windows10.0.26100.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="../../src/Shuo/Services/OmniReadingClient.cs" Link="OmniReadingClient.cs" />
+    <Compile Include="../../src/Shuo/Services/CloudSettings.cs" Link="CloudSettings.cs" />
+    <Compile Include="../../src/Shuo/Services/HotkeySettings.cs" Link="HotkeySettings.cs" />
     <Compile Include="../../src/Shuo/Services/HotkeyBinding.cs" Link="HotkeyBinding.cs" />
+    <Compile Include="../../src/Shuo/Services/ReadingSettings.cs" Link="ReadingSettings.cs" />
     <Compile Include="../../src/Shuo/Services/ReadingOptions.cs" Link="ReadingOptions.cs" />
-    <Compile Include="../../src/Shuo/Services/ReadingVoices.cs" Link="ReadingVoices.cs" />
-    <Compile Include="../../src/Shuo/Services/ClipboardSelectionMetadata.cs" Link="ClipboardSelectionMetadata.cs" />
     <Compile Include="../../src/Shuo/Services/ReadingText.cs" Link="ReadingText.cs" />
     <Compile Include="../../src/Shuo/Services/DoubaoSpeechClient.cs" Link="DoubaoSpeechClient.cs" />
-    <Compile Include="../../src/Shuo/Services/OmniReadingClient.cs" Link="OmniReadingClient.cs" />
-    <Compile Include="../../src/Shuo/Services/SelfHostedReadingClient.cs" Link="SelfHostedReadingClient.cs" />
   </ItemGroup>
 </Project>

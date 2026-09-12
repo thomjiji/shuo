@@ -105,6 +105,25 @@ using (var cancellation = new CancellationTokenSource(150))
     catch (OperationCanceledException) { Console.WriteLine("ok cancellation interrupts playback wait"); }
 }
 
+using (var playback = new ReadingPlayback())
+{
+    playback.TogglePause();
+    var nextPassage = playback.WaitForNextPassageAsync(default);
+    await Task.Delay(100);
+    Check(!nextPassage.IsCompleted, "pause before first audio prevents requesting the next passage");
+    playback.TogglePause();
+    await nextPassage.WaitAsync(TimeSpan.FromSeconds(1));
+    Console.WriteLine("ok resume releases next passage without restarting audio");
+    playback.TogglePause();
+    using var cancelled = new CancellationTokenSource(100);
+    try
+    {
+        await playback.WaitForNextPassageAsync(cancelled.Token);
+        throw new Exception("Cancelled passage request was released.");
+    }
+    catch (OperationCanceledException) { Console.WriteLine("ok stop cancels a paused passage wait"); }
+}
+
 for (var iteration = 0; iteration < 3; iteration++)
 {
     using var playback = new ReadingPlayback();

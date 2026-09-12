@@ -99,7 +99,103 @@ using (var cancelled = new CancellationTokenSource())
         await foreach (var _ in tts.SynthesizeAsync("hello", new(), "test-key", cancelled.Token)) { }
     }, "cancelled request does not play");
 }
+var translatedOptions = new ReadingOptions(TranslateToChinese: true);
+Check(!migrated.TranslateToChinese && JsonSerializer.Deserialize<ReadingOptions>(JsonSerializer.Serialize(translatedOptions))!.TranslateToChinese,
+    "old settings keep original reading and Chinese mode persists");
+var english = string.Concat(Enumerable.Repeat("This is a complete sentence with context. ", 100));
+var passages = ReadingText.Split(english, OmniReadingClient.PassageBytes);
+Check(string.Concat(passages) == english && passages.All(p => Encoding.UTF8.GetByteCount(p) <= 900), "translated passages are bounded without losing source text");
+var words = string.Join(" ", Enumerable.Repeat("selection", 120));
+Check(ReadingText.Split(words, 900)[0].EndsWith(' '), "oversized English sentences split between words");
+await Fails<ArgumentException>(() => Task.FromResult(OmniReadingClient.Endpoint("a/b", "cn-beijing")), "workspace cannot change request host or path");
+await Fails<ArgumentException>(() => Task.FromResult(OmniReadingClient.Endpoint("workspace", "other")), "unknown Omni region rejected");
+var translatedText = new StringBuilder();
+async Task<byte[]> ParseOmni(string events)
+{
+    translatedText.Clear();
+    using var stream = new MemoryStream(Encoding.UTF8.GetBytes(events));
+    var pcm = new List<byte>();
+    await foreach (var bytes in OmniReadingClient.ReadEventsAsync(stream, part => translatedText.Append(part), default)) pcm.AddRange(bytes);
+    return pcm.ToArray();
+}
+const string omniText = "data: {\"choices\":[{\"delta\":{\"content\":\"你好。\"}}]}\n\n";
+const string omniAudio = "data: {\"choices\":[{\"delta\":{\"audio\":{\"data\":\"AQIDBA==\"}}}]}\n\n";
+const string omniFinish = "data: {\"choices\":[{\"delta\":{},\"finish_reason\":\"stop\"}]}\n\n";
+const string omniSuccess = omniText + omniAudio + omniFinish + "data: [DONE]\n\n";
+Check((await ParseOmni(": keepalive\n\n" + omniSuccess)).SequenceEqual(new byte[] {1,2,3,4}) && translatedText.ToString() == "你好。",
+    "Omni streams raw PCM and translated text without replaying deltas");
+Check((await ParseOmni(omniText + omniAudio + omniFinish.TrimEnd())).Length == 4, "final event at EOF is processed");
+await Fails<IOException>(() => ParseOmni(omniText + omniAudio), "truncated Omni stream never reports completion");
+await Fails<IOException>(() => ParseOmni(omniText + omniFinish), "text-only Omni response is rejected");
+await Fails<IOException>(() => ParseOmni(omniAudio + omniFinish), "missing translation is rejected");
+await Fails<IOException>(() => ParseOmni(omniText + omniAudio + "data: {\"choices\":[{\"finish_reason\":\"length\"}]}\n\n"), "incomplete generation is reported");
+await Fails<IOException>(() => ParseOmni("data: {\"error\":{\"message\":\"private input\"}}\n\n"), "Omni service error is sanitized");
+await Fails<IOException>(() => ParseOmni("data: not-json\n\n"), "invalid JSON is rejected");
+await Fails<IOException>(() => ParseOmni(omniSuccess.Replace("AQIDBA==", "!")), "invalid audio encoding is rejected");
+await Fails<IOException>(() => ParseOmni(omniSuccess.Replace("AQIDBA==", "AQ==")), "odd PCM sample rejected");
+using (var cancelled = new CancellationTokenSource())
+using (var stream = new MemoryStream(Encoding.UTF8.GetBytes(omniSuccess)))
+{
+    cancelled.Cancel();
+    await Fails<OperationCanceledException>(async () =>
+    {
+        await foreach (var _ in OmniReadingClient.ReadEventsAsync(stream, _ => throw new Exception("Cancelled text was delivered"), cancelled.Token))
+            throw new Exception("Cancelled audio was delivered");
+    }, "cancelled Omni stream delivers no text or audio");
+}
+var omniHandler = new OmniHandler(omniSuccess);
+foreach (var source in new[] { "会議は明日の午後三時です。", "회의는 내일입니다.", "明日。Tomorrow. 明天。" })
+{
+    var languageHandler = new OmniHandler(omniSuccess);
+    using var languageHttp = new HttpClient(languageHandler);
+    await foreach (var _ in new OmniReadingClient(languageHttp).ReadAsync(source, OmniReadingClient.Endpoint("workspace", "cn-beijing"), "test-key", _ => { }, default)) { }
+    using var languageBody = JsonDocument.Parse(languageHandler.Body!);
+    var prompt = languageBody.RootElement.GetProperty("messages")[0].GetProperty("content").GetString()!;
+    Check(prompt.Contains("自动识别") && prompt.Contains("简体中文") && prompt.EndsWith(source), "multilingual input reaches Chinese translation request unchanged");
+}
+Check(JsonSerializer.Deserialize<ReadingOptions>("{\"TranslateToChinese\":true}")!.TranslationSpeechRate == 1,
+    "existing reading settings default translated speech to slightly faster");
+foreach (var (rate, phrase) in new[] { (-1, "偏慢"), (0, "正常的语速"), (1, "稍快"), (2, "明显偏快") })
+{
+    var paceHandler = new OmniHandler(omniSuccess);
+    using var paceHttp = new HttpClient(paceHandler);
+    await foreach (var _ in new OmniReadingClient(paceHttp).ReadAsync("Hello.", OmniReadingClient.Endpoint("workspace", "cn-beijing"), "test-key", _ => { }, default, rate)) { }
+    using var paceBody = JsonDocument.Parse(paceHandler.Body!);
+    var prompt = paceBody.RootElement.GetProperty("messages")[0].GetProperty("content").GetString()!;
+    Check(prompt.Contains(phrase) && prompt.EndsWith("Hello."), $"translated speech pace {rate} reaches request and preserves source");
+}
+using (var omniHttp = new HttpClient(omniHandler))
+{
+    var endpoint = OmniReadingClient.Endpoint("workspace", "cn-beijing");
+    await foreach (var _ in new OmniReadingClient(omniHttp).ReadAsync("Hello.", endpoint, "test-key", _ => { }, default)) { }
+    using var body = JsonDocument.Parse(omniHandler.Body!);
+    Check(omniHandler.Endpoint == endpoint && omniHandler.Authorization == "Bearer test-key"
+        && body.RootElement.GetProperty("model").GetString() == "qwen3.5-omni-flash"
+        && body.RootElement.GetProperty("audio").GetProperty("voice").GetString() == "Tina", "Omni receives configured endpoint, credentials and tested model/voice");
+}
+using (var omniHttp = new HttpClient(new OmniHandler("private service body", HttpStatusCode.Unauthorized)))
+{
+    await Fails<HttpRequestException>(async () =>
+    {
+        await foreach (var _ in new OmniReadingClient(omniHttp).ReadAsync("Hello.", OmniReadingClient.Endpoint("workspace", "cn-beijing"), "test-key", _ => { }, default)) { }
+    }, "Omni HTTP failures are reported");
+}
+checks += await LocalProtocolChecks.Run();
 Console.WriteLine($"Passed {checks} checks.");
+
+sealed class OmniHandler(string events, HttpStatusCode status = HttpStatusCode.OK) : HttpMessageHandler
+{
+    public string? Body, Authorization;
+    public Uri? Endpoint;
+    protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken token)
+    {
+        token.ThrowIfCancellationRequested();
+        Body = await request.Content!.ReadAsStringAsync(token);
+        Endpoint = request.RequestUri;
+        Authorization = request.Headers.Authorization?.ToString();
+        return new(status) { Content = new StringContent(events) };
+    }
+}
 
 sealed class RecordingHandler : HttpMessageHandler
 {

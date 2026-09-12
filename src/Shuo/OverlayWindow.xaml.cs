@@ -45,10 +45,15 @@ public sealed partial class OverlayWindow : Window
     private bool _translation;
     private bool _layingOutTranslation;
     private PointInt32? _captionPosition;
+    private PointInt32? _readingPosition;
     private PointInt32 _dragStart;
     private PointInt32 _dragOrigin;
     private uint? _dragPointer;
     internal event Action? TranslationCloseRequested;
+    internal event Action? ReadingPauseRequested;
+    internal event Action? ReadingStopRequested;
+    internal event Action? ReadingCloseRequested;
+    private bool _reading;
     private readonly Stopwatch _voiceClock = new();
     private double _targetLevel;
     private double _displayLevel;
@@ -63,6 +68,7 @@ public sealed partial class OverlayWindow : Window
     public OverlayWindow()
     {
         InitializeComponent();
+        Title = "Shuo 状态";
         _handle = WindowNative.GetWindowHandle(this);
         if (AppWindow.Presenter is OverlappedPresenter presenter)
         {
@@ -131,6 +137,12 @@ public sealed partial class OverlayWindow : Window
             : NativeMethods.GetForegroundWorkArea();
         _hasText = false;
         _translation = translation;
+        _reading = false;
+        ReadingControls.Visibility = Visibility.Collapsed;
+        ReadingCloseButton.Visibility = Visibility.Collapsed;
+        TextViewport.Visibility = Visibility.Visible;
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(CaptionCloseButton, "停止翻译");
+        Microsoft.UI.Xaml.Controls.ToolTipService.SetToolTip(CaptionCloseButton, "停止翻译");
         Microsoft.UI.Xaml.Controls.ToolTipService.SetToolTip(OverlaySurface, null);
         _panelWidth = translation ? CaptionWidth : 36;
         _panelHeight = translation ? CaptionMaxLines * CaptionLineHeight + 16 : OverlayHeight;
@@ -256,12 +268,57 @@ public sealed partial class OverlayWindow : Window
         if (_visible && !_busy) _targetLevel = Math.Clamp(Math.Pow(Math.Max(0, level), 0.75) * 1.8, 0, 1);
     }
 
-    internal void ReadingAudio(bool buffering, double level, string status)
+    internal void BeginReading()
+    {
+        Begin(true);
+        _reading = true;
+        if (_readingPosition is { } saved)
+            _workArea = DisplayArea.GetFromPoint(saved, DisplayAreaFallback.Nearest).WorkArea;
+        _panelWidth = 148;
+        _panelHeight = 52;
+        OverlaySurface.Padding = new Thickness(10, 0, 4, 0);
+        TrackGrid.ColumnSpacing = 6;
+        TextViewport.Visibility = Visibility.Collapsed;
+        ReadingControls.Visibility = Visibility.Visible;
+        ReadingCloseButton.Visibility = Visibility.Visible;
+        ReadingPauseButton.IsEnabled = ReadingStopButton.IsEnabled = true;
+        ReadingPauseIcon.Glyph = "\uE769";
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(ReadingPauseButton, "暂停朗读");
+        Microsoft.UI.Xaml.Controls.ToolTipService.SetToolTip(ReadingPauseButton, "暂停朗读");
+        Position();
+    }
+
+    private void ReadingPauseButton_Click(object sender, RoutedEventArgs args) => ReadingPauseRequested?.Invoke();
+    private void ReadingStopButton_Click(object sender, RoutedEventArgs args) => ReadingStopRequested?.Invoke();
+    private void ReadingCloseButton_Click(object sender, RoutedEventArgs args)
+    {
+        Hide();
+        ReadingCloseRequested?.Invoke();
+    }
+
+    internal void FinishReading()
+    {
+        if (!_reading) { Hide(); return; }
+        if (!_visible) return;
+        SetBusy(false);
+        StopVoiceAnimation();
+        ReadingPauseIcon.Glyph = "\uE769";
+        ReadingPauseButton.IsEnabled = ReadingStopButton.IsEnabled = false;
+        Microsoft.UI.Xaml.Controls.ToolTipService.SetToolTip(OverlaySurface, "朗读已停止");
+    }
+
+    internal void ReadingAudio(bool buffering, double level, string status, bool paused = false)
     {
         if (!_visible) return;
         if (_busy != buffering) SetBusy(buffering);
         UpdateAudioLevel(level);
         Microsoft.UI.Xaml.Controls.ToolTipService.SetToolTip(OverlaySurface, status);
+        if (_reading)
+        {
+            ReadingPauseIcon.Glyph = paused ? "\uE768" : "\uE769";
+            Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(ReadingPauseButton, paused ? "继续朗读" : "暂停朗读");
+            Microsoft.UI.Xaml.Controls.ToolTipService.SetToolTip(ReadingPauseButton, paused ? "继续朗读" : "暂停朗读");
+        }
     }
 
     private void OnVoiceRendering(object? sender, object args)
@@ -419,7 +476,7 @@ public sealed partial class OverlayWindow : Window
         var margin = (int)Math.Round(20 * scale);
         var width = Math.Max(1, Math.Min((int)Math.Round(_panelWidth * scale), _workArea.Width - margin * 2));
         var height = Math.Max(1, Math.Min((int)Math.Round(_panelHeight * scale), _workArea.Height - margin * 2));
-        if (_translation && _captionPosition is { } position)
+        if ((_reading ? _readingPosition : _translation ? _captionPosition : null) is { } position)
         {
             return new RectInt32(Math.Clamp(position.X, _workArea.X, _workArea.X + _workArea.Width - width),
                 Math.Clamp(position.Y, _workArea.Y, _workArea.Y + _workArea.Height - height), width, height);
@@ -445,9 +502,9 @@ public sealed partial class OverlayWindow : Window
 
     private void Overlay_PointerPressed(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs args)
     {
-        if (!_translation || !args.GetCurrentPoint(OverlaySurface).Properties.IsLeftButtonPressed) return;
+        if ((!_translation && !_reading) || !args.GetCurrentPoint(OverlaySurface).Properties.IsLeftButtonPressed) return;
         for (var source = args.OriginalSource as DependencyObject; source is not null; source = VisualTreeHelper.GetParent(source))
-            if (ReferenceEquals(source, CaptionCloseButton)) return;
+            if (source is Microsoft.UI.Xaml.Controls.Button) return;
         if (!OverlaySurface.CapturePointer(args.Pointer)) return;
         _dragPointer = args.Pointer.PointerId;
         _dragStart = PointerScreenPosition(args);
@@ -460,7 +517,9 @@ public sealed partial class OverlayWindow : Window
         if (_dragPointer != args.Pointer.PointerId) return;
         var point = PointerScreenPosition(args);
         _workArea = DisplayArea.GetFromPoint(point, DisplayAreaFallback.Nearest).WorkArea;
-        _captionPosition = new PointInt32(_dragOrigin.X + point.X - _dragStart.X, _dragOrigin.Y + point.Y - _dragStart.Y);
+        var position = new PointInt32(_dragOrigin.X + point.X - _dragStart.X, _dragOrigin.Y + point.Y - _dragStart.Y);
+        if (_reading) _readingPosition = position;
+        else _captionPosition = position;
         Position();
         args.Handled = true;
     }
@@ -469,7 +528,8 @@ public sealed partial class OverlayWindow : Window
     {
         if (_dragPointer != args.Pointer.PointerId) return;
         _dragPointer = null;
-        _captionPosition = AppWindow.Position;
+        if (_reading) _readingPosition = AppWindow.Position;
+        else _captionPosition = AppWindow.Position;
         OverlaySurface.ReleasePointerCapture(args.Pointer);
         args.Handled = true;
     }

@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=80,<81"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "shuo-reading"
+version = "0.1.0"
+description = "Private Chinese translation and speech service for Shuo on Apple Silicon"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "mlx-lm==0.31.3",
+    "mlx-audio==0.5.3",
+    "av>=16,<19",
+    "fastapi>=0.115,<1",
+    "uvicorn[standard]>=0.30,<1",
+]
+
+[dependency-groups]
+dev = ["httpx>=0.28,<1"]
+
+[project.scripts]
+shuo-reading = "shuo_reading.server:main"
+
+[tool.setuptools.packages.find]
+include = ["shuo_reading*"]

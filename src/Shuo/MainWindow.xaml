@@ -263,7 +263,7 @@
                                     BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
                                     BorderThickness="1" CornerRadius="8">
                                 <StackPanel Spacing="10">
-                                    <TextBlock FontSize="16" FontWeight="SemiBold" Text="转录服务" />
+                                    <TextBlock Text="转录服务" />
                                     <StackPanel x:Name="CloudControls" Spacing="10">
                                         <ComboBox x:Name="ProviderPicker" SelectedIndex="0" HorizontalAlignment="Stretch"
                                                   SelectionChanged="ProviderPicker_SelectionChanged">

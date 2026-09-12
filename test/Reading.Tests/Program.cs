@@ -55,6 +55,9 @@ var migrated = JsonSerializer.Deserialize<ReadingOptions>("{\"Enabled\":true}")!
 Check(migrated.Hotkey == new HotkeyBinding(3, 0x20), "missing shortcut uses Ctrl Alt Space");
 var custom = new ReadingOptions(HotkeyModifiers: 6, HotkeyVirtualKey: 0x79);
 Check(JsonSerializer.Deserialize<ReadingOptions>(JsonSerializer.Serialize(custom))!.Hotkey == custom.Hotkey, "custom reading shortcut survives settings roundtrip");
+Check(ReadingVoices.All.Any(voice => voice.Id == new ReadingOptions().Speaker), "default voice appears in picker");
+Check(ReadingVoices.All.Any(voice => voice.Name == "温柔妈妈 2.0" && voice.Id == "zh_female_wenroumama_uranus_bigtts"), "saved voice ID maps to its display name");
+Check(ReadingVoices.All.Select(voice => voice.Id).Distinct(StringComparer.Ordinal).Count() == ReadingVoices.All.Length, "voice picker IDs are unique");
 await Fails<ArgumentException>(() => { new ReadingOptions(HotkeyModifiers: 0).Validate(); return Task.CompletedTask; }, "invalid reading shortcut rejected");
 byte[] CopyMetadata(string value)
 {

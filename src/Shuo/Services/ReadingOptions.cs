@@ -11,9 +11,9 @@ internal sealed record ReadingOptions(bool Enabled = false, bool UseExistingKey 
     internal void Validate()
     {
         if (!Hotkey.IsValid) throw new ArgumentException("请设置有效的朗读快捷键。");
-        if (string.IsNullOrWhiteSpace(Speaker)) throw new ArgumentException("请填写音色 ID。");
+        if (string.IsNullOrWhiteSpace(Speaker)) throw new ArgumentException("请选择朗读音色。");
         if (Speaker.StartsWith("S_", StringComparison.Ordinal))
-            throw new ArgumentException("请使用豆包语音合成 2.0 的系统音色 ID。");
+            throw new ArgumentException("已保存的音色不可用，请重新选择。");
         if (SpeechRate is < -50 or > 100) throw new ArgumentException("语速必须在 -50 到 100 之间。");
     }
 }

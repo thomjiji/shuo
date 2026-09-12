@@ -8,6 +8,7 @@
   <ItemGroup>
     <Compile Include="../../src/Shuo/Services/HotkeyBinding.cs" Link="HotkeyBinding.cs" />
     <Compile Include="../../src/Shuo/Services/ReadingOptions.cs" Link="ReadingOptions.cs" />
+    <Compile Include="../../src/Shuo/Services/ReadingVoices.cs" Link="ReadingVoices.cs" />
     <Compile Include="../../src/Shuo/Services/ClipboardSelectionMetadata.cs" Link="ClipboardSelectionMetadata.cs" />
     <Compile Include="../../src/Shuo/Services/ReadingText.cs" Link="ReadingText.cs" />
     <Compile Include="../../src/Shuo/Services/DoubaoSpeechClient.cs" Link="DoubaoSpeechClient.cs" />

@@ -353,24 +353,19 @@
                             </Border>
                         </StackPanel>
                         <StackPanel x:Name="ReadingPage" Spacing="12" Visibility="Collapsed">
-                            <TextBlock Text="选中文字，让豆包读给你听。触发时优先读取系统选区，必要时临时复制取词，再恢复未被其他操作改动的剪贴板。朗读文字发送到火山引擎，不保存原文和音频。"
-                                       TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                             <Border Padding="18" CornerRadius="8" BorderThickness="1"
                                     Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
                                     BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}">
                                 <StackPanel x:Name="ReadingConfiguration" Spacing="12">
                                     <ToggleSwitch x:Name="ReadingEnabled" Header="启用实时朗读" OffContent="关闭" OnContent="开启" Toggled="ReadingToggle_Changed" />
+                                    <TextBlock Text="朗读快捷键" />
                                     <Button x:Name="ReadingShortcutButton" Content="Ctrl + Alt + Space" Click="ReadingShortcut_Click" automation:AutomationProperties.Name="更改朗读快捷键" />
-                                    <TextBlock Text="点击上方按钮更改朗读快捷键。按快捷键朗读选区，再按一次停止。没有选中文字时不朗读。开启功能后请保存设置。"
-                                               FontSize="12" TextWrapping="Wrap" />
                                     <ToggleSwitch x:Name="ReadingUseExistingKey" Header="使用转录服务中的火山引擎 API Key" IsOn="True"
                                                   OffContent="单独配置" OnContent="使用已有 Key" Toggled="ReadingToggle_Changed" />
                                     <PasswordBox x:Name="ReadingApiKey" Header="朗读 API Key" PasswordRevealMode="Peek" />
-                                    <TextBlock Text="豆包语音合成 2.0" FontWeight="SemiBold" />
-                                    <TextBox x:Name="ReadingSpeaker" Header="音色 ID" Text="zh_female_vv_uranus_bigtts" />
-                                    <TextBlock Text="默认使用 vv 音色；可从官方音色列表选择其他语音合成 2.0 音色。"
-                                               TextWrapping="Wrap" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                                    <HyperlinkButton Content="查看可用的系统音色" NavigateUri="https://www.volcengine.com/docs/6561/1257544" />
+                                    <ComboBox x:Name="ReadingSpeaker" Header="音色" HorizontalAlignment="Stretch"
+                                              DisplayMemberPath="Name" MaxDropDownHeight="320"
+                                              automation:AutomationProperties.Name="朗读音色" />
                                     <Slider x:Name="ReadingSpeed" Header="语速" Minimum="-50" Maximum="100"
                                             StepFrequency="10" SmallChange="10" LargeChange="20" SnapsTo="StepValues"
                                             TickFrequency="10" TickPlacement="BottomRight" IsThumbToolTipEnabled="True"
@@ -398,13 +393,13 @@
                                     BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}">
                                 <StackPanel Spacing="12">
                                     <TextBox x:Name="ReadingTextBox" Header="试用朗读" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="100" MaxHeight="220"
-                                             MaxLength="30000" PlaceholderText="在这里粘贴想听的段落，或使用全局快捷键。" />
+                                             MaxLength="30000" PlaceholderText="输入要朗读的文字" />
                                     <StackPanel Orientation="Horizontal" Spacing="8">
                                         <Button x:Name="ReadingButton" Content="朗读文字" Click="ReadingButton_Click" />
                                         <Button x:Name="ReadingPause" Content="暂停" IsEnabled="False" Click="ReadingPause_Click" />
                                         <Button x:Name="ReadingStop" Content="停止" IsEnabled="False" Click="ReadingStop_Click" />
                                     </StackPanel>
-                                    <TextBlock x:Name="ReadingStatus" Text="开启并保存后即可使用。准备音频时显示加载状态，播放时波纹跟随音量变化。" TextWrapping="Wrap" />
+                                    <TextBlock x:Name="ReadingStatus" TextWrapping="Wrap" />
                                 </StackPanel>
                             </Border>
                         </StackPanel>

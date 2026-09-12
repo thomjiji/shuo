@@ -25,7 +25,15 @@ public sealed partial class MainWindow
             ReadingEnabled.IsOn = options.Enabled;
             ReadingUseExistingKey.IsOn = options.UseExistingKey;
             ReadingApiKey.Password = ReadingSettings.LoadApiKey();
-            ReadingSpeaker.Text = options.Speaker;
+            var voices = ReadingVoices.All;
+            var selectedVoice = voices.FirstOrDefault(voice => voice.Id == options.Speaker);
+            if (selectedVoice is null)
+            {
+                selectedVoice = new ReadingVoice("已保存的音色", options.Speaker);
+                voices = [selectedVoice, .. voices];
+            }
+            ReadingSpeaker.ItemsSource = voices;
+            ReadingSpeaker.SelectedItem = selectedVoice;
             ReadingSpeed.Value = options.SpeechRate;
             _readingHotkeyBinding = options.Hotkey;
             ReadingShortcutButton.Content = _readingHotkeyBinding.DisplayText;
@@ -37,7 +45,7 @@ public sealed partial class MainWindow
     }
 
     private ReadingOptions CurrentReadingOptions() => new(ReadingEnabled.IsOn, ReadingUseExistingKey.IsOn,
-        ReadingSpeaker.Text.Trim(), (int)ReadingSpeed.Value,
+        (ReadingSpeaker.SelectedItem as ReadingVoice)?.Id ?? "", (int)ReadingSpeed.Value,
         _readingHotkeyBinding.Modifiers, _readingHotkeyBinding.VirtualKey);
 
     private void ReadingSpeed_ValueChanged(object sender, Microsoft.UI.Xaml.Controls.Primitives.RangeBaseValueChangedEventArgs args)

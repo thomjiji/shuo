@@ -173,7 +173,7 @@ public sealed partial class MainWindow : Window
     private void PageViewport_SizeChanged(object sender, SizeChangedEventArgs args)
     {
         if (SettingsContent is not null)
-            SettingsContent.Width = Math.Max(0, Math.Min(920, args.NewSize.Width - 48));
+            SettingsContent.Width = Math.Max(0, Math.Min(920, args.NewSize.Width - 72));
     }
 
     private bool CanSwitchFromTray => _readingCancellation is null && _translationCancellation is null && _daemonReady && !_dictationActive && !_togglePending
@@ -953,7 +953,7 @@ public sealed partial class MainWindow : Window
         {
             MinWidth = 32,
             Height = 32,
-            Padding = new Thickness(6, 3, 6, 3),
+            Padding = new Thickness(8, 4, 8, 4),
             Background = ShortcutKeyBrush,
             CornerRadius = new CornerRadius(5),
             Child = new TextBlock

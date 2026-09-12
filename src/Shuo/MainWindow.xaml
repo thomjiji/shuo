@@ -22,25 +22,24 @@
         </TitleBar>
 
         <NavigationView x:Name="SettingsNavigation" Grid.Row="1"
-                        PaneDisplayMode="Auto" OpenPaneLength="200"
-                        CompactModeThresholdWidth="0" ExpandedModeThresholdWidth="1040"
+                        PaneDisplayMode="Left" OpenPaneLength="200"
                         IsSettingsVisible="False" IsBackButtonVisible="Collapsed"
                         AlwaysShowHeader="False" SelectionChanged="SettingsNavigation_SelectionChanged">
             <NavigationView.Resources>
                 <ResourceDictionary>
                     <ResourceDictionary.ThemeDictionaries>
                         <ResourceDictionary x:Key="Default">
-                            <AcrylicBrush x:Key="NavigationViewDefaultPaneBackground"
+                            <AcrylicBrush x:Key="NavigationViewExpandedPaneBackground"
                                           TintColor="#202020" TintOpacity="0.10"
                                           TintLuminosityOpacity="0.65" FallbackColor="#2C2C2C" />
                         </ResourceDictionary>
                         <ResourceDictionary x:Key="Light">
-                            <AcrylicBrush x:Key="NavigationViewDefaultPaneBackground"
+                            <AcrylicBrush x:Key="NavigationViewExpandedPaneBackground"
                                           TintColor="#FCFCFC" TintOpacity="0.0"
                                           TintLuminosityOpacity="0.65" FallbackColor="#F9F9F9" />
                         </ResourceDictionary>
                         <ResourceDictionary x:Key="HighContrast">
-                            <SolidColorBrush x:Key="NavigationViewDefaultPaneBackground"
+                            <SolidColorBrush x:Key="NavigationViewExpandedPaneBackground"
                                              Color="{ThemeResource SystemColorWindowColor}" />
                         </ResourceDictionary>
                     </ResourceDictionary.ThemeDictionaries>
@@ -63,9 +62,9 @@
                               HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto"
                               HorizontalContentAlignment="Stretch">
                     <StackPanel x:Name="SettingsContent" Width="640" HorizontalAlignment="Center"
-                                Margin="0,24,0,24" Spacing="12">
+                                Margin="0,36,0,36" Spacing="24">
                         <TextBlock x:Name="PageTitle" Text="转录服务" FontSize="28"
-                                   FontWeight="SemiBold" Margin="0,0,0,8" />
+                                   FontWeight="SemiBold" />
                         <StackPanel x:Name="HistoryPage" Spacing="12" Visibility="Collapsed">
                             <TextBlock Text="完成转录后自动保存最终文字。记录仅保存在这台电脑上，重启后仍可查看。"
                                        TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
@@ -82,7 +81,7 @@
                             <ItemsControl x:Name="HistoryItems">
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate>
-                                        <Border Padding="18" Margin="0,0,0,12" CornerRadius="8" BorderThickness="1"
+                                        <Border Padding="16" Margin="0,0,0,16" CornerRadius="8" BorderThickness="1"
                                                 Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
                                                 BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}">
                                             <StackPanel Spacing="12">
@@ -107,11 +106,11 @@
                             </ItemsControl>
                             <Button x:Name="MoreHistoryButton" Content="加载更多" Click="MoreHistory_Click" Visibility="Collapsed" />
                         </StackPanel>
-                        <StackPanel x:Name="GeneralPage" Spacing="12" Visibility="Collapsed">
-                            <Border Padding="18" CornerRadius="8" BorderThickness="1"
+                        <StackPanel x:Name="GeneralPage" Spacing="16" Visibility="Collapsed">
+                            <Border Padding="16" CornerRadius="8" BorderThickness="1"
                                     Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
                                     BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}">
-                                <StackPanel Spacing="10">
+                                <StackPanel Spacing="12">
                                     <TextBlock Text="版本与更新" FontSize="16" FontWeight="SemiBold" />
                                     <TextBlock x:Name="AppVersionLabel" IsTextSelectionEnabled="True" />
                                     <TextBlock x:Name="UpdateStatus" TextWrapping="Wrap" />
@@ -123,7 +122,7 @@
                                 </StackPanel>
                             </Border>
                             <Border
-                                Padding="18"
+                                Padding="16"
                                 Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
                                 BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
                                 BorderThickness="1"
@@ -143,7 +142,7 @@
                                             FontSize="24"
                                             Glyph="&#xE720;" />
 
-                                        <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
+                                        <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="4">
                                             <TextBlock FontSize="16" FontWeight="SemiBold" Text="录音触发快捷键" />
                                             <TextBlock
                                                 FontSize="12"
@@ -156,12 +155,12 @@
                                             Grid.Column="2"
                                             VerticalAlignment="Center"
                                             Orientation="Horizontal"
-                                            Spacing="6" />
+                                            Spacing="8" />
 
                                         <Button
                                             x:Name="EditShortcutButton"
                                             Grid.Column="3"
-                                            Margin="6,0,0,0"
+                                            Margin="8,0,0,0"
                                             Padding="8"
                                             automation:AutomationProperties.Name="编辑录音触发快捷键"
                                             Click="EditShortcutButton_Click">
@@ -171,12 +170,12 @@
 
                                     <Border
                                         x:Name="ShortcutEditorPanel"
-                                        Margin="0,14,0,0"
-                                        Padding="0,14,0,0"
+                                        Margin="0,16,0,0"
+                                        Padding="0,16,0,0"
                                         BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
                                         BorderThickness="0,1,0,0"
                                         Visibility="Collapsed">
-                                        <StackPanel Spacing="10">
+                                        <StackPanel Spacing="12">
                                             <TextBlock
                                                 FontSize="12"
                                                 Foreground="{ThemeResource TextFillColorSecondaryBrush}"
@@ -200,7 +199,7 @@
                                                         HorizontalAlignment="Center"
                                                         VerticalAlignment="Center"
                                                         Orientation="Horizontal"
-                                                        Spacing="6" />
+                                                        Spacing="8" />
                                                 </Grid>
                                             </Button>
 
@@ -214,7 +213,7 @@
                                                         Padding="8,4"
                                                         automation:AutomationProperties.Name="重置快捷键"
                                                         Click="ResetShortcutButton_Click">
-                                                        <StackPanel Orientation="Horizontal" Spacing="6">
+                                                        <StackPanel Orientation="Horizontal" Spacing="8">
                                                             <FontIcon FontFamily="Segoe MDL2 Assets" FontSize="12" Glyph="&#xE72C;" />
                                                             <TextBlock FontSize="12" Text="重置" />
                                                         </StackPanel>
@@ -223,7 +222,7 @@
                                                         Padding="8,4"
                                                         automation:AutomationProperties.Name="清除快捷键"
                                                         Click="ClearShortcutButton_Click">
-                                                        <StackPanel Orientation="Horizontal" Spacing="6">
+                                                        <StackPanel Orientation="Horizontal" Spacing="8">
                                                             <FontIcon FontFamily="Segoe MDL2 Assets" FontSize="12" Glyph="&#xE711;" />
                                                             <TextBlock FontSize="12" Text="清除" />
                                                         </StackPanel>
@@ -257,14 +256,14 @@
                                 <TextBlock FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                                            Text="关闭窗口后仍在托盘运行。右键托盘图标可退出。" TextWrapping="Wrap" />
                         </StackPanel>
-                        <StackPanel x:Name="TranscriptionPage" Spacing="12">
-                            <Border Padding="18"
+                        <StackPanel x:Name="TranscriptionPage" Spacing="16">
+                            <Border Padding="16"
                                     Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
                                     BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
                                     BorderThickness="1" CornerRadius="8">
-                                <StackPanel Spacing="10">
+                                <StackPanel Spacing="12">
                                     <TextBlock Text="转录服务" />
-                                    <StackPanel x:Name="CloudControls" Spacing="10">
+                                    <StackPanel x:Name="CloudControls" Spacing="12">
                                         <ComboBox x:Name="ProviderPicker" SelectedIndex="0" HorizontalAlignment="Stretch"
                                                   SelectionChanged="ProviderPicker_SelectionChanged">
                                             <ComboBoxItem Content="本地模型" />
@@ -313,7 +312,7 @@
                                     </StackPanel>
                                     <StackPanel x:Name="LocalModelCard" Spacing="8">
                                         <TextBlock Text="模型" />
-                                        <Grid RowSpacing="6">
+                                        <Grid RowSpacing="8">
                                             <Grid.ColumnDefinitions>
                                                 <ColumnDefinition Width="*" />
                                                 <ColumnDefinition Width="Auto" />
@@ -341,7 +340,7 @@
                                                Margin="0,8,0,0" TextWrapping="Wrap" />
                                 </StackPanel>
                             </Border>
-                            <Border x:Name="DictationTrialCard" Padding="18" CornerRadius="8"
+                            <Border x:Name="DictationTrialCard" Padding="16" CornerRadius="8"
                                     Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
                                     BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1">
                                 <StackPanel Spacing="12">
@@ -352,8 +351,8 @@
                                 </StackPanel>
                             </Border>
                         </StackPanel>
-                        <StackPanel x:Name="ReadingPage" Spacing="12" Visibility="Collapsed">
-                            <Border Padding="18" CornerRadius="8" BorderThickness="1"
+                        <StackPanel x:Name="ReadingPage" Spacing="16" Visibility="Collapsed">
+                            <Border Padding="16" CornerRadius="8" BorderThickness="1"
                                     Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
                                     BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}">
                                 <StackPanel x:Name="ReadingConfiguration" Spacing="12">
@@ -388,7 +387,7 @@
                                     <Button Content="保存朗读设置" Click="ReadingSave_Click" />
                                 </StackPanel>
                             </Border>
-                            <Border Padding="18" CornerRadius="8" BorderThickness="1"
+                            <Border Padding="16" CornerRadius="8" BorderThickness="1"
                                     Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
                                     BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}">
                                 <StackPanel Spacing="12">
@@ -403,8 +402,8 @@
                                 </StackPanel>
                             </Border>
                         </StackPanel>
-                        <StackPanel x:Name="TranslationPage" Spacing="12" Visibility="Collapsed">
-                            <Border Padding="18" CornerRadius="8" BorderThickness="1"
+                        <StackPanel x:Name="TranslationPage" Spacing="16" Visibility="Collapsed">
+                            <Border Padding="16" CornerRadius="8" BorderThickness="1"
                                     Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
                                     BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}">
                                 <StackPanel Spacing="12">
@@ -424,9 +423,9 @@
                                 </StackPanel>
                             </Border>
                         </StackPanel>
-                        <StackPanel x:Name="CleanupPage" Spacing="12" Visibility="Collapsed">
+                        <StackPanel x:Name="CleanupPage" Spacing="16" Visibility="Collapsed">
                             <Border
-                                Padding="18"
+                                Padding="16"
                                 Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
                                 BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
                                 BorderThickness="1"

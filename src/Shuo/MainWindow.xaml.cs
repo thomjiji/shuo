@@ -124,7 +124,11 @@ public sealed partial class MainWindow : Window
             var suffix = CloudResourceId.Text.Trim().EndsWith(".concurrent", StringComparison.Ordinal) ? "concurrent" : "duration";
             if (DoubaoModelPicker.SelectedIndex == 0) CloudResourceId.Text = $"volc.seedasr.sauc.{suffix}";
             else if (DoubaoModelPicker.SelectedIndex == 1) CloudResourceId.Text = $"volc.bigasr.sauc.{suffix}";
-            else DoubaoResourceSettings.IsExpanded = true;
+            else
+            {
+                TranscriptionSettingsExpander.IsExpanded = true;
+                DoubaoResourceSettings.IsExpanded = true;
+            }
         };
         CloudResourceId.TextChanged += (_, _) => { UpdateDoubaoModelPicker(); SaveCloudFields(); };
         foreach (var field in CloudInputFields)
@@ -300,6 +304,21 @@ public sealed partial class MainWindow : Window
         if (QwenFields is not null) QwenFields.Visibility = ProviderPicker.SelectedIndex == 2 ? Visibility.Visible : Visibility.Collapsed;
         if (SelfHostedFields is not null) SelfHostedFields.Visibility = ProviderPicker.SelectedIndex == 3 ? Visibility.Visible : Visibility.Collapsed;
         if (LocalModelCard is not null) LocalModelCard.Visibility = ProviderPicker.SelectedIndex == 0 ? Visibility.Visible : Visibility.Collapsed;
+        if (TranscriptionSettingsExpander is not null)
+        {
+            TranscriptionDoubaoCredentials.Visibility = CloudFields.Visibility;
+            TranscriptionQwenCredentials.Visibility = QwenFields!.Visibility;
+            TranscriptionHostSettings.Visibility = SelfHostedFields!.Visibility;
+            var needsSetup = ProviderPicker.SelectedIndex switch
+            {
+                1 => string.IsNullOrWhiteSpace(CloudApiKey.Password)
+                    && (string.IsNullOrWhiteSpace(CloudAppId.Text) || string.IsNullOrWhiteSpace(CloudAccessToken.Password)),
+                2 => string.IsNullOrWhiteSpace(QwenApiKey.Password),
+                3 => string.IsNullOrWhiteSpace(SelfHostedUrl.Text),
+                _ => false,
+            };
+            TranscriptionSettingsExpander.IsExpanded = needsSetup;
+        }
         RefreshCloudStatus();
         var provider = ProviderPicker.SelectedIndex switch { 3 => "selfhosted", 2 => "qwen", 1 => "doubao", _ => "local" };
         if (!_cloudFieldsLoaded || provider == _cloudOptions.Backend) return;
@@ -906,6 +925,9 @@ public sealed partial class MainWindow : Window
     {
         if (TranscriptionShortcutButton is not null)
             TranscriptionShortcutButton.Content = _hotkeyBinding?.DisplayText ?? "未设置";
+        if (DictationTrialInput is not null)
+            DictationTrialInput.PlaceholderText = _hotkeyBinding is { } binding
+                ? $"按 {binding.DisplayText} 开始听写" : "请在设置中指定听写快捷键";
     }
 
     private static uint CurrentModifiers()

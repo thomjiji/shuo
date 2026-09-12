@@ -33,6 +33,10 @@ public sealed partial class MainWindow
             TranslationHost.Text = string.IsNullOrWhiteSpace(options.Host) ? ReadingSettings.Load().SelfHostedHost : options.Host;
             _translationHotkeyBinding = options.Hotkey;
             TranslationShortcutButton.Content = _translationHotkeyBinding.DisplayText;
+            TranslationSettingsExpander.IsExpanded = !options.Enabled || (options.Backend == "self-hosted"
+                ? string.IsNullOrWhiteSpace(TranslationHost.Text)
+                : string.IsNullOrWhiteSpace(options.WorkspaceId) || string.IsNullOrWhiteSpace(TranslationApiKey.Password));
+            if (!options.Enabled) TranslationStatus.Text = "未启用";
             RegisterTranslationHotkey();
         }
         catch (Exception error) { TranslationStatus.Text = "无法读取翻译设置：" + error.Message; }
@@ -51,7 +55,12 @@ public sealed partial class MainWindow
 
     private void TranslationBackend_Changed(object sender, Microsoft.UI.Xaml.Controls.SelectionChangedEventArgs args)
     {
-        if (_translationLoaded) UpdateTranslationControls();
+        if (!_translationLoaded) return;
+        UpdateTranslationControls();
+        var needsSetup = TranslationModelPicker.SelectedIndex == 1
+            ? string.IsNullOrWhiteSpace(TranslationHost.Text)
+            : string.IsNullOrWhiteSpace(TranslationWorkspace.Text) || string.IsNullOrWhiteSpace(TranslationApiKey.Password);
+        if (needsSetup) TranslationSettingsExpander.IsExpanded = true;
     }
 
     private static void ValidateTranslation(TranslationOptions options, string apiKey)
@@ -87,7 +96,7 @@ public sealed partial class MainWindow
                 HotkeyVirtualKey = selected.VirtualKey,
             };
             TranslationSettings.Save(saved, TranslationSettings.LoadApiKey());
-            TranslationStatus.Text = $"翻译快捷键已保存：{selected.DisplayText}。";
+            TranslationStatus.Text = "快捷键已保存";
         }
         catch (Exception error)
         {
@@ -132,9 +141,7 @@ public sealed partial class MainWindow
             }
             RegisterTranslationHotkey();
             TranslationSettings.Save(options, TranslationApiKey.Password);
-            TranslationStatus.Text = options.Enabled
-                ? $"设置已保存。按 {_translationHotkeyBinding.DisplayText} 开始或停止实时翻译。"
-                : "设置已保存，翻译快捷键已关闭。";
+            TranslationStatus.Text = options.Enabled ? "已保存" : "已保存，未启用";
         }
         catch (Exception error) { TranslationStatus.Text = "保存失败：" + error.Message; }
     }
@@ -148,6 +155,7 @@ public sealed partial class MainWindow
             RegisterTranslationHotkey();
         }
         UpdateTranslationControls();
+        if (_translationCancellation is null) TranslationStatus.Text = TranslationEnabled.IsOn ? "" : "未启用";
     }
 
     private void StopTranslation()
@@ -156,7 +164,7 @@ public sealed partial class MainWindow
         _keepTranslationOverlay = true;
         Volatile.Write(ref _translationPaused, false);
         _pausedTranslationText = null;
-        TranslationStatus.Text = "正在停止采集并等待最后一段译文...";
+        TranslationStatus.Text = "正在接收最后一段译文...";
         _overlay.FinishTranslation();
         active.Cancel();
     }
@@ -178,7 +186,7 @@ public sealed partial class MainWindow
             _overlay.UpdateTranscript(text);
             _pausedTranslationText = null;
         }
-        TranslationStatus.Text = _translationPaused ? "翻译已暂停，暂停期间的系统声音不会进入字幕。" : "正在翻译系统声音。";
+        TranslationStatus.Text = _translationPaused ? "已暂停" : "正在翻译系统声音";
     }
 
     private void UpdateTranslationControls()
@@ -187,6 +195,7 @@ public sealed partial class MainWindow
         var running = _translationCancellation is not null;
         var settingsBusy = running || _readingCancellation is not null;
         TranslationButton.Content = running ? "停止翻译" : "开始翻译";
+        Microsoft.UI.Xaml.Controls.ToolTipService.SetToolTip(TranslationButton, _translationHotkeyBinding.DisplayText);
         TranslationButton.IsEnabled = running || TranslationEnabled.IsOn && CanStartTranslation;
         TranslationEnabled.IsEnabled = !settingsBusy;
         TranslationShortcutButton.IsEnabled = !settingsBusy;
@@ -219,7 +228,12 @@ public sealed partial class MainWindow
             ValidateTranslation(options, apiKey);
             TranslationSettings.Save(options, TranslationApiKey.Password);
         }
-        catch (Exception error) { TranslationStatus.Text = error.Message; return; }
+        catch (Exception error)
+        {
+            TranslationSettingsExpander.IsExpanded = true;
+            TranslationStatus.Text = error.Message;
+            return;
+        }
         var cancellation = _translationCancellation = CancellationTokenSource.CreateLinkedTokenSource(_shutdown.Token);
         _keepTranslationOverlay = true;
         Volatile.Write(ref _translationPaused, false);
@@ -243,7 +257,7 @@ public sealed partial class MainWindow
                 {
                     if (cancellation.IsCancellationRequested) return;
                     _overlay.TranslationPaused(_translationPaused);
-                    TranslationStatus.Text = _translationPaused ? "翻译已暂停。" : $"正在翻译系统声音。再次按 {_translationHotkeyBinding.DisplayText} 可停止。";
+                    TranslationStatus.Text = _translationPaused ? "已暂停" : "正在翻译系统声音";
                 });
             void Caption(string text) => Dispatch(() =>
             {

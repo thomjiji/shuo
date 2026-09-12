@@ -29,6 +29,7 @@ public sealed partial class MainWindow
         {
             var options = ReadingSettings.Load();
             ReadingEnabled.IsOn = options.Enabled;
+            ReadingSettingsExpander.IsExpanded = !options.Enabled;
             ReadingUseExistingKey.IsOn = options.UseExistingKey;
             ReadingApiKey.Password = ReadingSettings.LoadApiKey();
             var voices = ReadingVoices.All;
@@ -88,7 +89,7 @@ public sealed partial class MainWindow
                 LocalPlaybackSpeed = LocalReadingSpeeds[Math.Max(0, ReadingLocalSpeed.SelectedIndex)],
             };
             ReadingSettings.Save(saved, ReadingSettings.LoadApiKey());
-            ReadingStatus.Text = "朗读服务设置已保存，下次朗读生效。";
+            ReadingStatus.Text = "已保存";
         }
         catch (Exception error) { ReadingStatus.Text = "朗读服务设置未保存：" + error.Message; }
     }
@@ -101,7 +102,7 @@ public sealed partial class MainWindow
         try
         {
             await SelfHostedReadingClient.TestAsync(ReadingLocalHost.Text, _shutdown.Token);
-            if (!_closed) ReadingStatus.Text = "Mac 连接正常，Serena 已准备好。";
+            if (!_closed) ReadingStatus.Text = "连接正常";
         }
         catch (Exception error)
         {
@@ -121,7 +122,7 @@ public sealed partial class MainWindow
         {
             var saved = ReadingSettings.Load() with { TranslationSpeechRate = ReadingTranslationSpeed.SelectedIndex - 1 };
             ReadingSettings.Save(saved, ReadingSettings.LoadApiKey());
-            ReadingStatus.Text = "中文译读语速已保存，下次朗读生效。";
+            ReadingStatus.Text = "已保存";
         }
         catch (Exception error) { ReadingStatus.Text = "中文译读语速未保存：" + error.Message; }
     }
@@ -133,7 +134,7 @@ public sealed partial class MainWindow
         {
             var saved = ReadingSettings.Load() with { TranslateToChinese = ReadingMode.SelectedIndex == 1 };
             ReadingSettings.Save(saved, ReadingSettings.LoadApiKey());
-            ReadingStatus.Text = saved.TranslateToChinese ? "已切换为中文译读。" : "已切换为原文朗读。";
+            ReadingStatus.Text = "";
         }
         catch (Exception error) { ReadingStatus.Text = "朗读方式未保存：" + error.Message; }
         UpdateReadingControls();
@@ -148,9 +149,9 @@ public sealed partial class MainWindow
         var value = (int)Math.Round(args.NewValue);
         ReadingSpeedValue.Text = value switch
         {
-            < 0 => $"{value}（减慢）",
+            < 0 => $"{value}",
             > 0 => $"+{value}",
-            _ => "0（正常）",
+            _ => "正常",
         };
     }
 
@@ -170,7 +171,7 @@ public sealed partial class MainWindow
                 RegisterReadingHotkeys();
                 var saved = ReadingSettings.Load() with { HotkeyModifiers = selected.Modifiers, HotkeyVirtualKey = selected.VirtualKey };
                 ReadingSettings.Save(saved, ReadingSettings.LoadApiKey());
-                ReadingStatus.Text = $"朗读快捷键已保存：{selected.DisplayText}。";
+                ReadingStatus.Text = "已保存";
             }
             else RegisterReadingHotkeys();
         }
@@ -214,7 +215,7 @@ public sealed partial class MainWindow
             options.Validate();
             RegisterReadingHotkeys();
             ReadingSettings.Save(options, ReadingApiKey.Password);
-            ReadingStatus.Text = options.Enabled ? $"设置已保存。选中文字后按 {_readingHotkeyBinding.DisplayText} 朗读。" : "设置已保存，朗读快捷键已关闭。";
+            ReadingStatus.Text = "已保存";
         }
         catch (Exception error) { ReadingStatus.Text = "保存失败：" + error.Message; }
     }
@@ -236,21 +237,24 @@ public sealed partial class MainWindow
         var local = (translate ? ReadingTranslationBackend : ReadingOriginalBackend).SelectedIndex == 1;
         ReadingMode.IsEnabled = !active;
         ReadingTextBox.IsReadOnly = active;
-        ReadingButton.Content = translate ? "中文译读" : "原文朗读";
-        ReadingModeHint.Text = translate
-            ? $"选中文字后按 {_readingHotkeyBinding.DisplayText}，自动识别原文语言并译成中文朗读，支持英文、日文等。"
-                + (local ? "翻译和 Serena 语音均在 Mac 上生成。" : "使用实时翻译中的百炼凭据，无需开启实时翻译。")
-            : $"选中文字后按 {_readingHotkeyBinding.DisplayText}，" + (local ? "在 Mac 上按原文语言朗读，使用 Serena 音色。" : "使用豆包按原文朗读。") + "再次按快捷键停止。";
+        Microsoft.UI.Xaml.Controls.ToolTipService.SetToolTip(ReadingShortcutButton, "选中文字后按此快捷键朗读，再次按下停止。");
         ReadingOriginalBackend.Visibility = translate ? Visibility.Collapsed : Visibility.Visible;
         ReadingOriginalBackend.IsEnabled = !active && !_testingReadingHost;
         ReadingTranslationBackend.Visibility = translate ? Visibility.Visible : Visibility.Collapsed;
         ReadingTranslationBackend.IsEnabled = !active && !_testingReadingHost;
         ReadingLocalSettings.Visibility = local ? Visibility.Visible : Visibility.Collapsed;
+        ReadingLocalSpeed.Visibility = local ? Visibility.Visible : Visibility.Collapsed;
+        ReadingCloudSpeed.Visibility = !translate && !local ? Visibility.Visible : Visibility.Collapsed;
+        ReadingCloudCredentials.Visibility = !translate && !local ? Visibility.Visible : Visibility.Collapsed;
+        ReadingSpeaker.Visibility = !translate && !local ? Visibility.Visible : Visibility.Collapsed;
+        ReadingFixedVoice.Visibility = translate || local ? Visibility.Visible : Visibility.Collapsed;
+        ReadingFixedVoice.Text = local ? "Serena" : "Tina";
         ReadingLocalHost.IsEnabled = ReadingLocalSpeed.IsEnabled = ReadingLocalTest.IsEnabled = !active && !_testingReadingHost;
         ReadingTranslationSettings.Visibility = translate && !local ? Visibility.Visible : Visibility.Collapsed;
         ReadingTranslationSpeed.Visibility = translate && !local ? Visibility.Visible : Visibility.Collapsed;
         ReadingTranslationSpeed.IsEnabled = !active;
-        ReadingTranslatedText.Visibility = translate ? Visibility.Visible : Visibility.Collapsed;
+        ReadingTranslatedText.Visibility = translate && (active || !string.IsNullOrWhiteSpace(ReadingTranslatedText.Text))
+            ? Visibility.Visible : Visibility.Collapsed;
         ReadingButton.IsEnabled = ReadingEnabled.IsOn && CanStartReading;
         ReadingStop.IsEnabled = active;
         ReadingPause.IsEnabled = _readingPlayback is not null;
@@ -261,7 +265,6 @@ public sealed partial class MainWindow
         ReadingSpeaker.IsEnabled = !active && !translate && !local;
         ReadingSpeed.IsEnabled = !active && !translate && !local;
         ReadingSaveButton.IsEnabled = !active;
-        ReadingSpeedLabels.Opacity = active || translate || local ? 0.5 : 1;
         ReadingApiKeyCard.Visibility = ReadingUseExistingKey.IsOn || translate || local ? Visibility.Collapsed : Visibility.Visible;
         ReadingApiKey.IsEnabled = !active && !translate && !local && !ReadingUseExistingKey.IsOn;
     }
@@ -272,7 +275,7 @@ public sealed partial class MainWindow
     private void ToggleReadingPause()
     {
         _readingPlayback?.TogglePause();
-        ReadingStatus.Text = _readingPlayback?.Paused == true ? "朗读已暂停。" : "正在朗读。";
+        ReadingStatus.Text = _readingPlayback?.Paused == true ? "已暂停" : "播放中";
         UpdateReadingControls();
     }
 
@@ -355,10 +358,9 @@ public sealed partial class MainWindow
             var passage = 0;
             meter.Tick += (_, _) =>
             {
-                var state = playback.Paused ? "已暂停" : playback.Buffering ? "正在生成并缓冲音频..." : "正在播放";
-                var status = $"{label}：{state}（{passage}/{chunks.Count} 段已请求）";
-                ReadingStatus.Text = status;
-                _overlay.ReadingAudio(playback.Buffering, playback.Level, status, playback.Paused);
+                var state = playback.Paused ? "已暂停" : playback.Buffering ? "缓冲中" : "播放中";
+                ReadingStatus.Text = state;
+                _overlay.ReadingAudio(playback.Buffering, playback.Level, state, playback.Paused);
             };
             meter.Start();
             try
@@ -391,12 +393,12 @@ public sealed partial class MainWindow
                 await playback.CompleteAsync(token);
             }
             finally { meter.Stop(); }
-            ReadingStatus.Text = label + "完成。";
+            ReadingStatus.Text = "已完成";
         }
         catch (OperationCanceledException)
         {
             _readingPlayback = null;
-            if (!_closed && !_exiting) ReadingStatus.Text = cancellation.IsCancellationRequested ? "朗读已停止。" : "语音服务响应超时，请重试。";
+            if (!_closed && !_exiting) ReadingStatus.Text = cancellation.IsCancellationRequested ? "已停止" : "语音服务响应超时，请重试。";
         }
         catch (Exception error)
         {

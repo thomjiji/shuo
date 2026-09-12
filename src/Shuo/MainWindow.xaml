@@ -48,7 +48,6 @@
                 <NavigationViewItem Content="实时翻译" Tag="translation" Icon="Globe" />
                 <NavigationViewItem x:Name="ReadingNavigationItem" Content="实时朗读" Tag="reading" Icon="Volume" />
                 <NavigationViewItem Content="转录历史" Tag="history" Icon="Clock" />
-                <NavigationViewItem Content="文本整理" Tag="cleanup" Icon="Edit" />
             </NavigationView.MenuItems>
             <Grid x:Name="PageViewport" SizeChanged="PageViewport_SizeChanged">
                 <ScrollViewer x:Name="PageScroll" HorizontalScrollMode="Disabled"
@@ -104,6 +103,20 @@
                             <Button x:Name="MoreHistoryButton" Content="加载更多" Click="MoreHistory_Click" Visibility="Collapsed" />
                         </StackPanel>
                         <StackPanel x:Name="GeneralPage" Spacing="16" Visibility="Collapsed">
+                            <Border Style="{StaticResource SettingsCardStyle}">
+                                <Grid ColumnSpacing="24">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="去掉末尾句号" VerticalAlignment="Center"
+                                               Style="{StaticResource BodyStrongTextBlockStyle}" />
+                                    <ToggleSwitch x:Name="TrimTrailingPeriodToggle" Grid.Column="1" VerticalAlignment="Center"
+                                                  OffContent="" OnContent="" MinWidth="0"
+                                                  automation:AutomationProperties.Name="去掉末尾句号"
+                                                  Toggled="TextCleanupToggle_Toggled" />
+                                </Grid>
+                            </Border>
                             <Border Padding="16" CornerRadius="8" BorderThickness="1"
                                     Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
                                     BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}">
@@ -604,33 +617,6 @@
                                     <Button x:Name="TranslationButton" Grid.Column="1" Content="开始翻译"
                                             VerticalAlignment="Center" Click="TranslationButton_Click" />
                                 </Grid>
-                            </Border>
-                        </StackPanel>
-                        <StackPanel x:Name="CleanupPage" Spacing="16" Visibility="Collapsed">
-                            <Border
-                                Padding="16"
-                                Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                                BorderThickness="1"
-                                CornerRadius="8">
-                                <StackPanel Spacing="16">
-                                    <Grid ColumnSpacing="24">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*" />
-                                            <ColumnDefinition Width="Auto" />
-                                        </Grid.ColumnDefinitions>
-                                        <StackPanel VerticalAlignment="Center" Spacing="4">
-                                            <TextBlock Text="去掉末尾句号" Style="{StaticResource BodyStrongTextBlockStyle}" />
-                                            <TextBlock Style="{StaticResource CaptionTextBlockStyle}"
-                                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                                       Text="保留句中标点、问号和感叹号。" TextWrapping="Wrap" />
-                                        </StackPanel>
-                                        <ToggleSwitch x:Name="TrimTrailingPeriodToggle" Grid.Column="1" VerticalAlignment="Center"
-                                                      OffContent="" OnContent="" MinWidth="0"
-                                                      automation:AutomationProperties.Name="去掉末尾句号"
-                                                      Toggled="TextCleanupToggle_Toggled" />
-                                    </Grid>
-                                </StackPanel>
                             </Border>
                         </StackPanel>
                             </Grid>

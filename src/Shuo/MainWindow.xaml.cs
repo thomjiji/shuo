@@ -153,18 +153,17 @@ public sealed partial class MainWindow : Window
 
     private void SettingsNavigation_SelectionChanged(NavigationView sender, NavigationViewSelectionChangedEventArgs args)
     {
-        if (GeneralPage is null || TranscriptionPage is null || CleanupPage is null) return;
+        if (GeneralPage is null || TranscriptionPage is null) return;
         var section = (args.SelectedItem as NavigationViewItem)?.Tag as string ?? "transcription";
         GeneralPage.Visibility = section == "general" ? Visibility.Visible : Visibility.Collapsed;
         TranscriptionPage.Visibility = section == "transcription" ? Visibility.Visible : Visibility.Collapsed;
-        CleanupPage.Visibility = section == "cleanup" ? Visibility.Visible : Visibility.Collapsed;
         HistoryPage.Visibility = section == "history" ? Visibility.Visible : Visibility.Collapsed;
         TranslationPage.Visibility = section == "translation" ? Visibility.Visible : Visibility.Collapsed;
         ReadingPage.Visibility = section == "reading" ? Visibility.Visible : Visibility.Collapsed;
         if (section == "general") AcknowledgeAvailableUpdate();
         if (section == "history" && _historyEntries is null) LoadHistory();
         if (section == "transcription") _ = RefreshModelsAsync();
-        PageTitle.Text = section switch { "general" => "常规", "cleanup" => "文本整理", "history" => "转录历史", "translation" => "实时翻译", "reading" => "实时朗读", _ => "转录服务" };
+        PageTitle.Text = section switch { "general" => "常规", "history" => "转录历史", "translation" => "实时翻译", "reading" => "实时朗读", _ => "转录服务" };
         PageScroll.ChangeView(null, 0, null, disableAnimation: true);
         PlaySettingsPageTransition();
     }

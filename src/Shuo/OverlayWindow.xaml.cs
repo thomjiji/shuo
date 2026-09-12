@@ -131,6 +131,7 @@ public sealed partial class OverlayWindow : Window
             : NativeMethods.GetForegroundWorkArea();
         _hasText = false;
         _translation = translation;
+        Microsoft.UI.Xaml.Controls.ToolTipService.SetToolTip(OverlaySurface, null);
         _panelWidth = translation ? CaptionWidth : 36;
         _panelHeight = translation ? CaptionMaxLines * CaptionLineHeight + 16 : OverlayHeight;
         TextViewport.Height = translation ? CaptionMaxLines * CaptionLineHeight : 22;
@@ -253,6 +254,14 @@ public sealed partial class OverlayWindow : Window
     internal void UpdateAudioLevel(double level)
     {
         if (_visible && !_busy) _targetLevel = Math.Clamp(Math.Pow(Math.Max(0, level), 0.75) * 1.8, 0, 1);
+    }
+
+    internal void ReadingAudio(bool buffering, double level, string status)
+    {
+        if (!_visible) return;
+        if (_busy != buffering) SetBusy(buffering);
+        UpdateAudioLevel(level);
+        Microsoft.UI.Xaml.Controls.ToolTipService.SetToolTip(OverlaySurface, status);
     }
 
     private void OnVoiceRendering(object? sender, object args)

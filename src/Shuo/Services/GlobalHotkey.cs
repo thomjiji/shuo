@@ -6,29 +6,31 @@ namespace Shuo.Services;
 internal sealed class GlobalHotkey : IDisposable
 {
     private readonly IntPtr _window;
+    private readonly int _id;
     private readonly NativeMethods.SubclassProc _subclassProc;
     private bool _registered;
     private bool _disposed;
 
-    internal GlobalHotkey(IntPtr window, HotkeyBinding binding)
+    internal GlobalHotkey(IntPtr window, HotkeyBinding binding, int id = NativeMethods.HotkeyId)
     {
         if (!binding.IsValid) throw new ArgumentException("The hotkey is invalid.", nameof(binding));
 
         _window = window;
+        _id = id;
         _subclassProc = WindowProcedure;
-        if (!NativeMethods.SetWindowSubclass(_window, _subclassProc, (UIntPtr)NativeMethods.HotkeyId, UIntPtr.Zero))
+        if (!NativeMethods.SetWindowSubclass(_window, _subclassProc, (UIntPtr)_id, UIntPtr.Zero))
         {
             throw new Win32Exception("Could not monitor the application window for hotkeys.");
         }
 
         if (!NativeMethods.RegisterHotKey(
                 _window,
-                NativeMethods.HotkeyId,
+                _id,
                 binding.Modifiers | NativeMethods.ModNoRepeat,
                 binding.VirtualKey))
         {
             var error = Marshal.GetLastWin32Error();
-            NativeMethods.RemoveWindowSubclass(_window, _subclassProc, (UIntPtr)NativeMethods.HotkeyId);
+            NativeMethods.RemoveWindowSubclass(_window, _subclassProc, (UIntPtr)_id);
             throw new Win32Exception(error, $"{binding.DisplayText} is unavailable.");
         }
 
@@ -45,7 +47,7 @@ internal sealed class GlobalHotkey : IDisposable
         UIntPtr subclassId,
         UIntPtr referenceData)
     {
-        if (message == NativeMethods.WmHotkey && wParam.ToInt32() == NativeMethods.HotkeyId)
+        if (message == NativeMethods.WmHotkey && wParam.ToInt32() == _id)
         {
             Pressed?.Invoke(this, EventArgs.Empty);
             return IntPtr.Zero;
@@ -60,9 +62,9 @@ internal sealed class GlobalHotkey : IDisposable
         _disposed = true;
         if (_registered)
         {
-            NativeMethods.UnregisterHotKey(_window, NativeMethods.HotkeyId);
+            NativeMethods.UnregisterHotKey(_window, _id);
         }
 
-        NativeMethods.RemoveWindowSubclass(_window, _subclassProc, (UIntPtr)NativeMethods.HotkeyId);
+        NativeMethods.RemoveWindowSubclass(_window, _subclassProc, (UIntPtr)_id);
     }
 }

@@ -27,7 +27,6 @@ internal sealed class TrayMenuWindow : Window
         _providers = providers;
         _models = models;
         Content = _anchor;
-        AppWindow.IsShownInSwitchers = false;
         var presenter = (OverlappedPresenter)AppWindow.Presenter;
         presenter.SetBorderAndTitleBar(false, false);
         presenter.IsResizable = false;

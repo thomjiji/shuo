@@ -9,7 +9,13 @@ import soundfile as sf
 from fastapi.testclient import TestClient
 
 from shuo_tts.profiles import VoiceProfile, load_profiles, register_voice
-from shuo_tts.server import MODEL_PROMPT_PREFIX, MlxCosyVoice, MlxQwen3Voice, create_app
+from shuo_tts.server import (
+    MODEL_PROMPT_PREFIX,
+    MlxCosyVoice,
+    MlxQwen3Voice,
+    create_app,
+    qwen_language_for_text,
+)
 
 
 class FakeEngine:
@@ -68,9 +74,15 @@ class TtsServerTests(unittest.TestCase):
         self.assertEqual(len(engine.synthesize("你好", profile)), 2)
         self.assertEqual(model.kwargs["text"], "你好")
         self.assertEqual(model.kwargs["ref_text"], "これは参照音声です。")
-        self.assertEqual(model.kwargs["lang_code"], "auto")
+        self.assertEqual(model.kwargs["lang_code"], "chinese")
         self.assertEqual(model.kwargs["split_pattern"], "")
         self.assertFalse(model.kwargs["stream"])
+
+    def test_qwen_target_language_comes_from_text_not_reference_voice(self):
+        self.assertEqual(qwen_language_for_text("你好，Shuo。"), "chinese")
+        self.assertEqual(qwen_language_for_text("今日はいい天気です。"), "japanese")
+        self.assertEqual(qwen_language_for_text("Hello from Shuo."), "english")
+        self.assertEqual(qwen_language_for_text("123..."), "auto")
 
     def test_registers_canonical_private_voice(self):
         with tempfile.TemporaryDirectory() as temporary:

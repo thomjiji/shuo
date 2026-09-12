@@ -21,6 +21,26 @@ DEFAULT_MODELS = {
 }
 
 
+def qwen_language_for_text(text: str) -> str:
+    if any(
+        "\u3040" <= char <= "\u30ff"
+        or "\u31f0" <= char <= "\u31ff"
+        or "\uff66" <= char <= "\uff9d"
+        for char in text
+    ):
+        return "japanese"
+    if any(
+        "\u3400" <= char <= "\u4dbf"
+        or "\u4e00" <= char <= "\u9fff"
+        or "\uf900" <= char <= "\ufaff"
+        for char in text
+    ):
+        return "chinese"
+    if any("A" <= char <= "Z" or "a" <= char <= "z" for char in text):
+        return "english"
+    return "auto"
+
+
 class SynthesisRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
     protocol: int
@@ -127,7 +147,7 @@ class MlxQwen3Voice:
             text=text,
             ref_audio=self.reference_audio[profile.id],
             ref_text=profile.prompt_text,
-            lang_code="auto",
+            lang_code=qwen_language_for_text(text),
             split_pattern="",
             stream=False,
             verbose=False,

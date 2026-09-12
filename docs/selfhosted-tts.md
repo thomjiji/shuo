@@ -93,7 +93,7 @@ curl.exe --noproxy "*" --max-time 10 http://<Mac的Tailscale名称>:18766/health
 curl.exe --noproxy "*" --max-time 10 http://<Mac的Tailscale名称>:18767/health
 ```
 
-在 Shuo 的“实时朗读”中选择“Mac 上的 CosyVoice 3”，填写 Mac 的 Tailscale 名称或 IP 与音色 ID，点击“测试 CosyVoice 服务”，成功后保存设置。地址只填写主机名时使用默认的 CosyVoice 端口 18766；测试 Qwen3-TTS 时填写 `<Mac的Tailscale名称>:18767`。当前客户端沿用 CosyVoice 的界面名称，但 18767 上的 Qwen 服务使用完全相同的音频协议。
+在 Shuo 的“实时朗读”中选择“Mac 上的 CosyVoice 3”或“Mac 上的 Qwen3-TTS 1.7B”，填写 Mac 的 Tailscale 名称或 IP 与音色 ID，点击对应的测试按钮，成功后保存设置。只填写主机名即可；Shuo 会分别连接 CosyVoice 的 18766 端口和 Qwen3-TTS 的 18767 端口。两个选项各自保存地址和音色，便于在两个后端之间切换比较。
 
 ## 常驻运行
 

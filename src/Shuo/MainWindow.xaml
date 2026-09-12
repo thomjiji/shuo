@@ -350,7 +350,7 @@
                             </Border>
                         </StackPanel>
                         <StackPanel x:Name="ReadingPage" Spacing="12" Visibility="Collapsed">
-                            <TextBlock Text="选中文字，让豆包或 Mac 上的 CosyVoice 读给你听。触发时优先读取系统选区，必要时临时复制取词，再恢复未被其他操作改动的剪贴板。Shuo 不保存朗读原文和生成音频。"
+                            <TextBlock Text="选中文字，让豆包或 Mac 上的 CosyVoice、Qwen3-TTS 读给你听。触发时优先读取系统选区，必要时临时复制取词，再恢复未被其他操作改动的剪贴板。Shuo 不保存朗读原文和生成音频。"
                                        TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                             <Border Padding="18" CornerRadius="8" BorderThickness="1"
                                     Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
@@ -364,6 +364,7 @@
                                               SelectionChanged="ReadingProvider_SelectionChanged">
                                         <ComboBoxItem Content="豆包语音合成 2.0" />
                                         <ComboBoxItem Content="Mac 上的 CosyVoice 3" />
+                                        <ComboBoxItem Content="Mac 上的 Qwen3-TTS 1.7B" />
                                     </ComboBox>
                                     <ToggleSwitch x:Name="ReadingUseExistingKey" Header="使用转录服务中的火山引擎 API Key" IsOn="True"
                                                   OffContent="单独配置" OnContent="使用已有 Key" Toggled="ReadingToggle_Changed" />
@@ -380,6 +381,12 @@
                                     <TextBlock x:Name="ReadingCosyVoiceHint" Text="服务只通过 Tailscale 访问。音色的参考录音和逐字稿保存在 Mac 上，不会发送到模型下载站。当前 MLX 实现按短段生成，暂不支持调节语速。"
                                                TextWrapping="Wrap" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Visibility="Collapsed" />
                                     <Button x:Name="ReadingCosyVoiceTest" Content="测试 CosyVoice 服务" Click="ReadingCosyVoiceTest_Click" Visibility="Collapsed" />
+                                    <TextBlock x:Name="ReadingQwen3Title" Text="自托管 Qwen3-TTS 1.7B" FontWeight="SemiBold" Visibility="Collapsed" />
+                                    <TextBox x:Name="ReadingQwen3Url" Header="Mac 主机 IP" PlaceholderText="例如 my-mac 或 100.x.x.x" Visibility="Collapsed" />
+                                    <TextBox x:Name="ReadingQwen3Voice" Header="克隆音色 ID" Visibility="Collapsed" />
+                                    <TextBlock x:Name="ReadingQwen3Hint" Text="默认连接 Mac 的 18767 端口。服务只通过 Tailscale 访问，与 CosyVoice 分别保存地址和音色。当前 MLX 实现按短段生成，暂不支持调节语速。"
+                                               TextWrapping="Wrap" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Visibility="Collapsed" />
+                                    <Button x:Name="ReadingQwen3Test" Content="测试 Qwen3-TTS 服务" Click="ReadingQwen3Test_Click" Visibility="Collapsed" />
                                     <Button Content="保存朗读设置" Click="ReadingSave_Click" />
                                 </StackPanel>
                             </Border>

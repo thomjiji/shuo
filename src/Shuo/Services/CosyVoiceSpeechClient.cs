@@ -12,9 +12,10 @@ internal sealed class CosyVoiceSpeechClient(HttpClient client)
         [EnumeratorCancellation] CancellationToken cancellationToken)
     {
         options.Validate();
-        using var request = new HttpRequestMessage(HttpMethod.Post, CosyVoiceAddress.Endpoint(options.CosyVoiceUrl))
+        using var request = new HttpRequestMessage(
+            HttpMethod.Post, CosyVoiceAddress.Endpoint(options.SelfHostedUrl, options.SelfHostedPort))
         {
-            Content = JsonContent.Create(new { protocol = 1, text, voice = options.CosyVoiceVoice }),
+            Content = JsonContent.Create(new { protocol = 1, text, voice = options.SelfHostedVoice }),
         };
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         timeout.CancelAfter(TimeSpan.FromSeconds(150));
@@ -25,16 +26,16 @@ internal sealed class CosyVoiceSpeechClient(HttpClient client)
             {
                 HttpStatusCode.NotFound => "Mac 上没有所选音色，请检查音色 ID。",
                 HttpStatusCode.Conflict => "Mac 正在合成另一段语音，请稍后重试。",
-                HttpStatusCode.BadRequest => "CosyVoice 服务拒绝了当前设置，请检查地址和音色。",
+                HttpStatusCode.BadRequest => "自托管语音服务拒绝了当前设置，请检查地址和音色。",
                 HttpStatusCode.GatewayTimeout => "Mac 语音合成超时，请缩短文字后重试。",
-                _ => $"CosyVoice 服务返回 HTTP {(int)response.StatusCode}，请检查 Mac 服务日志。",
+                _ => $"{options.ServiceName} 服务返回 HTTP {(int)response.StatusCode}，请检查 Mac 服务日志。",
             };
             throw new HttpRequestException(message);
         }
         if (!response.Headers.TryGetValues("X-Shuo-Protocol", out var protocols) || protocols.SingleOrDefault() != "1"
             || !response.Headers.TryGetValues("X-Shuo-Audio-Format", out var formats) || formats.SingleOrDefault() != "pcm_s16le"
             || !response.Headers.TryGetValues("X-Shuo-Sample-Rate", out var rates) || rates.SingleOrDefault() != "24000")
-            throw new IOException("CosyVoice 服务返回了不兼容的音频格式。请更新 Mac 服务。");
+            throw new IOException("自托管语音服务返回了不兼容的音频格式。请更新 Mac 服务。");
 
         await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
         var total = 0L;
@@ -44,11 +45,11 @@ internal sealed class CosyVoiceSpeechClient(HttpClient client)
             var count = await stream.ReadAsync(buffer, cancellationToken);
             if (count == 0) break;
             total += count;
-            if (total > MaximumAudioBytes) throw new IOException("CosyVoice 返回的音频过长。");
+            if (total > MaximumAudioBytes) throw new IOException($"{options.ServiceName} 返回的音频过长。");
             if (count != buffer.Length) Array.Resize(ref buffer, count);
             yield return buffer;
         }
-        if (total == 0) throw new IOException("CosyVoice 服务没有返回音频。");
-        if ((total & 1) != 0) throw new IOException("CosyVoice 返回的 PCM 音频格式不完整。");
+        if (total == 0) throw new IOException($"{options.ServiceName} 服务没有返回音频。");
+        if ((total & 1) != 0) throw new IOException($"{options.ServiceName} 返回的 PCM 音频格式不完整。");
     }
 }

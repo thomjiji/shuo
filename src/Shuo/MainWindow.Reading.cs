@@ -13,6 +13,12 @@ public sealed partial class MainWindow
     private GlobalHotkey? _readingSelectionHotkey;
     private HotkeyBinding _readingHotkeyBinding = new ReadingOptions().Hotkey;
     private bool _readingLoaded;
+    private string SelectedReadingProvider => ReadingProviderPicker.SelectedIndex switch
+    {
+        1 => "cosyvoice",
+        2 => "qwen3",
+        _ => "doubao",
+    };
     private bool CanStartReading => !_exiting && !_closed && !_installingUpdate && !_dictationActive
         && !_togglePending && !_modelChanging && _pendingPastes == 0 && _translationCancellation is null
         && _readingCancellation is null;
@@ -23,14 +29,30 @@ public sealed partial class MainWindow
         try
         {
             var options = ReadingSettings.Load();
+            var legacyQwen = options.Provider == "cosyvoice"
+                && CosyVoiceAddress.UsesPort(options.CosyVoiceUrl, 18767);
             ReadingEnabled.IsOn = options.Enabled;
-            ReadingProviderPicker.SelectedIndex = options.Provider == "cosyvoice" ? 1 : 0;
+            ReadingProviderPicker.SelectedIndex = legacyQwen ? 2 : options.Provider switch
+            {
+                "cosyvoice" => 1,
+                "qwen3" => 2,
+                _ => 0,
+            };
             ReadingUseExistingKey.IsOn = options.UseExistingKey;
             ReadingApiKey.Password = ReadingSettings.LoadApiKey();
             ReadingSpeaker.Text = options.Speaker;
             ReadingSpeed.Value = options.SpeechRate;
-            ReadingCosyVoiceUrl.Text = CosyVoiceAddress.ToDisplay(options.CosyVoiceUrl);
+            ReadingCosyVoiceUrl.Text = CosyVoiceAddress.ToDisplay(legacyQwen
+                ? CosyVoiceAddress.WithPort(options.CosyVoiceUrl, 18766)
+                : options.CosyVoiceUrl);
             ReadingCosyVoiceVoice.Text = options.CosyVoiceVoice;
+            var qwen3Url = string.IsNullOrWhiteSpace(options.Qwen3Url) && !string.IsNullOrWhiteSpace(options.CosyVoiceUrl)
+                ? CosyVoiceAddress.WithPort(options.CosyVoiceUrl, 18767)
+                : options.Qwen3Url;
+            ReadingQwen3Url.Text = CosyVoiceAddress.ToDisplay(qwen3Url, 18767);
+            ReadingQwen3Voice.Text = string.IsNullOrWhiteSpace(options.Qwen3Voice)
+                ? options.CosyVoiceVoice
+                : options.Qwen3Voice;
             _readingHotkeyBinding = options.Hotkey;
             ReadingShortcutButton.Content = _readingHotkeyBinding.DisplayText;
             RegisterReadingHotkeys();
@@ -43,12 +65,14 @@ public sealed partial class MainWindow
 
     private ReadingOptions CurrentReadingOptions() => new(
         Enabled: ReadingEnabled.IsOn,
-        Provider: ReadingProviderPicker.SelectedIndex == 1 ? "cosyvoice" : "doubao",
+        Provider: SelectedReadingProvider,
         UseExistingKey: ReadingUseExistingKey.IsOn,
         Speaker: ReadingSpeaker.Text.Trim(),
         SpeechRate: (int)ReadingSpeed.Value,
         CosyVoiceUrl: CosyVoiceAddress.ToUrl(ReadingCosyVoiceUrl.Text),
         CosyVoiceVoice: ReadingCosyVoiceVoice.Text.Trim(),
+        Qwen3Url: CosyVoiceAddress.ToUrl(ReadingQwen3Url.Text, 18767),
+        Qwen3Voice: ReadingQwen3Voice.Text.Trim(),
         HotkeyModifiers: _readingHotkeyBinding.Modifiers,
         HotkeyVirtualKey: _readingHotkeyBinding.VirtualKey);
 
@@ -154,8 +178,10 @@ public sealed partial class MainWindow
     {
         if (ReadingProviderPicker is null) return;
         var cosyVoice = ReadingProviderPicker.SelectedIndex == 1;
-        var doubao = cosyVoice ? Visibility.Collapsed : Visibility.Visible;
+        var qwen3 = ReadingProviderPicker.SelectedIndex == 2;
+        var doubao = cosyVoice || qwen3 ? Visibility.Collapsed : Visibility.Visible;
         var cosy = cosyVoice ? Visibility.Visible : Visibility.Collapsed;
+        var qwen = qwen3 ? Visibility.Visible : Visibility.Collapsed;
         ReadingUseExistingKey.Visibility = doubao;
         ReadingApiKey.Visibility = doubao;
         ReadingDoubaoTitle.Visibility = doubao;
@@ -168,6 +194,11 @@ public sealed partial class MainWindow
         ReadingCosyVoiceVoice.Visibility = cosy;
         ReadingCosyVoiceHint.Visibility = cosy;
         ReadingCosyVoiceTest.Visibility = cosy;
+        ReadingQwen3Title.Visibility = qwen;
+        ReadingQwen3Url.Visibility = qwen;
+        ReadingQwen3Voice.Visibility = qwen;
+        ReadingQwen3Hint.Visibility = qwen;
+        ReadingQwen3Test.Visibility = qwen;
     }
 
     private void UpdateReadingControls()
@@ -182,31 +213,45 @@ public sealed partial class MainWindow
         ReadingApiKey.IsEnabled = !active && ReadingProviderPicker.SelectedIndex == 0 && !ReadingUseExistingKey.IsOn;
     }
 
-    private async void ReadingCosyVoiceTest_Click(object sender, RoutedEventArgs args)
+    private async void ReadingCosyVoiceTest_Click(object sender, RoutedEventArgs args) =>
+        await TestSelfHostedReadingAsync("cosyvoice", "CosyVoice");
+
+    private async void ReadingQwen3Test_Click(object sender, RoutedEventArgs args) =>
+        await TestSelfHostedReadingAsync("qwen3", "Qwen3-TTS");
+
+    private async Task TestSelfHostedReadingAsync(string expectedEngine, string serviceName)
     {
         if (_readingCancellation is not null) return;
         try
         {
             var options = CurrentReadingOptions();
             options.Validate();
-            ReadingStatus.Text = "正在测试 Mac 上的 CosyVoice 服务...";
+            ReadingStatus.Text = $"正在测试 Mac 上的 {serviceName} 服务...";
             using var client = new System.Net.Http.HttpClient(new System.Net.Http.HttpClientHandler { UseProxy = false })
             {
                 Timeout = TimeSpan.FromSeconds(10),
             };
-            using var response = await client.GetAsync(CosyVoiceAddress.Health(options.CosyVoiceUrl));
+            using var response = await client.GetAsync(
+                CosyVoiceAddress.Health(options.SelfHostedUrl, options.SelfHostedPort));
             if (!response.IsSuccessStatusCode)
                 throw new HttpRequestException($"服务返回 HTTP {(int)response.StatusCode}。");
             using var document = JsonDocument.Parse(await response.Content.ReadAsStreamAsync());
             var root = document.RootElement;
             if (!root.TryGetProperty("ready", out var ready) || !ready.GetBoolean())
                 throw new IOException("服务尚未准备好。");
+            if (root.TryGetProperty("engine", out var engine))
+            {
+                if (engine.GetString() != expectedEngine)
+                    throw new IOException($"当前地址运行的不是 {serviceName} 服务。");
+            }
+            else if (expectedEngine == "qwen3")
+                throw new IOException("当前地址没有返回 Qwen3-TTS 引擎标识。");
             var found = root.GetProperty("voices").EnumerateArray()
-                .Any(voice => voice.GetProperty("id").GetString() == options.CosyVoiceVoice);
+                .Any(voice => voice.GetProperty("id").GetString() == options.SelfHostedVoice);
             if (!found) throw new IOException("服务已连接，但没有所选音色。");
-            ReadingStatus.Text = "CosyVoice 服务连接正常，音色可用。";
+            ReadingStatus.Text = $"{serviceName} 服务连接正常，音色可用。";
         }
-        catch (Exception error) { ReadingStatus.Text = "CosyVoice 测试失败：" + error.Message; }
+        catch (Exception error) { ReadingStatus.Text = $"{serviceName} 测试失败：" + error.Message; }
     }
 
     private void ReadingButton_Click(object sender, RoutedEventArgs args) => StartReading("text");
@@ -255,18 +300,20 @@ public sealed partial class MainWindow
             }
             else text = ReadingTextBox.Text;
             token.ThrowIfCancellationRequested();
-            var chunks = ReadingText.Split(text, options.Provider == "cosyvoice" ? 240 : ReadingText.MaximumRequestBytes);
+            var chunks = ReadingText.Split(text, options.IsSelfHosted ? 240 : ReadingText.MaximumRequestBytes);
             ReadingSettings.Save(options, ReadingApiKey.Password);
-            ReadingStatus.Text = options.Provider == "cosyvoice" ? "正在连接 Mac 上的 CosyVoice..." : "正在连接豆包语音合成...";
+            ReadingStatus.Text = options.IsSelfHosted
+                ? $"正在连接 Mac 上的 {options.ServiceName}..."
+                : "正在连接豆包语音合成...";
             _overlay.Begin(true);
-            using var client = options.Provider == "cosyvoice"
+            using var client = options.IsSelfHosted
                 ? new System.Net.Http.HttpClient(new System.Net.Http.HttpClientHandler { UseProxy = false })
                 : new System.Net.Http.HttpClient();
             client.Timeout = Timeout.InfiniteTimeSpan;
             var doubao = options.Provider == "doubao" ? new DoubaoSpeechClient(client) : null;
-            var cosyVoice = options.Provider == "cosyvoice" ? new CosyVoiceSpeechClient(client) : null;
-            IAsyncEnumerable<byte[]> Synthesize(string chunk) => options.Provider == "cosyvoice"
-                ? cosyVoice!.SynthesizeAsync(chunk, options, token)
+            var selfHosted = options.IsSelfHosted ? new CosyVoiceSpeechClient(client) : null;
+            IAsyncEnumerable<byte[]> Synthesize(string chunk) => options.IsSelfHosted
+                ? selfHosted!.SynthesizeAsync(chunk, options, token)
                 : doubao!.SynthesizeAsync(chunk, options, key, token);
             using var playback = new ReadingPlayback();
             _readingPlayback = playback;

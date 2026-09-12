@@ -53,15 +53,21 @@ await Fails<FormatException>(() => Parse("data: {\"code\":0,\"data\":\"!\"}\n\n"
 await Fails<JsonException>(() => Parse("data: not-json\n\n"), "invalid event rejected");
 
 var migrated = JsonSerializer.Deserialize<ReadingOptions>("{\"Enabled\":true}")!;
-Check(migrated.Provider == "doubao" && migrated.Hotkey == new HotkeyBinding(3, 0x20), "missing provider and shortcut use compatible defaults");
+Check(migrated.Provider == "doubao" && migrated.Qwen3Url == "" && migrated.Qwen3Voice == ""
+    && migrated.Hotkey == new HotkeyBinding(3, 0x20), "missing provider, Qwen settings, and shortcut use compatible defaults");
 var custom = new ReadingOptions(HotkeyModifiers: 6, HotkeyVirtualKey: 0x79);
 Check(JsonSerializer.Deserialize<ReadingOptions>(JsonSerializer.Serialize(custom))!.Hotkey == custom.Hotkey, "custom reading shortcut survives settings roundtrip");
 await Fails<ArgumentException>(() => { new ReadingOptions(HotkeyModifiers: 0).Validate(); return Task.CompletedTask; }, "invalid reading shortcut rejected");
 new ReadingOptions(Provider: "cosyvoice", CosyVoiceUrl: "my-mac", CosyVoiceVoice: "my-voice").Validate();
+new ReadingOptions(Provider: "qwen3", Qwen3Url: "my-mac", Qwen3Voice: "my-voice").Validate();
 await Fails<ArgumentException>(() => { new ReadingOptions(Provider: "cosyvoice", CosyVoiceUrl: "", CosyVoiceVoice: "my-voice").Validate(); return Task.CompletedTask; }, "self-hosted service address is required");
+await Fails<ArgumentException>(() => { new ReadingOptions(Provider: "qwen3", Qwen3Url: "", Qwen3Voice: "my-voice").Validate(); return Task.CompletedTask; }, "Qwen service address is required");
 await Fails<ArgumentException>(() => { new ReadingOptions(Provider: "cosyvoice", CosyVoiceUrl: "my-mac", CosyVoiceVoice: "Bad Voice").Validate(); return Task.CompletedTask; }, "self-hosted voice ID is bounded");
 Check(CosyVoiceAddress.ToUrl("my-mac") == "http://my-mac:18766" && CosyVoiceAddress.ToDisplay("http://my-mac:18766") == "my-mac", "CosyVoice host uses private service port");
-Check(CosyVoiceAddress.ToUrl("my-mac:18767") == "http://my-mac:18767", "self-hosted TTS accepts an explicit Qwen port");
+Check(CosyVoiceAddress.ToUrl("my-mac", 18767) == "http://my-mac:18767"
+    && CosyVoiceAddress.ToDisplay("http://my-mac:18767", 18767) == "my-mac", "Qwen host uses its private service port");
+Check(CosyVoiceAddress.WithPort("http://my-mac:18766", 18767) == "http://my-mac:18767", "legacy CosyVoice host migrates to the Qwen port");
+Check(CosyVoiceAddress.UsesPort("my-mac:18767", 18767) && !CosyVoiceAddress.UsesPort("my-mac", 18767), "legacy Qwen selection is detected without changing a default CosyVoice host");
 byte[] CopyMetadata(string value)
 {
     using var memory = new MemoryStream();
@@ -111,6 +117,11 @@ await foreach (var bytes in cosy.SynthesizeAsync("你好", cosyOptions, default)
 Check(cosyHandler.Uri == "http://my-mac:18766/v1/tts" && cosyAudio.SequenceEqual(new byte[] { 1, 0, 2, 0 }), "CosyVoice PCM response reaches playback");
 using (var body = JsonDocument.Parse(cosyHandler.Body!))
     Check(body.RootElement.GetProperty("protocol").GetInt32() == 1 && body.RootElement.GetProperty("voice").GetString() == "my-voice", "CosyVoice request sends protocol and voice ID");
+var qwenOptions = new ReadingOptions(Provider: "qwen3", Qwen3Url: "my-mac", Qwen3Voice: "qwen-voice");
+await foreach (var _ in cosy.SynthesizeAsync("你好", qwenOptions, default)) { }
+Check(cosyHandler.Uri == "http://my-mac:18767/v1/tts", "Qwen request reaches the dedicated service port");
+using (var body = JsonDocument.Parse(cosyHandler.Body!))
+    Check(body.RootElement.GetProperty("voice").GetString() == "qwen-voice", "Qwen request uses its separately saved voice ID");
 Console.WriteLine($"Passed {checks} checks.");
 
 sealed class RecordingHandler : HttpMessageHandler

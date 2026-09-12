@@ -1,0 +1,294 @@
+#!/bin/bash
+
+set -euo pipefail
+
+service_label="ai.shuo.asr"
+service_port="18765"
+script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
+repo_root="$(cd -- "$script_dir/.." && pwd -P)"
+data_dir="$HOME/.local/share/shuo-asr"
+venv_dir="$data_dir/venv"
+model_dir="$data_dir/model"
+small_model_dir="$data_dir/model-0.6b"
+log_dir="$HOME/Library/Logs/ShuoASR"
+launch_agents_dir="$HOME/Library/LaunchAgents"
+plist_path="$launch_agents_dir/$service_label.plist"
+launch_domain="gui/$(id -u)"
+service_target="$launch_domain/$service_label"
+
+usage() {
+  printf 'Usage: %s {up|down|restart|status|logs}\n' "$0" >&2
+  exit 2
+}
+
+die() {
+  printf 'error: %s\n' "$*" >&2
+  exit 1
+}
+
+require_macos() {
+  [[ "$(uname -s)" == "Darwin" ]] || die "Shuo ASR services can only run on macOS"
+}
+
+find_tailscale() {
+  local candidate
+  if candidate="$(command -v tailscale 2>/dev/null)" && [[ -n "$candidate" ]]; then
+    printf '%s\n' "$candidate"
+  elif [[ -x "$HOME/go/bin/tailscale" ]]; then
+    printf '%s\n' "$HOME/go/bin/tailscale"
+  else
+    die "tailscale CLI was not found in PATH or $HOME/go/bin"
+  fi
+}
+
+find_uv() {
+  local candidate
+  if candidate="$(command -v uv 2>/dev/null)" && [[ -n "$candidate" ]]; then
+    printf '%s\n' "$candidate"
+  elif [[ -x "/opt/homebrew/bin/uv" ]]; then
+    printf '%s\n' "/opt/homebrew/bin/uv"
+  else
+    die "uv was not found in PATH or /opt/homebrew/bin"
+  fi
+}
+
+tailnet_ipv4() {
+  local tailscale_bin="$1"
+  local address
+  address="$("$tailscale_bin" ip -4 2>/dev/null | head -n 1)"
+  [[ "$address" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]] || \
+    die "Tailscale is not online or has no IPv4 address"
+  printf '%s\n' "$address"
+}
+
+xml_escape() {
+  printf '%s' "$1" | sed \
+    -e 's/&/\&amp;/g' \
+    -e 's/</\&lt;/g' \
+    -e 's/>/\&gt;/g' \
+    -e 's/"/\&quot;/g' \
+    -e "s/'/\&apos;/g"
+}
+
+install_runtime() {
+  local uv_bin
+  uv_bin="$(find_uv)"
+  mkdir -p "$data_dir"
+  UV_PROJECT_ENVIRONMENT="$venv_dir" "$uv_bin" sync \
+    --project "$repo_root/asr-server" \
+    --frozen \
+    --no-editable
+}
+
+write_launch_agent() {
+  local address="$1"
+  local program="$venv_dir/bin/shuo-asr"
+  local primary_model="mlx-community/Qwen3-ASR-1.7B-8bit"
+  local small_model="mlx-community/Qwen3-ASR-0.6B-8bit"
+  local temp_plist
+
+  [[ -x "$program" ]] || die "ASR runtime is not installed; run $0 up"
+  [[ ! -d "$model_dir" ]] || primary_model="$model_dir"
+  [[ ! -d "$small_model_dir" ]] || small_model="$small_model_dir"
+
+  mkdir -p "$launch_agents_dir" "$log_dir" "$data_dir/huggingface"
+  temp_plist="$(mktemp "$launch_agents_dir/$service_label.plist.XXXXXX")"
+
+  {
+    printf '%s\n' '<?xml version="1.0" encoding="UTF-8"?>'
+    printf '%s\n' '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">'
+    printf '%s\n' '<plist version="1.0">' '<dict>'
+    printf '  <key>Label</key><string>%s</string>\n' "$(xml_escape "$service_label")"
+    printf '%s\n' '  <key>ProgramArguments</key>' '  <array>'
+    printf '    <string>%s</string>\n' "$(xml_escape "$program")"
+    printf '    <string>--model</string><string>%s</string>\n' "$(xml_escape "$primary_model")"
+    printf '    <string>--small-model</string><string>%s</string>\n' "$(xml_escape "$small_model")"
+    printf '    <string>--host</string><string>%s</string>\n' "$(xml_escape "$address")"
+    printf '    <string>--port</string><string>%s</string>\n' "$service_port"
+    printf '%s\n' \
+      '    <string>--max-segment-seconds</string><string>30</string>' \
+      '    <string>--silence-seconds</string><string>2</string>' \
+      '    <string>--preview-seconds</string><string>1</string>' \
+      '  </array>' \
+      '  <key>EnvironmentVariables</key>' \
+      '  <dict>'
+    printf '    <key>HF_HOME</key><string>%s</string>\n' "$(xml_escape "$data_dir/huggingface")"
+    printf '%s\n' '  </dict>'
+    printf '  <key>WorkingDirectory</key><string>%s</string>\n' "$(xml_escape "$data_dir")"
+    printf '%s\n' \
+      '  <key>RunAtLoad</key><true/>' \
+      '  <key>KeepAlive</key><true/>' \
+      '  <key>ThrottleInterval</key><integer>15</integer>'
+    printf '  <key>StandardOutPath</key><string>%s</string>\n' "$(xml_escape "$log_dir/stdout.log")"
+    printf '  <key>StandardErrorPath</key><string>%s</string>\n' "$(xml_escape "$log_dir/stderr.log")"
+    printf '%s\n' '</dict>' '</plist>'
+  } > "$temp_plist"
+
+  if ! plutil -lint "$temp_plist" >/dev/null; then
+    rm -f "$temp_plist"
+    die "generated LaunchAgent plist is invalid"
+  fi
+  chmod 0644 "$temp_plist"
+  mv -f "$temp_plist" "$plist_path"
+}
+
+is_loaded() {
+  launchctl print "$service_target" >/dev/null 2>&1
+}
+
+wait_until_unloaded() {
+  for ((attempt = 1; attempt <= 30; attempt++)); do
+    if ! is_loaded; then
+      return 0
+    fi
+    sleep 1
+  done
+  die "LaunchAgent did not finish unloading"
+}
+
+ensure_idle() {
+  local address="${1:-}"
+  local health=""
+  local endpoint
+
+  for endpoint in "http://127.0.0.1:$service_port/health" "http://$address:$service_port/health"; do
+    [[ "$endpoint" != "http://:$service_port/health" ]] || continue
+    if health="$(curl --fail --silent --max-time 2 "$endpoint" 2>/dev/null)"; then
+      break
+    fi
+  done
+  [[ "$health" != *'"busy":true'* ]] || die "Qwen3-ASR is handling a dictation; try again when it is idle"
+}
+
+disable_legacy_serve() {
+  local tailscale_bin="$1"
+  if "$tailscale_bin" serve status 2>/dev/null | grep -q ":$service_port"; then
+    "$tailscale_bin" serve --tcp="$service_port" off >/dev/null
+  fi
+}
+
+load_service() {
+  local address="$1"
+  local tailscale_bin="$2"
+  local health
+
+  if is_loaded; then
+    ensure_idle "$address"
+    launchctl bootout "$service_target"
+    wait_until_unloaded
+  fi
+  disable_legacy_serve "$tailscale_bin"
+  launchctl enable "$service_target"
+  for ((attempt = 1; attempt <= 10; attempt++)); do
+    if launchctl bootstrap "$launch_domain" "$plist_path" 2>/dev/null; then
+      break
+    fi
+    [[ "$attempt" -lt 10 ]] || die "LaunchAgent could not be loaded"
+    sleep 1
+  done
+
+  printf 'Waiting for Qwen3-ASR at http://%s:%s ...\n' "$address" "$service_port"
+  for ((attempt = 1; attempt <= 300; attempt++)); do
+    if health="$(curl --fail --silent --max-time 2 "http://$address:$service_port/health" 2>/dev/null)"; then
+      printf '%s\n' "$health"
+      return 0
+    fi
+    sleep 1
+  done
+
+  printf 'Qwen3-ASR did not become ready; inspect %s\n' "$log_dir/stderr.log" >&2
+  return 1
+}
+
+up() {
+  local tailscale_bin
+  local address
+  tailscale_bin="$(find_tailscale)"
+  address="$(tailnet_ipv4 "$tailscale_bin")"
+  install_runtime
+  write_launch_agent "$address"
+  load_service "$address" "$tailscale_bin"
+}
+
+down() {
+  local tailscale_bin
+  local address=""
+  if tailscale_bin="$(find_tailscale 2>/dev/null)"; then
+    address="$(tailnet_ipv4 "$tailscale_bin" 2>/dev/null || true)"
+  fi
+  ensure_idle "$address"
+  launchctl disable "$service_target"
+  if is_loaded; then
+    launchctl bootout "$service_target"
+    wait_until_unloaded
+  fi
+  if [[ -n "${tailscale_bin:-}" ]]; then
+    disable_legacy_serve "$tailscale_bin"
+  fi
+  printf 'Qwen3-ASR is stopped and disabled.\n'
+}
+
+restart() {
+  local tailscale_bin
+  local address
+  tailscale_bin="$(find_tailscale)"
+  address="$(tailnet_ipv4 "$tailscale_bin")"
+  write_launch_agent "$address"
+  load_service "$address" "$tailscale_bin"
+}
+
+status() {
+  local tailscale_bin
+  local address=""
+  local details
+  local state
+  local pid
+  local health
+  local result=0
+
+  if details="$(launchctl print "$service_target" 2>/dev/null)"; then
+    state="$(printf '%s\n' "$details" | awk '/state =/ { print $3; exit }')"
+    pid="$(printf '%s\n' "$details" | awk '/pid =/ { print $3; exit }')"
+    printf 'service: %s (pid %s)\n' "${state:-loaded}" "${pid:-unknown}"
+  else
+    printf 'service: stopped\n'
+    result=1
+  fi
+
+  if tailscale_bin="$(find_tailscale 2>/dev/null)"; then
+    address="$(tailnet_ipv4 "$tailscale_bin" 2>/dev/null || true)"
+    if "$tailscale_bin" serve status 2>/dev/null | grep -q ":$service_port"; then
+      printf 'legacy Serve forward: configured (unexpected)\n'
+      result=1
+    else
+      printf 'legacy Serve forward: off\n'
+    fi
+  fi
+
+  if [[ -n "$address" ]] && health="$(curl --fail --silent --max-time 2 "http://$address:$service_port/health" 2>/dev/null)"; then
+    printf 'address: http://%s:%s\n' "$address" "$service_port"
+    printf 'health: %s\n' "$health"
+  else
+    printf 'health: unavailable\n'
+    result=1
+  fi
+  return "$result"
+}
+
+logs() {
+  mkdir -p "$log_dir"
+  touch "$log_dir/stdout.log" "$log_dir/stderr.log"
+  exec tail -n 100 -f "$log_dir/stdout.log" "$log_dir/stderr.log"
+}
+
+require_macos
+[[ $# -eq 1 ]] || usage
+
+case "$1" in
+  up) up ;;
+  down) down ;;
+  restart) restart ;;
+  status) status ;;
+  logs) logs ;;
+  *) usage ;;
+esac

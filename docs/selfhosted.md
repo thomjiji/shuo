@@ -2,24 +2,31 @@
 
 Mac 在本机通过 MLX 运行 Qwen3-ASR，Windows 上的 shuo 通过 Tailscale 发送录音并显示实时文字。模型只需在 Mac 安装一次，几台 Windows 可以轮流使用。服务需要 Apple Silicon Mac；Mac 需保持供电、联网且不休眠。
 
-## 在 Mac 启动服务
+## 在 Mac 部署服务
 
-安装 uv 后，在项目根目录执行：
-
-```bash
-uv run --project asr-server --frozen shuo-asr
-```
-
-首次运行会下载 `mlx-community/Qwen3-ASR-1.7B-8bit`，权重约 2.46 GB。模型加载和预热完成后，服务监听 `127.0.0.1:18765`。已有模型可通过 `--model /模型目录` 指定；识别在 Mac 上完成，正常请求不会将音频发送给模型下载站。
-
-通过 Tailscale 将服务发布到私网：
+Mac 需要安装 uv 和 Tailscale，并先登录需要访问该服务的 tailnet。在项目根目录执行统一的部署入口：
 
 ```bash
-tailscale serve --bg --tcp=18765 tcp://127.0.0.1:18765
-tailscale serve status
+./scripts/shuo-services up
 ```
 
-Windows 到 Mac 的 **TCP 18765** 必须被 tailnet 的访问规则允许。源选择需要使用听写的 Windows 设备，目标选择 Mac。TCP 转发支持 Mac 的 Tailscale IP 和主机名，HTTP 和 WebSocket 流量由 Tailscale 隧道加密。
+`up` 会读取 Mac 当前的 Tailscale IPv4 地址，根据 `asr-server/uv.lock` 将服务安装到 `~/.local/share/shuo-asr/venv`，生成并加载 `ai.shuo.asr` LaunchAgent。服务直接监听 Mac 的 Tailscale IPv4 地址和 18765 端口，不使用 Tailscale Serve，也不会监听 Wi-Fi 或以太网地址。
+
+已有的 `~/.local/share/shuo-asr/model` 和 `model-0.6b` 会被直接复用。没有这两个本地模型目录时，首次启动会从 Hugging Face 下载 `mlx-community/Qwen3-ASR-1.7B-8bit` 和 `mlx-community/Qwen3-ASR-0.6B-8bit`，并将缓存保存在 `~/.local/share/shuo-asr/huggingface`。模型加载和预热完成后，`up` 才会返回健康状态。识别在 Mac 上完成，正常请求不会将音频发送给模型下载站。
+
+日常管理统一使用以下命令：
+
+```bash
+./scripts/shuo-services up
+./scripts/shuo-services down
+./scripts/shuo-services restart
+./scripts/shuo-services status
+./scripts/shuo-services logs
+```
+
+`up` 会同步并部署当前仓库中的服务代码，然后启用并启动 LaunchAgent；`restart` 只重新生成配置并重启已经安装的服务；`down` 会停用 LaunchAgent，使其在下次登录时也保持停止；`status` 同时检查 LaunchAgent、旧 Serve 配置和健康接口；`logs` 持续显示标准输出和错误日志。`up`、`restart` 和 `down` 检测到正在听写时不会中断服务。Tailscale 地址变化后再次运行 `up` 或 `restart`，LaunchAgent 就会改用新地址。
+
+Windows 到 Mac 的 **TCP 18765** 必须被 tailnet 的访问规则允许。源选择需要使用听写的 Windows 设备，目标选择 Mac。客户端可以使用 Mac 的 Tailscale IP 或主机名，HTTP 和 WebSocket 流量由 Tailscale 隧道加密。服务只绑定 Tailscale 地址，因此 tailnet 外的本地网络不能连接该端口。
 
 在 Windows 上验证：
 
@@ -41,34 +48,15 @@ curl.exe --max-time 5 http://<Mac的Tailscale名称>:18765/health
 
 服务不保存录音或转写文字到磁盘。最终文本仍按 shuo 的现有规则保存在发起听写的 Windows 电脑上。
 
-需要调整分段时，可在启动命令中增加参数，例如 `--max-segment-seconds 30 --hard-segment-seconds 35 --silence-seconds 2 --preview-seconds 1`。这些也是默认值；未指定硬上限时，它等于软上限加 5 秒。若将静音时长调低到 2 秒以下，当前段累计语音不足 2 秒时仍会等待 2 秒静音。`/health` 返回的 `segmentation` 显示当前参数。使用 LaunchAgent 时，将参数和对应值写入 `ProgramArguments` 后重新加载服务。
+当前部署使用 `--max-segment-seconds 30 --silence-seconds 2 --preview-seconds 1`，未指定的硬上限等于软上限加 5 秒。若将静音时长调低到 2 秒以下，当前段累计语音不足 2 秒时仍会等待 2 秒静音。`/health` 返回的 `segmentation` 显示当前参数。需要调整时修改 `scripts/shuo-services` 中生成的 `ProgramArguments`，再运行 `up` 部署。
 
-## 安装两个模型
+## 两个识别模型
 
-服务默认只加载 1.7B。要允许客户端切换 0.6B，在 Mac 的启动命令中增加 `--small-model`：
-
-```bash
-uv run --project asr-server --frozen shuo-asr --small-model mlx-community/Qwen3-ASR-0.6B-8bit
-```
-
-0.6B 的 8bit 权重约 1.01 GB；已有模型可传入本地目录。服务启动时加载并预热两个模型，随后每次听写按客户端选择使用其中一个，仍只允许一路录音。两个模型同时驻留会增加内存占用。使用 LaunchAgent 时，将 `--small-model` 和模型目录追加到 `ProgramArguments`。
+部署入口会同时配置 1.7B 和 0.6B 两个模型，以便客户端切换。1.7B 的 8bit 权重约 2.46 GB，0.6B 约 1.01 GB。服务启动时加载并预热两个模型，随后每次听写按客户端选择使用其中一个，仍只允许一路录音。两个模型同时驻留会增加内存占用。
 
 ## 常驻运行
 
-前台运行的服务随终端退出而停止。常驻部署时，将服务安装到独立环境，并由 macOS LaunchAgent 启动。下面是环境安装步骤，须在项目根目录执行：
-
-```bash
-uv venv --python 3.12 "$HOME/.local/share/shuo-asr/venv"
-uv pip install --python "$HOME/.local/share/shuo-asr/venv/bin/python" ./asr-server
-```
-
-LaunchAgent 的 `ProgramArguments` 使用环境中的 `bin/shuo-asr`，设置 `RunAtLoad` 和 `KeepAlive`，并用 `--model` 指向持久保存的模型目录。不要将模型或环境放在 `/tmp` 中。LaunchAgent 随用户登录启动；Mac 休眠时无法提供识别服务。
-
-停用私网发布：
-
-```bash
-tailscale serve --tcp=18765 off
-```
+`up` 生成的 LaunchAgent 设置了 `RunAtLoad` 和 `KeepAlive`，随用户登录启动，并在异常退出后重试。程序、模型、缓存和日志都位于持久目录，不使用 `/tmp`。如果登录时 Tailscale 地址尚未就绪，服务可能先启动失败；LaunchAgent 会每隔 15 秒重试。Mac 休眠时无法提供识别服务。
 
 ## 开发验证
 

@@ -58,6 +58,9 @@ internal static class NativeMethods
     private static extern short GetKeyState(int virtualKey);
 
     internal static bool IsKeyDown(uint virtualKey) => (GetKeyState((int)virtualKey) & 0x8000) != 0;
+    [DllImport("user32.dll")]
+    private static extern short GetAsyncKeyState(int virtualKey);
+    internal static bool IsLeftMouseDown() => (GetAsyncKeyState(1) & 0x8000) != 0;
     [DllImport("comctl32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     internal static extern bool SetWindowSubclass(

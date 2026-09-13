@@ -45,11 +45,21 @@ public sealed partial class OverlayWindow : Window
     private double _panelHeight = OverlayHeight;
     private bool _translation;
     private bool _layingOutTranslation;
-    private PointInt32? _captionPosition;
-    private PointInt32? _readingPosition;
+    private readonly CaptionLines _captionLines = new();
+    private Microsoft.UI.Dispatching.DispatcherQueueTimer? _captionTimer;
+    private bool _captionPaused;
+    private string? _pendingTranslationSnapshot;
+    private double _captionWidth = CaptionWidth;
+    private double _captionHeight = CaptionMaxLines * CaptionLineHeight + 52;
+    private bool _followCaption = true;
+    private bool _nativeDragging;
+    private Microsoft.UI.Dispatching.DispatcherQueueTimer? _dragTimer;
     private PointInt32 _dragStart;
     private PointInt32 _dragOrigin;
-    private uint? _dragPointer;
+    private SizeInt32 _dragSize;
+    private int _dragEdges;
+    private PointInt32? _captionPosition;
+    private PointInt32? _readingPosition;
     internal event Action? TranslationCloseRequested;
     internal event Action? TranslationPauseRequested;
     internal event Action? TranslationStopRequested;
@@ -71,6 +81,12 @@ public sealed partial class OverlayWindow : Window
     public OverlayWindow()
     {
         InitializeComponent();
+        OverlayRoot.AddHandler(UIElement.PointerPressedEvent,
+            new Microsoft.UI.Xaml.Input.PointerEventHandler(Overlay_PointerPressed), true);
+        AppWindow.Changed += (_, args) =>
+        {
+            if (_nativeDragging && (args.DidPositionChange || args.DidSizeChange)) SyncDraggedBounds();
+        };
         Title = "Shuo 状态";
         _handle = WindowNative.GetWindowHandle(this);
         if (AppWindow.Presenter is OverlappedPresenter presenter)
@@ -156,10 +172,15 @@ public sealed partial class OverlayWindow : Window
         Microsoft.UI.Xaml.Controls.ToolTipService.SetToolTip(ReadingStopButton, translation ? "停止翻译" : "停止朗读");
         Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(ReadingCloseButton, "停止并关闭浮窗");
         Microsoft.UI.Xaml.Controls.ToolTipService.SetToolTip(ReadingCloseButton, "停止并关闭浮窗");
-        TextViewport.Visibility = Visibility.Visible;
+        TextViewport.Visibility = translation ? Visibility.Collapsed : Visibility.Visible;
+        CaptionScroll.Visibility = translation ? Visibility.Visible : Visibility.Collapsed;
+        CaptionResizeEdges.Visibility = CaptionMoveArea.Visibility = translation ? Visibility.Visible : Visibility.Collapsed;
+        CaptionHistory.Text = "";
+        _followCaption = true;
         Microsoft.UI.Xaml.Controls.ToolTipService.SetToolTip(OverlaySurface, null);
-        _panelWidth = translation ? CaptionWidth : 36;
-        _panelHeight = translation ? CaptionMaxLines * CaptionLineHeight + 52 : OverlayHeight;
+        _panelWidth = translation ? _captionWidth : 36;
+        _panelHeight = translation ? _captionHeight : OverlayHeight;
+        CaptionScroll.Height = Math.Max(52, _panelHeight - 52);
         TextViewport.Height = translation ? CaptionMaxLines * CaptionLineHeight : 22;
         TextViewport.Margin = translation ? new Thickness(0, 8, 0, 0) : new Thickness(0);
         TranscriptText.Width = double.NaN;
@@ -215,11 +236,46 @@ public sealed partial class OverlayWindow : Window
 
     private void UpdateTranslationTranscript(string text)
     {
-        if (TranscriptText.Text == text) return;
+        if (_captionPaused) { _pendingTranslationSnapshot = text; return; }
+        _pendingTranslationSnapshot = null;
+        if (CaptionHistory.Text == text) return;
         _hasText = !string.IsNullOrWhiteSpace(text);
-        TranscriptText.Text = text;
-        TextViewport.UpdateLayout();
-        LayoutTranslationText();
+        var follow = _followCaption;
+        CaptionHistory.Text = text;
+        CaptionScroll.UpdateLayout();
+        if (follow) CaptionScroll.ChangeView(null, CaptionScroll.ScrollableHeight, null, true);
+    }
+
+    private void CaptionScroll_ViewChanged(object sender, ScrollViewerViewChangedEventArgs args)
+    {
+        _followCaption = CaptionScroll.ScrollableHeight - CaptionScroll.VerticalOffset < 2;
+    }
+
+    internal void AddCaption(string text)
+    {
+        if (!_visible || !_translation) return;
+        var measure = new TextBlock { FontSize = TranscriptText.FontSize, FontFamily = TranscriptText.FontFamily };
+        var width = Math.Max(1, CaptionScroll.ViewportWidth - 18);
+        _captionLines.Add(text, value =>
+        {
+            measure.Text = value;
+            measure.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+            return measure.DesiredSize.Width <= width;
+        });
+        if (_captionTimer is null)
+        {
+            _captionTimer = DispatcherQueue.CreateTimer();
+            _captionTimer.Interval = TimeSpan.FromMilliseconds(100);
+            _captionTimer.Tick += (_, _) => AdvanceCaption();
+        }
+        _captionTimer.Start();
+        AdvanceCaption();
+    }
+
+    private void AdvanceCaption()
+    {
+        if (!_captionPaused && _captionLines.Advance(DateTimeOffset.UtcNow) is { } text)
+            UpdateTranslationTranscript(text);
     }
     private void LayoutTranslationText()
     {
@@ -229,23 +285,10 @@ public sealed partial class OverlayWindow : Window
         {
             StopScrolling();
             TextOffset.X = 0;
-            var width = Math.Max(1, TextViewport.ActualWidth);
-            var scale = TextViewport.XamlRoot?.RasterizationScale ?? 1;
-            var lineHeight = Math.Ceiling(CaptionLineHeight * scale) / scale;
-            TranscriptText.LineHeight = lineHeight;
-            TranscriptText.Width = width;
-            TranscriptText.Measure(new Size(width, double.PositiveInfinity));
-            var lines = _hasText ? Math.Max(1, (int)Math.Round(TranscriptText.DesiredSize.Height / lineHeight)) : 1;
-            var visibleLines = CaptionMaxLines;
-            TextViewport.Height = visibleLines * lineHeight;
-            // Scroll by complete rows, leaving the most recent two lines visible.
-            TextOffset.Y = -Math.Max(0, lines - CaptionMaxLines) * lineHeight;
-            var height = 52 + visibleLines * lineHeight;
-            if (_panelHeight != height)
-            {
-                _panelHeight = height;
-                Position();
-            }
+            var follow = _followCaption;
+            CaptionScroll.Height = Math.Max(52, _panelHeight - 52);
+            CaptionScroll.UpdateLayout();
+            if (follow) CaptionScroll.ChangeView(null, CaptionScroll.ScrollableHeight, null, true);
         }
         finally { _layingOutTranslation = false; }
     }
@@ -327,6 +370,8 @@ public sealed partial class OverlayWindow : Window
     internal void TranslationPaused(bool paused)
     {
         if (!_translation || !_visible) return;
+        _captionPaused = paused;
+        if (!paused && _pendingTranslationSnapshot is { } pending) UpdateTranslationTranscript(pending);
         SetPlaybackPaused(paused);
         SetBusy(false);
         if (paused) StopVoiceAnimation();
@@ -335,6 +380,8 @@ public sealed partial class OverlayWindow : Window
     internal void FinishTranslation()
     {
         if (!_translation || !_visible) return;
+        _captionPaused = false;
+        if (_pendingTranslationSnapshot is { } pending) UpdateTranslationTranscript(pending);
         SetBusy(false);
         StopVoiceAnimation();
         SetPlaybackPaused(false);
@@ -513,7 +560,7 @@ public sealed partial class OverlayWindow : Window
             || AppWindow.Size.Width != bounds.Width || AppWindow.Size.Height != bounds.Height)
             AppWindow.MoveAndResize(bounds);
         }
-        if (_dragPointer is null) NativeMethods.ShowNoActivateTopmost(_handle, bounds);
+        if (!_nativeDragging) NativeMethods.ShowNoActivateTopmost(_handle, bounds);
     }
 
     private RectInt32 CalculateBounds(double scale)
@@ -530,51 +577,59 @@ public sealed partial class OverlayWindow : Window
             _workArea.Y + _workArea.Height - height - margin, width, height);
     }
 
-    private PointInt32 PointerScreenPosition(Microsoft.UI.Xaml.Input.PointerRoutedEventArgs args)
-    {
-        if (NativeMethods.GetCursorPos(out var cursor)) return cursor;
-        var point = args.GetCurrentPoint(OverlaySurface).Position;
-        var scale = OverlaySurface.XamlRoot?.RasterizationScale ?? 1;
-        return new PointInt32(AppWindow.Position.X + (int)Math.Round(point.X * scale),
-            AppWindow.Position.Y + (int)Math.Round(point.Y * scale));
-    }
-
     private void Overlay_PointerPressed(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs args)
     {
         if ((!_translation && !_reading) || !args.GetCurrentPoint(OverlaySurface).Properties.IsLeftButtonPressed) return;
+        var edges = 0;
         for (var source = args.OriginalSource as DependencyObject; source is not null; source = VisualTreeHelper.GetParent(source))
-            if (source is Microsoft.UI.Xaml.Controls.Button) return;
-        if (!OverlaySurface.CapturePointer(args.Pointer)) return;
-        _dragPointer = args.Pointer.PointerId;
-        _dragStart = PointerScreenPosition(args);
+        {
+            if (_translation && source is OverlayDragHandle { Tag: string tag }) int.TryParse(tag, out edges);
+            if (source is Button or Microsoft.UI.Xaml.Controls.Primitives.ScrollBar) return;
+        }
+        args.Handled = true;
+        _dragEdges = edges;
+        NativeMethods.GetCursorPos(out _dragStart);
         _dragOrigin = AppWindow.Position;
-        args.Handled = true;
+        _dragSize = AppWindow.Size;
+        _nativeDragging = true;
+        _dragTimer ??= DispatcherQueue.CreateTimer();
+        _dragTimer.Interval = TimeSpan.FromMilliseconds(16);
+        _dragTimer.Tick -= DragTick;
+        _dragTimer.Tick += DragTick;
+        _dragTimer.Start();
     }
 
-    private void Overlay_PointerMoved(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs args)
+    private void DragTick(Microsoft.UI.Dispatching.DispatcherQueueTimer sender, object args)
     {
-        if (_dragPointer != args.Pointer.PointerId) return;
-        var point = PointerScreenPosition(args);
-        _workArea = DisplayArea.GetFromPoint(point, DisplayAreaFallback.Nearest).WorkArea;
-        var position = new PointInt32(_dragOrigin.X + point.X - _dragStart.X, _dragOrigin.Y + point.Y - _dragStart.Y);
-        if (_reading) _readingPosition = position;
-        else _captionPosition = position;
-        Position();
-        args.Handled = true;
+        if (!NativeMethods.IsLeftMouseDown())
+        {
+            sender.Stop();
+            _nativeDragging = false;
+            return;
+        }
+        if (!NativeMethods.GetCursorPos(out var point)) return;
+        var dx = point.X - _dragStart.X;
+        var dy = point.Y - _dragStart.Y;
+        var scale = NativeMethods.GetDpiForWindow(_handle) / 96.0;
+        var width = Math.Max((int)(320 * scale), _dragSize.Width + ((_dragEdges & 1) != 0 ? -dx : (_dragEdges & 2) != 0 ? dx : 0));
+        var height = Math.Max((int)(104 * scale), _dragSize.Height + ((_dragEdges & 4) != 0 ? -dy : (_dragEdges & 8) != 0 ? dy : 0));
+        if (_dragEdges == 0) { width = _dragSize.Width; height = _dragSize.Height; }
+        var x = _dragOrigin.X + (_dragEdges == 0 ? dx : (_dragEdges & 1) != 0 ? _dragSize.Width - width : 0);
+        var y = _dragOrigin.Y + (_dragEdges == 0 ? dy : (_dragEdges & 4) != 0 ? _dragSize.Height - height : 0);
+        NativeMethods.SetWindowPos(_handle, IntPtr.Zero, x, y, width, height, 0x0014);
+        SyncDraggedBounds();
     }
-
-    private void Overlay_PointerReleased(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs args)
+    private void SyncDraggedBounds()
     {
-        if (_dragPointer != args.Pointer.PointerId) return;
-        _dragPointer = null;
+        _workArea = DisplayArea.GetFromWindowId(AppWindow.Id, DisplayAreaFallback.Nearest).WorkArea;
         if (_reading) _readingPosition = AppWindow.Position;
-        else _captionPosition = AppWindow.Position;
-        OverlaySurface.ReleasePointerCapture(args.Pointer);
-        args.Handled = true;
+        if (!_translation) return;
+        var scale = NativeMethods.GetDpiForWindow(_handle) / 96.0;
+        _captionPosition = AppWindow.Position;
+        _captionWidth = _panelWidth = AppWindow.Size.Width / scale;
+        _captionHeight = _panelHeight = AppWindow.Size.Height / scale;
+        LayoutTranslationText();
     }
-
-    private void Overlay_PointerCaptureLost(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs args) =>
-        _dragPointer = null;
     private void StopScrolling()
     {
         CompositionTarget.Rendering -= OnRendering;
@@ -583,8 +638,13 @@ public sealed partial class OverlayWindow : Window
 
     internal void Hide()
     {
+        _dragTimer?.Stop();
+        _nativeDragging = false;
+        _captionTimer?.Stop();
+        _captionLines.Clear();
+        _captionPaused = false;
+        _pendingTranslationSnapshot = null;
         _visible = false;
-        _dragPointer = null;
         OverlaySurface.ReleasePointerCaptures();
         StopScrolling();
         StopVoiceAnimation();

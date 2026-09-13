@@ -58,10 +58,26 @@ class ProtocolTests(unittest.TestCase):
             with client.websocket_connect('/v1/asr') as ws:
                 ws.send_json(START); ws.receive_json()
                 ws.send_bytes(VOICE * 12)
-                self.assertEqual(ws.receive_json(), {'type': 'partial', 'text': '测试文字。'})
+                self.assertEqual(ws.receive_json(), {'type': 'partial', 'text': '测试文字。', 'confirmed': ''})
                 ws.send_json({'type': 'finish'})
-                self.assertEqual(ws.receive_json()['type'], 'partial')
+                self.assertEqual(ws.receive_json()['confirmed'], '测试文字。')
                 self.assertEqual(ws.receive_json()['text'], '测试文字。')
+
+    def test_captions_commit_continuous_speech_before_finish(self):
+        r = Recognizer()
+        with self.client(r) as client:
+            with client.websocket_connect('/v1/asr') as ws:
+                ws.send_json({**START, 'captions': True}); ws.receive_json()
+                for _ in range(8):
+                    ws.send_bytes(VOICE * 50)
+                while True:
+                    event = ws.receive_json()
+                    if event.get('confirmed'):
+                        self.assertEqual(event['confirmed'], '测试文字。')
+                        break
+                ws.send_json({'type': 'finish'})
+                self.assertEqual(ws.receive_json()['text'], '测试文字。')
+                self.assertEqual(len(r.calls[-1][0]), len(VOICE) * 400)
 
     def test_busy_session_is_rejected_and_disconnect_releases_slot(self):
         with self.client() as client:

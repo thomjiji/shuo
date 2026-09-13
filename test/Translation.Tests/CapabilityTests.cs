@@ -82,7 +82,7 @@ internal static class CapabilityTests
             }
             await SendAsync(socket, new { type = "ready", protocol = 1 }, deadline.Token);
             await socket.ReceiveAsync(new byte[16].AsMemory(), deadline.Token);
-            await SendAsync(socket, new { type = "partial", text = "hello" }, deadline.Token);
+            await SendAsync(socket, new { type = "partial", text = "hello", confirmed = "hello" }, deadline.Token);
             if (translationFails)
             {
                 try { await socket.ReceiveAsync(new byte[16].AsMemory(), deadline.Token); }

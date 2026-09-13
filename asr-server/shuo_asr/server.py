@@ -101,9 +101,10 @@ def create_app(recognizer, *, model_name="Qwen3-ASR-1.7B-8bit", vad_factory=None
                 raise ValueError("Mac 未安装所选模型，请选择其他模型或更新 Mac 服务。")
             session_recognizer = available[selected]
             vad = vad_factory()
+            captions = config.get("captions") is True
             segmenter = Segmenter(lambda data: vad.is_speech(data, 16000),
-                                  preview_seconds=preview_seconds, silence_seconds=silence_seconds,
-                                  max_seconds=max_seconds, hard_seconds=hard_seconds)
+                                  preview_seconds=preview_seconds, silence_seconds=.6 if captions else silence_seconds,
+                                  max_seconds=6 if captions else max_seconds, hard_seconds=8 if captions else hard_seconds)
             jobs = PendingJobs()
             wake = asyncio.Event()
 
@@ -165,7 +166,8 @@ def create_app(recognizer, *, model_name="Qwen3-ASR-1.7B-8bit", vad_factory=None
                         snapshot = confirmed
                     else:
                         snapshot = join_text(confirmed, text)
-                    await ws.send_json({"type": "partial", "text": snapshot})
+                    await ws.send_json({"type": "partial", "text": snapshot,
+                                        "confirmed": confirmed})
 
             await ws.send_json({"type": "ready", "protocol": 1, "model": selected})
             consumer = asyncio.create_task(receive_audio())

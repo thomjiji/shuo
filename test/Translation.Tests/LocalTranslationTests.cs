@@ -12,12 +12,11 @@ internal static class LocalTranslationTests
     internal static async Task RunAsync()
     {
         var source = string.Concat(Enumerable.Repeat("你好😀 hello。", 200));
-        var recent = SelfHostedTranslationSession.RecentPassage(source);
-        Check(Encoding.UTF8.GetByteCount(recent) <= 900 && source.EndsWith(recent), "Bounded Unicode caption tail");
-        Check(!char.IsLowSurrogate(recent[0]), "Keep surrogate pairs intact");
+        var passages = ReadingText.Split(source, ReadingText.LocalRequestBytes);
+        Check(string.Concat(passages) == source && passages.All(p => Encoding.UTF8.GetByteCount(p) <= 900), "Split long Unicode segments without losing text");
         Check(SelfHostedTextTranslator.Endpoint("100.119.85.74").AbsoluteUri == "ws://100.119.85.74:18766/v1/translation", "Local endpoint");
         foreach (var stopEarly in new[] { false, true }) await WireAsync(stopEarly);
-        Console.WriteLine("Passed local translation, revision replacement, graceful stop, Unicode bounds, and tail delivery tests.");
+        Console.WriteLine("Passed local translation, committed segments, repeated speech, Unicode bounds, and tail delivery tests.");
     }
 
     private static async Task WireAsync(bool stopEarly)
@@ -56,10 +55,13 @@ internal static class LocalTranslationTests
                 var frame = await socket.ReceiveAsync(buffer.AsMemory(), deadline.Token);
                 Check(frame.MessageType == WebSocketMessageType.Binary && frame.Count == 4, "Binary PCM");
                 await Send(socket, new { type = "partial", text = "临时句。" });
+                await Send(socket, new { type = "partial", text = "定稿句。", confirmed = "定稿句。" });
+                await Send(socket, new { type = "partial", text = "定稿句。修改中的文字", confirmed = "定稿句。" });
+                await Send(socket, new { type = "partial", text = "定稿句。定稿句。", confirmed = "定稿句。定稿句。" });
                 if (stopEarly) stop.Cancel();
                 using var finish = await Receive(socket, deadline.Token);
                 Check(finish.RootElement.GetProperty("type").GetString() == "finish", "Finish on capture stop");
-                await Send(socket, new { type = "final", text = "最终句。" });
+                await Send(socket, new { type = "final", text = "定稿句。定稿句。最终句。" });
                 await finalSeen.Task.WaitAsync(deadline.Token);
                 serverDone.TrySetResult();
             }
@@ -72,7 +74,8 @@ internal static class LocalTranslationTests
             .RunAsync(Audio(stopEarly, stop.Token), stop.Token, new Uri(baseUrl + "/asr"), new Uri(baseUrl + "/translation"))
             .WaitAsync(deadline.Token);
         await serverDone.Task.WaitAsync(deadline.Token);
-        Check(translated.Last() == "formatted:translated:最终句。", "Final snapshot replaces prediction");
+        Check(translated.SequenceEqual(new[] { "formatted:translated:定稿句。", "formatted:translated:定稿句。", "formatted:translated:最终句。" }),
+            "Translate committed segments once, preserve repeated speech, and flush the final tail");
     }
 
     private static async IAsyncEnumerable<byte[]> Audio(bool wait, [EnumeratorCancellation] CancellationToken token)

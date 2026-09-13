@@ -147,8 +147,18 @@
                                                 </Grid.ColumnDefinitions>
                                                 <TextBlock Text="翻译服务" VerticalAlignment="Center" TextWrapping="Wrap" />
                                                 <ComboBox Grid.Column="1" x:Name="TranslationModelPicker" SelectedIndex="0" HorizontalAlignment="Stretch" SelectionChanged="TranslationBackend_Changed">
-                                                    <ComboBoxItem Content="阿里云百炼" />
-                                                    <ComboBoxItem Content="自托管 Mac" />
+                                                    <ComboBoxItem>
+                                                        <StackPanel>
+                                                            <TextBlock Text="阿里云百炼" />
+                                                            <TextBlock x:Name="CaptionCloudModel" FontSize="12" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                                        </StackPanel>
+                                                    </ComboBoxItem>
+                                                    <ComboBoxItem>
+                                                        <StackPanel>
+                                                            <TextBlock Text="自托管 Mac" />
+                                                            <TextBlock Text="mlx-community/Qwen3-8B-4bit" FontSize="12" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                                        </StackPanel>
+                                                    </ComboBoxItem>
                                                 </ComboBox>
                                             </Grid>
                                             <Button x:Name="TranslationSaveButton" Content="保存" HorizontalAlignment="Right" Click="TranslationSave_Click" />

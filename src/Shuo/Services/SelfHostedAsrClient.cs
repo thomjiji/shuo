@@ -6,7 +6,7 @@ namespace Shuo.Services;
 internal sealed class SelfHostedAsrClient(Uri endpoint)
 {
     internal async Task RunAsync(IAsyncEnumerable<byte[]> audio, Action ready, Action<string> snapshot,
-        CancellationToken stop, CancellationToken abort = default)
+        CancellationToken stop, CancellationToken abort = default, Action<string>? committed = null)
     {
         using var socket = new ClientWebSocket();
         socket.Options.Proxy = null;
@@ -16,7 +16,7 @@ internal sealed class SelfHostedAsrClient(Uri endpoint)
             connecting.CancelAfter(TimeSpan.FromSeconds(15));
             await socket.ConnectAsync(endpoint, connecting.Token);
             await SendAsync(socket, new { type = "start", protocol = 1, sample_rate = 16000,
-                format = "pcm_s16le", language = "auto" }, connecting.Token);
+                format = "pcm_s16le", language = "auto", captions = committed is not null }, connecting.Token);
             using var response = await ReceiveAsync(socket, connecting.Token);
             if (response.RootElement.GetProperty("type").GetString() != "ready")
                 throw new IOException("Mac 语音识别尚未就绪或正被占用，请稍后重试。");
@@ -62,6 +62,7 @@ internal sealed class SelfHostedAsrClient(Uri endpoint)
 
         async Task ReceiveTextAsync()
         {
+            var confirmedLength = 0;
             while (true)
             {
                 using var message = await ReceiveAsync(socket, lifetime.Token);
@@ -70,6 +71,14 @@ internal sealed class SelfHostedAsrClient(Uri endpoint)
                 if (type is not ("partial" or "final")) throw new IOException("Mac 语音识别失败，请检查服务。");
                 var text = root.GetProperty("text").GetString() ?? "";
                 if (!string.IsNullOrWhiteSpace(text)) snapshot(text);
+                var confirmed = type == "final" ? text
+                    : root.TryGetProperty("confirmed", out var stable) ? stable.GetString() ?? "" : "";
+                if (confirmed.Length > confirmedLength)
+                {
+                    var segment = confirmed[confirmedLength..].Trim();
+                    if (segment.Length > 0) committed?.Invoke(segment);
+                    confirmedLength = confirmed.Length;
+                }
                 if (type == "final") return;
             }
         }

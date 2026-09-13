@@ -15,7 +15,7 @@ if (args is ["--caption-quality", var qualityResult])
     return;
 }
 
-if (args.Length == 3 && args[0] is "--contextual-translation" or "--realtime-translation")
+if (args.Length == 3 && args[0] is "--contextual-translation" or "--realtime-translation" or "--punctuated-translation")
 {
     var contextualPcm = args[1];
     var contextualResult = args[2];
@@ -25,7 +25,11 @@ if (args.Length == 3 && args[0] is "--contextual-translation" or "--realtime-tra
     var gate = new object();
     void Record(object value) { lock (gate) records.Add(new { seconds = watch.Elapsed.TotalSeconds, value }); }
     try {
-        if (args[0] == "--realtime-translation")
+        if (args[0] == "--punctuated-translation")
+            await new PunctuatedTranslationSession(TranslationSettings.Load(), TranslationSettings.LoadApiKey(), () => watch.Start(),
+                text => { Record(new { stage = "caption", text }); Console.WriteLine($"{watch.Elapsed.TotalSeconds:F2}s: {text}"); },
+                _ => { }).RunAsync(CancellationToken.None, TimedReplay(pcm));
+        else if (args[0] == "--realtime-translation")
             await new TranslationSession(TranslationSettings.Load(), TranslationSettings.LoadApiKey(), () => watch.Start(),
                 text => { Record(new { stage = "caption", text }); Console.WriteLine($"{watch.Elapsed.TotalSeconds:F2}s: {text}"); },
                 _ => { }, received: message => Record(message.Clone())).RunAsync(CancellationToken.None, TimedReplay(pcm));
@@ -235,6 +239,7 @@ await CheckWire(true, false);
 await CheckWire(false, true);
 await LocalTranslationTests.RunAsync();
 await ContextualTranslationTests.RunAsync();
+await CaptionPunctuationTests.RunAsync();
 await CapabilityTests.RunAsync();
 await TranslatedSpeechTests.RunAsync();
 Console.WriteLine("Passed caption revision, endpoint validation, audio framing, graceful stop, tail delivery, and server error tests.");

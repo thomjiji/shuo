@@ -6,6 +6,8 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="../../src/Shuo/Services/CaptionPunctuation.cs" Link="CaptionPunctuation.cs" />
+    <Compile Include="../../src/Shuo/Services/PunctuatedTranslationSession.cs" Link="PunctuatedTranslationSession.cs" />
     <Compile Include="../../src/Shuo/Services/CaptionLines.cs" Link="CaptionLines.cs" />
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
     <PackageReference Include="NAudio.Wasapi" Version="2.2.1" />

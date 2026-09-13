@@ -11,7 +11,7 @@ Shuo 可识别电脑默认播放设备的声音，在浮窗中显示中文或英
 
 点击开始时保存翻译设置。百炼 API Key 独立保存在 Windows 凭据管理器中，后端、主机地址和字幕语言等选项保存在配置文件的 `translation` 节点。Mac 后端无需云端凭据，不会在连接失败时自动改用百炼。
 
-百炼 API Key 需要有权调用 `qwen3.5-livetranslate-flash-realtime`。地域、业务空间和凭据必须匹配。业务空间 ID 可在百炼控制台查看，详见[官方接入说明](https://www.alibabacloud.com/help/zh/model-studio/qwen3-5-livetranslate-flash-realtime)。
+百炼实时翻译使用 `qwen3.5-livetranslate-flash-realtime`，后台补标点使用 `qwen3.6-plus`。API Key 需要有权调用对应模型；地域、业务空间和凭据必须匹配。业务空间 ID 可在百炼控制台查看，详见[官方接入说明](https://www.alibabacloud.com/help/zh/model-studio/qwen3-5-livetranslate-flash-realtime)。
 
 ## 字幕与音频
 
@@ -19,13 +19,15 @@ Shuo 可识别电脑默认播放设备的声音，在浮窗中显示中文或英
 
 百炼直接根据音频流生成译文，每次返回文字更新就刷新字幕，不等待整句结束，也不按阅读时长排队显示。当前句子可能随着后续语音修订，换行位置也会变化。服务端以约 500 毫秒静音判断语音结束，随后返回该段最终译文。浮窗保留最近最多 20 段、合计最多 1200 个字符。
 
+译文先显示，再由后台补充标点，不等待补标点请求完成。补标点只允许调整标点和空白；改变字词、数字等内容的结果会被丢弃。后台只处理最新的待更新文字，旧结果不会覆盖后来出现的新字。服务不可用时继续显示实时译文。停止字幕后，补标点最多再等待 3 秒，已有文字始终可见。
+
 Mac 将已确认的识别片段依次交给 Qwen3 翻译，单次请求最多 900 个 UTF-8 字节。翻译积压过多时会停止并提示重试。Mac ASR 单次会话最多 30 分钟，超过后需要重新开始。
 
 配置了 autocorrect 时，译文在显示前会自动整理中英文、数字之间的空格；格式化失败或超时则显示未整理的译文。首条字幕延迟取决于网络、语音内容和模型处理速度，不保证固定秒数。翻译只用于浮窗显示，不自动粘贴或写入转录历史。
 
 字幕采集默认播放设备的全部声音，包括该设备上其他应用的提示音和人声。切换播放设备后，请停止并重新开始翻译。翻译期间不能同时使用 Shuo 听写或朗读。
 
-系统音频以 16 kHz、单声道、16 位 PCM 发送到所选后端：百炼在配置的地域处理，按实时翻译模型计费；Mac 在用户自己的设备上完成识别和翻译，无需生成朗读音频。应用不保存音频文件，也不发送屏幕画面。
+系统音频以 16 kHz、单声道、16 位 PCM 发送到所选后端：百炼在配置的地域处理，产生实时翻译和补标点的文字模型调用费用；Mac 在用户自己的设备上完成识别和翻译，无需生成朗读音频。应用不保存音频文件，也不发送屏幕画面。
 
 ## 开发验证
 
@@ -34,7 +36,7 @@ dotnet run --project test/Translation.Tests
 dotnet build src/Shuo/Shuo.csproj -p:Platform=x64
 ```
 
-测试覆盖云端逐次译文更新、句末修订、重复语句、本地识别快照修订、音频传输、目标语言、地址校验、会话错误及停止后尾句返回。
+测试覆盖云端逐次译文更新、后台补标点不阻塞出字、旧结果处理、字词和数字保护、句末修订、重复语句、本地识别快照修订、音频传输、目标语言、地址校验、会话错误及停止后尾句返回。
 
 真实 Mac 测试将指定的 16 kHz 单声道 PCM 文件按实时速度发送到已部署的服务，并输出英文字幕：
 
@@ -45,5 +47,5 @@ dotnet run --project test/Translation.Tests -- --self-hosted <MacIP> <audio.pcm>
 真实调用测试读取本机已保存的字幕语言、地域、业务空间和凭据，将指定的 16 kHz 单声道 PCM 文件按实时速度发送到百炼，并记录服务端事件、每次译文更新及其相对音频开始的时间。该命令会产生 API 调用费用；结果文件包含译文，应放在本地诊断目录：
 
 ```powershell
-dotnet run --project test/Translation.Tests -- --realtime-translation <audio.pcm> artifacts/test/realtime-translation.json
+dotnet run --project test/Translation.Tests -- --punctuated-translation <audio.pcm> artifacts/test/punctuated-translation.json
 ```

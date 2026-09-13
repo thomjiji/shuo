@@ -248,7 +248,7 @@ public sealed partial class MainWindow
                 }
                 return options.Backend == "self-hosted"
                     ? new SelfHostedTranslationSession(options, Ready, Caption, Format).RunAsync(audio, cancellation.Token)
-                    : new TranslationSession(options, apiKey, Ready,
+                    : new PunctuatedTranslationSession(options, apiKey, Ready,
                         text => Dispatch(() => _overlay.UpdateTranscript(text)), Level, Format).RunAsync(cancellation.Token, audio);
             });
             if (!_closed && !_exiting) TranslationStatus.Text = "已停止。";

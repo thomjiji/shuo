@@ -10,12 +10,14 @@ public sealed partial class MainWindow
     private GlobalHotkey? _translationHotkey;
     private HotkeyBinding _translationHotkeyBinding = new TranslationOptions().Hotkey;
     private bool _translationLoaded;
+    private bool _captionOriginal;
+    private bool _captionMicrophone;
     private bool _translationPaused;
     private bool _keepTranslationOverlay;
     private string? _pausedTranslationText;
 
     private bool CanStartTranslation => _readingCancellation is null && !_exiting && !_closed && !_installingUpdate
-        && !_dictationActive && !_togglePending && !_modelChanging && _pendingPastes == 0;
+        && !_dictationActive && !_togglePending && _pendingPastes == 0 && _textTranslationCancellation is null;
 
     private void InitializeTranslation()
     {
@@ -30,7 +32,7 @@ public sealed partial class MainWindow
             TranslationApiKey.Password = TranslationSettings.LoadApiKey();
             TranslationLanguage.SelectedIndex = options.TargetLanguage == "en" ? 1 : 0;
             TranslationModelPicker.SelectedIndex = options.Backend == "self-hosted" ? 1 : 0;
-            TranslationHost.Text = string.IsNullOrWhiteSpace(options.Host) ? ReadingSettings.Load().SelfHostedHost : options.Host;
+            TranslationHost.Text = options.Host;
             _translationHotkeyBinding = options.Hotkey;
             TranslationShortcutButton.Content = _translationHotkeyBinding.DisplayText;
             TranslationSettingsExpander.IsExpanded = !options.Enabled || (options.Backend == "self-hosted"
@@ -65,7 +67,7 @@ public sealed partial class MainWindow
 
     private static void ValidateTranslation(TranslationOptions options, string apiKey)
     {
-        if (options.Backend == "self-hosted") SelfHostedTranslationSession.Endpoint(options.Host);
+        if (options.Backend == "self-hosted") SelfHostedTextTranslator.Endpoint(options.Host);
         else
         {
             TranslationSession.Endpoint(options);
@@ -120,7 +122,7 @@ public sealed partial class MainWindow
         try
         {
             _translationHotkey = new GlobalHotkey(_window, _translationHotkeyBinding, 3);
-            _translationHotkey.Pressed += (_, _) => ToggleTranslation();
+            _translationHotkey.Pressed += (_, _) => ToggleDailyCaption();
         }
         catch
         {
@@ -164,7 +166,8 @@ public sealed partial class MainWindow
         _keepTranslationOverlay = true;
         Volatile.Write(ref _translationPaused, false);
         _pausedTranslationText = null;
-        TranslationStatus.Text = "正在接收最后一段译文...";
+        TranslationStatus.Text = "正在接收最后一段文字...";
+        ListenStatus.Text = TranslationStatus.Text;
         _overlay.FinishTranslation();
         active.Cancel();
     }
@@ -186,7 +189,8 @@ public sealed partial class MainWindow
             _overlay.UpdateTranscript(text);
             _pausedTranslationText = null;
         }
-        TranslationStatus.Text = _translationPaused ? "已暂停" : "正在翻译系统声音";
+        TranslationStatus.Text = _translationPaused ? "已暂停" : "正在听";
+        ListenStatus.Text = TranslationStatus.Text;
     }
 
     private void UpdateTranslationControls()
@@ -214,18 +218,19 @@ public sealed partial class MainWindow
 
     private void TranslationButton_Click(object sender, RoutedEventArgs args) => ToggleTranslation();
 
-    private void ToggleTranslation()
+    private void ToggleTranslation(bool original = false, bool microphone = false, bool fromDaily = false)
     {
         if (_capturingHotkey) return;
         if (_translationCancellation is not null) { StopTranslation(); return; }
-        if (!TranslationEnabled.IsOn) return;
+        if (!TranslationEnabled.IsOn && !fromDaily) return;
         if (!CanStartTranslation) return;
         var options = CurrentTranslationOptions();
         string apiKey;
         try
         {
             apiKey = TranslationApiKey.Password.Trim();
-            ValidateTranslation(options, apiKey);
+            if (original) SelfHostedTextTranslator.Endpoint(options.Host);
+            else ValidateTranslation(options, apiKey);
             TranslationSettings.Save(options, TranslationApiKey.Password);
         }
         catch (Exception error)
@@ -234,11 +239,13 @@ public sealed partial class MainWindow
             TranslationStatus.Text = error.Message;
             return;
         }
+        _captionOriginal = original;
+        _captionMicrophone = microphone;
         var cancellation = _translationCancellation = CancellationTokenSource.CreateLinkedTokenSource(_shutdown.Token);
         _keepTranslationOverlay = true;
         Volatile.Write(ref _translationPaused, false);
         _pausedTranslationText = null;
-        TranslationStatus.Text = options.Backend == "self-hosted" ? "正在连接 Mac 实时翻译..." : "正在连接百炼实时翻译...";
+        TranslationStatus.Text = "正在连接字幕服务...";
         _overlay.Begin(true, translation: true);
         UpdateModelControls();
         _translationTask = RunTranslationAsync(options, apiKey, cancellation);
@@ -257,31 +264,38 @@ public sealed partial class MainWindow
                 {
                     if (cancellation.IsCancellationRequested) return;
                     _overlay.TranslationPaused(_translationPaused);
-                    TranslationStatus.Text = _translationPaused ? "已暂停" : "正在翻译系统声音";
+                    TranslationStatus.Text = _translationPaused ? "已暂停" : "正在听";
+                    ListenStatus.Text = TranslationStatus.Text;
                 });
             void Caption(string text) => Dispatch(() =>
             {
                 if (_translationPaused) _pausedTranslationText = text;
                 else _overlay.UpdateTranscript(text);
+                ListenResult.Text = text;
             });
             void Level(double level) => Dispatch(() => { if (!_translationPaused) _overlay.UpdateAudioLevel(level); });
             Task<string> Format(string text, CancellationToken token) => TranscriptFormatter.FormatAsync(text, _autocorrectPath, token);
             await Task.Run(() =>
             {
-                var audio = SystemAudioSource.ReadAsync(Level, cancellation.Token, () => Volatile.Read(ref _translationPaused));
+                var audio = SystemAudioSource.ReadAsync(Level, cancellation.Token, () => Volatile.Read(ref _translationPaused), _captionMicrophone);
+                if (_captionOriginal)
+                {
+                    var endpoint = new UriBuilder(SelfHostedTextTranslator.Endpoint(options.Host)) { Port = 18765, Path = "/v1/asr" }.Uri;
+                    return new SelfHostedAsrClient(endpoint).RunAsync(audio, Ready, Caption, cancellation.Token);
+                }
                 return options.Backend == "self-hosted"
                     ? new SelfHostedTranslationSession(options, Ready, Caption, Format).RunAsync(audio, cancellation.Token)
                     : new TranslationSession(options, apiKey, Ready, Caption, Level, Format).RunAsync(cancellation.Token, audio);
             });
-            if (!_closed && !_exiting) TranslationStatus.Text = "翻译已停止。";
+            if (!_closed && !_exiting) TranslationStatus.Text = ListenStatus.Text = "已停止。";
         }
         catch (OperationCanceledException) when (cancellation.IsCancellationRequested)
         {
-            if (!_closed && !_exiting) TranslationStatus.Text = "翻译已停止。";
+            if (!_closed && !_exiting) TranslationStatus.Text = ListenStatus.Text = "已停止。";
         }
         catch (Exception error)
         {
-            if (!_closed && !_exiting) TranslationStatus.Text = "翻译失败：" + error.Message;
+            if (!_closed && !_exiting) TranslationStatus.Text = ListenStatus.Text = "字幕失败：" + error.Message;
         }
         finally
         {

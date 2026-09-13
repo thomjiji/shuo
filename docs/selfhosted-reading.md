@@ -10,13 +10,15 @@ Apple Silicon Mac 使用 Qwen3-TTS 0.6B 和 Serena 音色生成语音。原文�
 uv run --python 3.12 scripts/shuo-reading-service.py up
 ```
 
-首次运行会安装锁定的依赖，下载 Qwen3-8B-4bit 和 Qwen3-TTS-12Hz-0.6B-CustomVoice-8bit，并预热模型。已有的 Hugging Face 缓存会直接复用。命令返回 `ready: true` 后即可连接。
+首次运行会安装锁定的依赖，下载 Qwen3-8B-4bit 和 Qwen3-TTS-12Hz-0.6B-CustomVoice-8bit，并分别预热模型。已有的 Hugging Face 缓存会直接复用。状态中的 `capabilities.translation.ready` 和 `capabilities.speech.ready` 分别表示文字翻译与语音合成可用；顶层 `ready: true` 表示至少一项可用。一个模型加载失败不会阻止另一个模型提供服务：原文朗读只需要语音合成，“Mac 翻译 + 豆包朗读”只需要文字翻译，本地中文译读需要两项。Shuo 的“测试连接”会检查当前选择所需的能力。
 
 服务仅监听 Mac 的 Tailscale IPv4 地址和 TCP 18766 端口。Tailnet 的访问规则需要允许运行 Shuo 的设备访问这个端口；转录服务的 18765 端口不变。浏览器页面不能直接调用译读 WebSocket 接口。
 
 在 Shuo 的“实时朗读”中选择“原文朗读”或“中文译读”，将对应服务设为“本地 Mac”，填写 Mac 的 Tailscale IP，再点击“测试连接”。若已配置自托管转录，主机输入框会预填同一个地址。选择服务、修改地址和播放速度后自动保存；下一次快捷键朗读使用当前设置。已有服务升级后需要执行 `up` 安装当前版本，才能使用新增的原文语音接口 `/v1/speech`。
 
-本地播放速度可选 0.85、1、1.15 和 1.3 倍，默认 1 倍。变速保持音调不变。云端译读的语速档位单独保存。
+本地播放速度可选 0.85、1、1.15 和 1.3 倍，默认 1 倍。变速保持音调不变。豆包的合成语速单独保存。
+
+中文译读也可以选择“Mac 翻译 + 豆包朗读”：复用同一服务的 `/v1/translation` 文字翻译接口，每段译文完成后由 Windows 发送给豆包 TTS 2.0。该方式不经过 ASR，也不调用 Mac 的语音生成；需要豆包语音凭据，音色和语速与豆包原文朗读共用。原文只发给 Mac，中文译文会发给火山引擎。
 
 ## 管理服务
 

@@ -9,6 +9,28 @@ using System.Net.WebSockets;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
 
+if (args is ["--audio-source-smoke"])
+{
+    foreach (var microphone in new[] { false, true })
+    {
+        using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        var frames = 0;
+        await foreach (var pcm in SystemAudioSource.ReadAsync(_ => { }, stop.Token, microphone: microphone))
+        {
+            if (pcm.Length == 0 || pcm.Length % 2 != 0) throw new Exception("Invalid PCM frame");
+            if (++frames == 8) break;
+        }
+        Console.WriteLine($"ok {(microphone ? "microphone" : "system")} capture: {frames} PCM frames, device released");
+    }
+    return;
+}
+
+if (args.Length >= 3 && args[0] == "--translated-reading")
+{
+    await TranslatedSpeechTests.LiveAsync(args[1], args[2], args.Length == 4 ? args[3] : null);
+    return;
+}
+
 if (args.Length == 4 && args[0] == "--self-hosted")
 {
     var pcm = await File.ReadAllBytesAsync(args[2]);
@@ -130,6 +152,8 @@ await CheckWire(false, false);
 await CheckWire(true, false);
 await CheckWire(false, true);
 await LocalTranslationTests.RunAsync();
+await CapabilityTests.RunAsync();
+await TranslatedSpeechTests.RunAsync();
 Console.WriteLine("Passed caption revision, endpoint validation, audio framing, graceful stop, tail delivery, and server error tests.");
 
 async Task CheckWire(bool cancelCapture, bool fail)

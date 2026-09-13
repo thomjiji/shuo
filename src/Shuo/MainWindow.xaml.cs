@@ -53,14 +53,16 @@ public sealed partial class MainWindow : Window
     {
         InitializeComponent();
         ElementCompositionPreview.SetIsTranslationEnabled(PageSurface, true);
-        SettingsNavigation.SelectedItem = TranscriptionNavigationItem;
+        SettingsNavigation.SelectedItem = ListenNavigationItem;
         ExtendsContentIntoTitleBar = true;
         SetTitleBar(AppTitleBar);
         _window = WindowNative.GetWindowHandle(this);
         var iconPath = Path.Combine(AppContext.BaseDirectory, "Assets", "AppIcon.ico");
         AppWindow.SetIcon(iconPath);
         NativeMethods.SetWindowIcons(_window, iconPath);
-        AppWindow.Resize(new SizeInt32(900, 820));
+        var scale = NativeMethods.GetDpiForWindow(_window) / 96.0;
+        var workArea = DisplayArea.GetFromWindowId(AppWindow.Id, DisplayAreaFallback.Primary).WorkArea;
+        AppWindow.Resize(new SizeInt32(Math.Min((int)(960 * scale), workArea.Width), Math.Min((int)(760 * scale), workArea.Height)));
         if (AppWindow.Presenter is OverlappedPresenter presenter)
         {
             presenter.PreferredMinimumWidth = MinimumWindowWidth;
@@ -137,6 +139,7 @@ public sealed partial class MainWindow : Window
         InitializeUpdates();
         InitializeTranslation();
         InitializeReading();
+        InitializeDailyTasks();
     }
 
     internal void ShowSettings()
@@ -160,14 +163,19 @@ public sealed partial class MainWindow : Window
         if (GeneralPage is null || TranscriptionPage is null) return;
         var section = (args.SelectedItem as NavigationViewItem)?.Tag as string ?? "transcription";
         GeneralPage.Visibility = section == "general" ? Visibility.Visible : Visibility.Collapsed;
-        TranscriptionPage.Visibility = section == "transcription" ? Visibility.Visible : Visibility.Collapsed;
+        TranscriptionPage.Visibility = section is "transcription" or "services" ? Visibility.Visible : Visibility.Collapsed;
         HistoryPage.Visibility = section == "history" ? Visibility.Visible : Visibility.Collapsed;
         TranslationPage.Visibility = section == "translation" ? Visibility.Visible : Visibility.Collapsed;
-        ReadingPage.Visibility = section == "reading" ? Visibility.Visible : Visibility.Collapsed;
+        ReadingPage.Visibility = section is "reading" or "reading-settings" ? Visibility.Visible : Visibility.Collapsed;
+        ListenPage.Visibility = section == "listen" ? Visibility.Visible : Visibility.Collapsed;
+        TextPage.Visibility = section == "text" ? Visibility.Visible : Visibility.Collapsed;
+        ReadingDailyOptions.Visibility = ReadingDailyText.Visibility = section == "reading-settings" ? Visibility.Collapsed : Visibility.Visible;
+        ReadingSettingsExpander.Visibility = section == "reading-settings" ? Visibility.Visible : Visibility.Collapsed;
+        if (section == "reading-settings") ReadingSettingsExpander.IsExpanded = true;
         if (section == "general") AcknowledgeAvailableUpdate();
         if (section == "history" && _historyEntries is null) LoadHistory();
         if (section == "transcription") _ = RefreshModelsAsync();
-        PageTitle.Text = section switch { "general" => "常规", "history" => "转录历史", "translation" => "实时翻译", "reading" => "实时朗读", _ => "转录服务" };
+        PageTitle.Text = section switch { "listen" => "听", "reading" => "说", "text" => "译", "reading-settings" => "朗读与文字翻译", "general" => "关于", "history" => "历史", "translation" => "字幕翻译", "services" => "服务设置", _ => "声音识别" };
         PageScroll.ChangeView(null, 0, null, disableAnimation: true);
         PlaySettingsPageTransition();
     }
@@ -412,6 +420,7 @@ public sealed partial class MainWindow : Window
             && _readingCancellation is null && _translationCancellation is null;
         TrimTrailingPeriodToggle.IsEnabled = !_modelChanging;
         UpdateTranslationControls();
+        UpdateDailyControls();
         UpdateReadingControls();
     }
 
@@ -517,9 +526,10 @@ public sealed partial class MainWindow : Window
     private async Task ToggleAsync()
     {
         if (_capturingHotkey) return;
-        if (_readingCancellation is not null || _translationCancellation is not null) return;
+        if (_readingCancellation is not null || _translationCancellation is not null || _textTranslationCancellation is not null) return;
         if (_exiting || _closed || _installingUpdate) return;
         if (_togglePending || _modelChanging) return;
+        if (!_dictationActive) _dictationDestination = ListenDestination.SelectedIndex == 1 ? 1 : 0;
         _togglePending = true;
         UpdateModelControls();
         try
@@ -709,7 +719,8 @@ public sealed partial class MainWindow : Window
                     CloudStatusMessage = HistoryNotice.Text;
                 }
             }
-            TranscriptPaster.Paste(formatted, _shutdown.Token);
+            if (_dictationDestination == 1) { ListenResult.Text = formatted; CopyDailyText(formatted); ListenStatus.Text = "已复制到剪贴板"; }
+            else { TranscriptPaster.Paste(formatted, _shutdown.Token); ListenStatus.Text = "已输入"; }
             _overlay.Hide();
         }
         catch (OperationCanceledException) when (_shutdown.IsCancellationRequested)

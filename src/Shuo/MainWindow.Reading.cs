@@ -16,8 +16,8 @@ public sealed partial class MainWindow
     private bool _testingReadingHost;
     private static readonly double[] LocalReadingSpeeds = [0.85, 1.0, 1.15, 1.3];
     private bool CanStartReading => !_exiting && !_closed && !_installingUpdate && !_dictationActive
-        && !_togglePending && !_modelChanging && _pendingPastes == 0 && _translationCancellation is null
-        && _readingCancellation is null;
+        && !_togglePending && _pendingPastes == 0 && _translationCancellation is null
+        && _readingCancellation is null && _textTranslationCancellation is null;
 
     private void InitializeReading()
     {
@@ -42,9 +42,7 @@ public sealed partial class MainWindow
             ReadingSpeaker.ItemsSource = voices;
             ReadingSpeaker.SelectedItem = selectedVoice;
             ReadingSpeed.Value = options.SpeechRate;
-            ReadingTranslationSpeed.SelectedIndex = options.TranslationSpeechRate + 1;
-            ReadingLocalHost.Text = string.IsNullOrWhiteSpace(options.SelfHostedHost)
-                ? SelfHostedAddress.ToDisplay(_cloudOptions.SelfHostedUrl) : options.SelfHostedHost;
+            ReadingLocalHost.Text = options.SelfHostedHost;
             ReadingLocalSpeed.SelectedIndex = Math.Max(0, Array.IndexOf(LocalReadingSpeeds, options.LocalPlaybackSpeed));
             ReadingTranslationBackend.SelectedIndex = options.UseSelfHostedTranslation ? 1 : 0;
             ReadingOriginalBackend.SelectedIndex = options.UseSelfHostedOriginal ? 1 : 0;
@@ -61,7 +59,7 @@ public sealed partial class MainWindow
     private ReadingOptions CurrentReadingOptions() => new(ReadingEnabled.IsOn, ReadingUseExistingKey.IsOn,
         (ReadingSpeaker.SelectedItem as ReadingVoice)?.Id ?? "", (int)ReadingSpeed.Value,
         _readingHotkeyBinding.Modifiers, _readingHotkeyBinding.VirtualKey, ReadingMode.SelectedIndex == 1,
-        ReadingTranslationSpeed.SelectedIndex - 1, ReadingTranslationBackend.SelectedIndex == 1,
+        ReadingTranslationBackend.SelectedIndex == 1,
         ReadingLocalHost.Text.Trim(), LocalReadingSpeeds[Math.Max(0, ReadingLocalSpeed.SelectedIndex)],
         ReadingOriginalBackend.SelectedIndex == 1);
 
@@ -101,7 +99,11 @@ public sealed partial class MainWindow
         ReadingStatus.Text = "正在连接 Mac...";
         try
         {
-            await SelfHostedReadingClient.TestAsync(ReadingLocalHost.Text, _shutdown.Token);
+            var translate = ReadingMode.SelectedIndex == 1;
+            var local = (translate ? ReadingTranslationBackend : ReadingOriginalBackend).SelectedIndex == 1;
+            var capabilities = !local ? new[] { "translation" }
+                : translate ? new[] { "translation", "speech" } : new[] { "speech" };
+            await LocalServiceHealth.TestAsync(ReadingLocalHost.Text, _shutdown.Token, capabilities);
             if (!_closed) ReadingStatus.Text = "连接正常";
         }
         catch (Exception error)
@@ -113,18 +115,6 @@ public sealed partial class MainWindow
             _testingReadingHost = false;
             if (!_closed) UpdateReadingControls();
         }
-    }
-
-    private void ReadingTranslationSpeed_Changed(object sender, Microsoft.UI.Xaml.Controls.SelectionChangedEventArgs args)
-    {
-        if (!_readingLoaded) return;
-        try
-        {
-            var saved = ReadingSettings.Load() with { TranslationSpeechRate = ReadingTranslationSpeed.SelectedIndex - 1 };
-            ReadingSettings.Save(saved, ReadingSettings.LoadApiKey());
-            ReadingStatus.Text = "已保存";
-        }
-        catch (Exception error) { ReadingStatus.Text = "中文译读语速未保存：" + error.Message; }
     }
 
     private void ReadingMode_Changed(object sender, Microsoft.UI.Xaml.Controls.SelectionChangedEventArgs args)
@@ -139,9 +129,6 @@ public sealed partial class MainWindow
         catch (Exception error) { ReadingStatus.Text = "朗读方式未保存：" + error.Message; }
         UpdateReadingControls();
     }
-
-    private void ReadingTranslationSettings_Click(object sender, RoutedEventArgs args) =>
-        SettingsNavigation.SelectedItem = TranslationNavigationItem;
 
     private void ReadingSpeed_ValueChanged(object sender, Microsoft.UI.Xaml.Controls.Primitives.RangeBaseValueChangedEventArgs args)
     {
@@ -235,6 +222,8 @@ public sealed partial class MainWindow
         var active = _readingCancellation is not null;
         var translate = ReadingMode.SelectedIndex == 1;
         var local = (translate ? ReadingTranslationBackend : ReadingOriginalBackend).SelectedIndex == 1;
+        var hybrid = translate && !local;
+        var doubao = hybrid || !translate && !local;
         ReadingMode.IsEnabled = !active;
         ReadingTextBox.IsReadOnly = active;
         Microsoft.UI.Xaml.Controls.ToolTipService.SetToolTip(ReadingShortcutButton, "选中文字后按此快捷键朗读，再次按下停止。");
@@ -242,31 +231,28 @@ public sealed partial class MainWindow
         ReadingOriginalBackend.IsEnabled = !active && !_testingReadingHost;
         ReadingTranslationBackend.Visibility = translate ? Visibility.Visible : Visibility.Collapsed;
         ReadingTranslationBackend.IsEnabled = !active && !_testingReadingHost;
-        ReadingLocalSettings.Visibility = local ? Visibility.Visible : Visibility.Collapsed;
+        ReadingLocalSettings.Visibility = Visibility.Visible;
         ReadingLocalSpeed.Visibility = local ? Visibility.Visible : Visibility.Collapsed;
-        ReadingCloudSpeed.Visibility = !translate && !local ? Visibility.Visible : Visibility.Collapsed;
-        ReadingCloudCredentials.Visibility = !translate && !local ? Visibility.Visible : Visibility.Collapsed;
-        ReadingSpeaker.Visibility = !translate && !local ? Visibility.Visible : Visibility.Collapsed;
-        ReadingFixedVoice.Visibility = translate || local ? Visibility.Visible : Visibility.Collapsed;
-        ReadingFixedVoice.Text = local ? "Serena" : "Tina";
+        ReadingCloudSpeed.Visibility = doubao ? Visibility.Visible : Visibility.Collapsed;
+        ReadingCloudCredentials.Visibility = doubao ? Visibility.Visible : Visibility.Collapsed;
+        ReadingSpeaker.Visibility = doubao ? Visibility.Visible : Visibility.Collapsed;
+        ReadingFixedVoice.Visibility = doubao ? Visibility.Collapsed : Visibility.Visible;
+        ReadingFixedVoice.Text = "Serena";
         ReadingLocalHost.IsEnabled = ReadingLocalSpeed.IsEnabled = ReadingLocalTest.IsEnabled = !active && !_testingReadingHost;
-        ReadingTranslationSettings.Visibility = translate && !local ? Visibility.Visible : Visibility.Collapsed;
-        ReadingTranslationSpeed.Visibility = translate && !local ? Visibility.Visible : Visibility.Collapsed;
-        ReadingTranslationSpeed.IsEnabled = !active;
         ReadingTranslatedText.Visibility = translate && (active || !string.IsNullOrWhiteSpace(ReadingTranslatedText.Text))
             ? Visibility.Visible : Visibility.Collapsed;
-        ReadingButton.IsEnabled = ReadingEnabled.IsOn && CanStartReading;
+        ReadingButton.IsEnabled = CanStartReading;
         ReadingStop.IsEnabled = active;
         ReadingPause.IsEnabled = _readingPlayback is not null;
         ReadingPause.Content = _readingPlayback?.Paused == true ? "继续" : "暂停";
         ReadingEnabled.IsEnabled = !active;
         ReadingShortcutButton.IsEnabled = !active;
-        ReadingUseExistingKey.IsEnabled = !active && !translate && !local;
-        ReadingSpeaker.IsEnabled = !active && !translate && !local;
-        ReadingSpeed.IsEnabled = !active && !translate && !local;
+        ReadingUseExistingKey.IsEnabled = !active && doubao;
+        ReadingSpeaker.IsEnabled = !active && doubao;
+        ReadingSpeed.IsEnabled = !active && doubao;
         ReadingSaveButton.IsEnabled = !active;
-        ReadingApiKeyCard.Visibility = ReadingUseExistingKey.IsOn || translate || local ? Visibility.Collapsed : Visibility.Visible;
-        ReadingApiKey.IsEnabled = !active && !translate && !local && !ReadingUseExistingKey.IsOn;
+        ReadingApiKeyCard.Visibility = ReadingUseExistingKey.IsOn || !doubao ? Visibility.Collapsed : Visibility.Visible;
+        ReadingApiKey.IsEnabled = !active && doubao && !ReadingUseExistingKey.IsOn;
     }
 
     private void ReadingButton_Click(object sender, RoutedEventArgs args) => StartReading("text");
@@ -297,7 +283,7 @@ public sealed partial class MainWindow
     {
         if (_capturingHotkey) return;
         if (_readingCancellation is not null) { StopReading(); return; }
-        if (!ReadingEnabled.IsOn || !CanStartReading) return;
+        if (source == "selection" && !ReadingEnabled.IsOn || !CanStartReading) return;
         var foreground = NativeMethods.GetForegroundWindow();
         _keepReadingOverlay = false;
         var cancellation = _readingCancellation = CancellationTokenSource.CreateLinkedTokenSource(_shutdown.Token);
@@ -314,19 +300,19 @@ public sealed partial class MainWindow
             options.Validate();
             var translate = options.TranslateToChinese;
             var local = translate ? options.UseSelfHostedTranslation : options.UseSelfHostedOriginal;
+            var hybrid = translate && !local;
             var label = translate ? "中文译读" : "原文朗读";
-            var key = translate ? TranslationApiKey.Password.Trim()
-                : options.UseExistingKey ? _cloudOptions.ApiKey : ReadingApiKey.Password.Trim();
+            var key = local ? "" : options.UseExistingKey ? ServiceSettings.LoadSpeechKey(true) : ReadingApiKey.Password.Trim();
             Uri? endpoint = null;
-            if (local)
+            if (hybrid)
+            {
+                endpoint = SelfHostedTextTranslator.Endpoint(options.SelfHostedHost);
+                if (string.IsNullOrWhiteSpace(key)) throw new ArgumentException("请填写豆包语音 API Key，或使用转录服务中的火山引擎语音凭据。");
+            }
+            else if (local)
             {
                 endpoint = SelfHostedReadingClient.Endpoint(options.SelfHostedHost);
                 if (!translate) endpoint = new UriBuilder(endpoint) { Path = "/v1/speech" }.Uri;
-            }
-            else if (translate)
-            {
-                endpoint = OmniReadingClient.Endpoint(TranslationWorkspace.Text.Trim(), TranslationSettings.Load().Region);
-                if (string.IsNullOrWhiteSpace(key)) throw new ArgumentException("请在实时翻译设置中填写百炼 API Key。");
             }
             else if (string.IsNullOrWhiteSpace(key)) throw new ArgumentException("请填写语音 API Key，或在转录服务中配置火山引擎语音 API Key。");
             ReadingStatus.Text = source == "selection" ? "正在读取选中文字..." : "正在准备文字...";
@@ -344,10 +330,10 @@ public sealed partial class MainWindow
             }
             else text = ReadingTextBox.Text;
             token.ThrowIfCancellationRequested();
-            var chunks = ReadingText.Split(text, translate || local ? OmniReadingClient.PassageBytes : ReadingText.MaximumRequestBytes);
+            var chunks = ReadingText.Split(text, translate || local ? ReadingText.LocalRequestBytes : ReadingText.MaximumRequestBytes);
             if (source == "selection") ReadingTextBox.Text = text;
             ReadingSettings.Save(options, ReadingApiKey.Password);
-            ReadingStatus.Text = local ? "正在连接 Mac " + label + "..." : translate ? "正在连接千问中文译读..." : "正在连接豆包语音合成...";
+            ReadingStatus.Text = hybrid ? "正在翻译原文..." : local ? "正在连接 Mac " + label + "..." : "正在连接豆包语音合成...";
             _overlay.BeginReading();
             using var client = new System.Net.Http.HttpClient { Timeout = Timeout.InfiniteTimeSpan };
             var service = new DoubaoSpeechClient(client);
@@ -379,9 +365,10 @@ public sealed partial class MainWindow
                             throw new IOException("译文过长，请分段选择。");
                         ReadingTranslatedText.Text += part;
                     };
-                    var audioStream = local
+                    var audioStream = hybrid
+                        ? new TranslatedSpeechClient(client).ReadAsync(chunk, endpoint!, options, key, onText, token)
+                        : local
                         ? SelfHostedReadingClient.ReadAsync(chunk, endpoint!, options.LocalPlaybackSpeed, onText, token)
-                        : translate ? new OmniReadingClient(client).ReadAsync(chunk, endpoint!, key, onText, token, options.TranslationSpeechRate)
                         : service.SynthesizeAsync(chunk, options, key, token);
                     await foreach (var audio in audioStream)
                     {

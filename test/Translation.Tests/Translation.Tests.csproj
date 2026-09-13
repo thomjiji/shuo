@@ -12,12 +12,24 @@
     <Compile Include="../../src/Shuo/Services/TranslationSession.cs" Link="TranslationSession.cs" />
     <Compile Include="../../src/Shuo/Services/SelfHostedTranslationSession.cs" Link="SelfHostedTranslationSession.cs" />
     <Compile Include="../../src/Shuo/Services/SelfHostedReadingClient.cs" Link="SelfHostedReadingClient.cs" />
-    <Compile Include="../../src/Shuo/Services/OmniReadingClient.cs" Link="OmniReadingClient.cs" />
     <Compile Include="../../src/Shuo/Services/ReadingText.cs" Link="ReadingText.cs" />
+    <Compile Include="../../src/Shuo/Services/ReadingOptions.cs" Link="ReadingOptions.cs" />
+    <Compile Include="../../src/Shuo/Services/ReadingSettings.cs" Link="ReadingSettings.cs" />
+    <Compile Include="../../src/Shuo/Services/DoubaoSpeechClient.cs" Link="DoubaoSpeechClient.cs" />
+    <Compile Include="../../src/Shuo/Services/TranslatedSpeechClient.cs" Link="TranslatedSpeechClient.cs" />
     <Compile Include="../../src/Shuo/Services/SystemAudioSource.cs" Link="SystemAudioSource.cs" />
     <Compile Include="../../src/Shuo/Services/TranslationSettings.cs" Link="TranslationSettings.cs" />
     <Compile Include="../../src/Shuo/Services/CloudSettings.cs" Link="CloudSettings.cs" />
     <Compile Include="../../src/Shuo/Services/HotkeySettings.cs" Link="HotkeySettings.cs" />
     <Compile Include="../../src/Shuo/Services/HotkeyBinding.cs" Link="HotkeyBinding.cs" />
+    <Compile Include="../../src/Shuo/Services/LocalServiceEndpoint.cs" Link="LocalServiceEndpoint.cs" />
+    <Compile Include="../../src/Shuo/Services/SelfHostedTextTranslator.cs" Link="SelfHostedTextTranslator.cs" />
+    <Compile Include="../../src/Shuo/Services/SelfHostedAsrClient.cs" Link="SelfHostedAsrClient.cs" />
+    <Compile Include="../../src/Shuo/Services/WebSocketJson.cs" Link="WebSocketJson.cs" />
+    <Compile Include="../../src/Shuo/Services/ServiceSettings.cs" Link="ServiceSettings.cs" />
+    <Compile Include="../../src/Shuo/Services/SelfHostedAddress.cs" Link="SelfHostedAddress.cs" />
+    <Compile Include="../../src/Shuo/Services/LocalServiceHealth.cs" Link="LocalServiceHealth.cs" />
+    <Compile Include="../../src/Shuo/Services/TranslationOptions.cs" Link="TranslationOptions.cs" />
+    <Compile Include="../../src/Shuo/Services/DailySettings.cs" Link="DailySettings.cs" />
   </ItemGroup>
 </Project>

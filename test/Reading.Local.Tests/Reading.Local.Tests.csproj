@@ -7,10 +7,11 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="../../src/Shuo/Services/SelfHostedReadingClient.cs" Link="SelfHostedReadingClient.cs" />
-    <Compile Include="../../src/Shuo/Services/OmniReadingClient.cs" Link="OmniReadingClient.cs" />
     <Compile Include="../../src/Shuo/Services/ReadingText.cs" Link="ReadingText.cs" />
     <Compile Include="../../src/Shuo/Services/ReadingPlayback.cs" Link="ReadingPlayback.cs" />
     <Compile Include="../../src/Shuo/Services/ReadingAudioBuffer.cs" Link="ReadingAudioBuffer.cs" />
     <PackageReference Include="NAudio.Wasapi" Version="2.2.1" />
+    <Compile Include="../../src/Shuo/Services/LocalServiceEndpoint.cs" Link="LocalServiceEndpoint.cs" />
+    <Compile Include="../../src/Shuo/Services/LocalServiceHealth.cs" Link="LocalServiceHealth.cs" />
   </ItemGroup>
 </Project>

@@ -4,6 +4,7 @@ namespace Shuo.Services;
 
 internal static class ReadingText
 {
+    internal const int LocalRequestBytes = 900;
     internal const int MaximumLength = 30000;
     // Application request budget; not a verified service maximum.
     internal const int MaximumRequestBytes = 1800;

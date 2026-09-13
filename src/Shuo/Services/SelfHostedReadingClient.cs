@@ -10,40 +10,15 @@ namespace Shuo.Services;
 
 internal static class SelfHostedReadingClient
 {
-    internal static Uri Endpoint(string host)
-    {
-        var value = host.Trim();
-        if (value.Length == 0) throw new ArgumentException("请填写 Mac 的 Tailscale 主机 IP。");
-        if (!value.Contains("://"))
-        {
-            if (IPAddress.TryParse(value, out var ip) && ip.AddressFamily == AddressFamily.InterNetworkV6)
-                value = $"http://[{value}]:18766";
-            else value = value.Contains(':') ? "http://" + value : $"http://{value}:18766";
-        }
-        if (!Uri.TryCreate(value, UriKind.Absolute, out var uri) || uri.Scheme is not ("http" or "https")
-            || uri.UserInfo.Length != 0 || uri.Query.Length != 0 || uri.Fragment.Length != 0 || uri.AbsolutePath != "/")
-            throw new ArgumentException("请填写 Mac 主机 IP，或不含路径的 http/https 服务地址。");
-        return new UriBuilder(uri) { Scheme = uri.Scheme == "https" ? "wss" : "ws", Path = "/v1/reading" }.Uri;
-    }
+    internal static Uri Endpoint(string host) => LocalServiceEndpoint.Create(host, 18766, "/v1/reading");
 
-    internal static async Task TestAsync(string host, CancellationToken token)
-    {
-        var endpoint = Endpoint(host);
-        var health = new UriBuilder(endpoint) { Scheme = endpoint.Scheme == "wss" ? "https" : "http", Path = "/health" }.Uri;
-        // This is a direct connection to the user's own Mac, not a cloud API.
-        using var http = new HttpClient(new HttpClientHandler { UseProxy = false }) { Timeout = TimeSpan.FromSeconds(8) };
-        using var response = await http.GetAsync(health, token);
-        response.EnsureSuccessStatusCode();
-        using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync(token));
-        var root = body.RootElement;
-        ValidateFormat(root);
-        if (!root.GetProperty("ready").GetBoolean()) throw new IOException("Mac 译读模型尚未准备好。");
-    }
+    internal static Task TestAsync(string host, CancellationToken token) =>
+        LocalServiceHealth.TestAsync(host, token, "translation", "speech");
 
     internal static async IAsyncEnumerable<byte[]> ReadAsync(string text, Uri endpoint, double speed,
         Action<string> translated, [EnumeratorCancellation] CancellationToken token)
     {
-        if (string.IsNullOrWhiteSpace(text) || Encoding.UTF8.GetByteCount(text) > OmniReadingClient.PassageBytes)
+        if (string.IsNullOrWhiteSpace(text) || Encoding.UTF8.GetByteCount(text) > ReadingText.LocalRequestBytes)
             throw new ArgumentException("本段文字为空或过长。");
         if (speed is not (0.85 or 1.0 or 1.15 or 1.3)) throw new ArgumentException("无效的播放速度。");
         using var socket = new ClientWebSocket();

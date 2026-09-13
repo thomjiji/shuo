@@ -1,4 +1,4 @@
-"""One inference thread owns both MLX models and their generators."""
+"""Independent translation and speech models, scheduled on one GPU executor."""
 from fractions import Fraction
 import logging
 from threading import Event
@@ -50,22 +50,15 @@ class Tempo:
                 return result
 
 
-class Reader:
+class Translator:
     def load(self):
-        import numpy as np
         from mlx_lm import load
-        from mlx_audio.tts.utils import load_model
-        # Initialize FFmpeg before accepting the first request at a non-default speed.
-        for speed in SPEEDS:
-            tempo = Tempo(speed)
-            tempo.push(np.zeros(SAMPLE_RATE, dtype=np.float32))
-            tempo.push(None)
         self.model, self.tokenizer = load(TRANSLATOR)
-        self.speech = load_model(SPEECH)
-        # Compile and warm both models before reporting ready to the app.
-        for _ in self.events("Hello.", 1.0, Event()):
+        for _ in self.translation_events("Hello.", "zh", Event()):
             pass
-        logger.info("Translation and Serena speech models ready")
+
+    def unload(self):
+        self.model = self.tokenizer = None
 
     def translation_events(self, source, target, stopped):
         from mlx_lm import stream_generate
@@ -94,16 +87,21 @@ class Reader:
         if not finished or not translated.strip():
             raise ValueError("本段翻译未完成，请缩短选文后重试。")
 
-    def events(self, source, speed, stopped):
-        translated = ""
-        for kind, text in self.translation_events(source, "zh", stopped):
-            translated += text
-            yield kind, text
-        yield from self.speech_events(translated, speed, "Chinese", stopped)
 
-    def original_events(self, source, speed, stopped):
-        yield "text", source
-        yield from self.speech_events(source, speed, "auto", stopped)
+class SpeechSynthesizer:
+    def load(self):
+        import numpy as np
+        from mlx_audio.tts.utils import load_model
+        for speed in SPEEDS:
+            tempo = Tempo(speed)
+            tempo.push(np.zeros(SAMPLE_RATE, dtype=np.float32))
+            tempo.push(None)
+        self.model = load_model(SPEECH)
+        for _ in self.speech_events("你好。", 1.0, "Chinese", Event()):
+            pass
+
+    def unload(self):
+        self.model = None
 
     def speech_events(self, text, speed, language, stopped):
         import numpy as np
@@ -112,7 +110,7 @@ class Reader:
         tempo = Tempo(speed)
         audio_bytes = 0
         samples_generated = 0
-        stream = self.speech.generate(text=text, voice=VOICE, lang_code=language, stream=True,
+        stream = self.model.generate(text=text, voice=VOICE, lang_code=language, stream=True,
                                       streaming_interval=0.32, max_tokens=2048)
         try:
             for result in stream:
@@ -145,3 +143,46 @@ class Reader:
             stream.close()
         if not audio_bytes:
             raise ValueError("语音模型未返回音频。")
+
+
+class Reader:
+    def __init__(self, translator=None, speech=None):
+        self.translator = translator if translator is not None else Translator()
+        self.speech = speech if speech is not None else SpeechSynthesizer()
+        self.capabilities = {name: dict(ready=False, state="loading") for name in ("translation", "speech")}
+
+    def load(self):
+        for name, model in (("translation", self.translator), ("speech", self.speech)):
+            try:
+                model.load()
+            except Exception as error:
+                model.unload()
+                self.capabilities[name] = dict(ready=False, state="failed")
+                # Model exceptions can include private paths or submitted text.
+                logger.error("%s model failed to load: %s", name, type(error).__name__)
+            else:
+                self.capabilities[name] = dict(ready=True, state="ready")
+                logger.info("%s model ready", name)
+
+    def require(self, *capabilities):
+        for name in capabilities:
+            if not self.capabilities[name]["ready"]:
+                label = "文字翻译" if name == "translation" else "语音合成"
+                raise ValueError(f"Mac {label}模型不可用，请检查该模型的服务状态。")
+
+    def translation_events(self, source, target, stopped):
+        yield from self.translator.translation_events(source, target, stopped)
+
+    def speech_events(self, text, speed, language, stopped):
+        yield from self.speech.speech_events(text, speed, language, stopped)
+
+    def events(self, source, speed, stopped):
+        translated = ""
+        for kind, text in self.translation_events(source, "zh", stopped):
+            translated += text
+            yield kind, text
+        yield from self.speech_events(translated, speed, "Chinese", stopped)
+
+    def original_events(self, source, speed, stopped):
+        yield "text", source
+        yield from self.speech_events(source, speed, "auto", stopped)

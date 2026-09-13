@@ -30,7 +30,8 @@
         </TitleBar>
 
         <NavigationView x:Name="SettingsNavigation" Grid.Row="1"
-                        PaneDisplayMode="Auto" OpenPaneLength="200"
+                        PaneDisplayMode="Auto" OpenPaneLength="160"
+                        CompactModeThresholdWidth="640" ExpandedModeThresholdWidth="900"
                         IsSettingsVisible="False" IsBackButtonVisible="Collapsed"
                         AlwaysShowHeader="False" SelectionChanged="SettingsNavigation_SelectionChanged">
             <NavigationView.Resources>
@@ -38,16 +39,24 @@
                 <SolidColorBrush x:Key="NavigationViewContentGridBorderBrush" Color="Transparent" />
             </NavigationView.Resources>
             <NavigationView.MenuItems>
-                <NavigationViewItem x:Name="GeneralNavigationItem" Content="常规" Tag="general" Icon="Setting">
-                    <NavigationViewItem.InfoBadge>
-                        <InfoBadge x:Name="UpdateInfoBadge" Visibility="Collapsed" />
-                    </NavigationViewItem.InfoBadge>
-                </NavigationViewItem>
-                <NavigationViewItem x:Name="TranscriptionNavigationItem" Content="转录服务" Tag="transcription" Icon="Microphone" />
-                <NavigationViewItem x:Name="TranslationNavigationItem" Content="实时翻译" Tag="translation" Icon="Globe" />
-                <NavigationViewItem x:Name="ReadingNavigationItem" Content="实时朗读" Tag="reading" Icon="Volume" />
-                <NavigationViewItem Content="转录历史" Tag="history" Icon="Clock" />
+                <NavigationViewItem x:Name="ListenNavigationItem" Content="听" Tag="listen" Icon="Microphone" />
+                <NavigationViewItem x:Name="SpeakNavigationItem" Content="说" Tag="reading" Icon="Volume" />
+                <NavigationViewItem x:Name="TextNavigationItem" Content="译" Tag="text" Icon="Globe" />
             </NavigationView.MenuItems>
+            <NavigationView.FooterMenuItems>
+                <NavigationViewItem Content="历史" Tag="history" Icon="Clock" />
+                <NavigationViewItem Content="服务设置" Tag="services" Icon="Setting">
+                    <NavigationViewItem.MenuItems>
+                        <NavigationViewItem x:Name="TranscriptionNavigationItem" Content="声音识别" Tag="transcription" />
+                        <NavigationViewItem x:Name="TranslationNavigationItem" Content="字幕翻译" Tag="translation" />
+                        <NavigationViewItem x:Name="ReadingNavigationItem" Content="文字与语音" Tag="reading-settings" />
+                    </NavigationViewItem.MenuItems>
+                </NavigationViewItem>
+                <NavigationViewItem x:Name="GeneralNavigationItem" Content="关于" Tag="general">
+                    <NavigationViewItem.Icon><FontIcon Glyph="&#xE946;" /></NavigationViewItem.Icon>
+                    <NavigationViewItem.InfoBadge><InfoBadge x:Name="UpdateInfoBadge" Visibility="Collapsed" /></NavigationViewItem.InfoBadge>
+                </NavigationViewItem>
+            </NavigationView.FooterMenuItems>
             <Grid x:Name="PageViewport" SizeChanged="PageViewport_SizeChanged">
                 <ScrollViewer x:Name="PageScroll" HorizontalScrollMode="Disabled"
                               HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto"
@@ -55,9 +64,54 @@
                     <StackPanel x:Name="SettingsContent" Width="640" HorizontalAlignment="Center"
                                 Margin="0,36,0,36" Spacing="24">
                         <StackPanel x:Name="PageSurface" Spacing="24">
-                            <TextBlock x:Name="PageTitle" Text="转录服务"
+                            <TextBlock x:Name="PageTitle" Text="听"
                                        Style="{StaticResource TitleTextBlockStyle}" />
                             <Grid>
+                        <StackPanel x:Name="ListenPage" Spacing="20" Visibility="Collapsed">
+                            <TextBlock Text="把声音变成文字。" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                            <Border Style="{StaticResource SettingsCardStyle}"><StackPanel Spacing="16">
+                                <ComboBox x:Name="ListenSource" Header="听哪里" SelectedIndex="0" HorizontalAlignment="Stretch" SelectionChanged="ListenChoice_Changed">
+                                    <ComboBoxItem Content="麦克风" /><ComboBoxItem Content="系统声音" />
+                                </ComboBox>
+                                <ComboBox x:Name="ListenDestination" Header="文字放哪里" SelectedIndex="0" HorizontalAlignment="Stretch" SelectionChanged="ListenChoice_Changed">
+                                    <ComboBoxItem Content="输入框" /><ComboBoxItem Content="剪贴板" /><ComboBoxItem Content="浮窗字幕" />
+                                </ComboBox>
+                                <ComboBox x:Name="ListenLanguage" SelectionChanged="ListenChoice_Changed" Header="显示什么" SelectedIndex="0" HorizontalAlignment="Stretch">
+                                    <ComboBoxItem Content="原文" /><ComboBoxItem Content="中文翻译" /><ComboBoxItem Content="英文翻译" />
+                                </ComboBox>
+                                <Grid x:Name="ListenCleanupOptions" ColumnSpacing="24">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="去掉末尾句号" VerticalAlignment="Center"
+                                               Style="{StaticResource BodyStrongTextBlockStyle}" />
+                                    <ToggleSwitch x:Name="TrimTrailingPeriodToggle" Grid.Column="1" VerticalAlignment="Center"
+                                                  OffContent="" OnContent="" MinWidth="0"
+                                                  automation:AutomationProperties.Name="去掉末尾句号"
+                                                  Toggled="TextCleanupToggle_Toggled" />
+                                </Grid>
+                                <TextBlock x:Name="ListenHint" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                <Button x:Name="ListenButton" Content="开始听" Click="Listen_Click" Style="{StaticResource AccentButtonStyle}" />
+                                <TextBlock x:Name="ListenStatus" TextWrapping="Wrap" />
+                            </StackPanel></Border>
+                            <TextBox x:Name="ListenResult" Header="文字" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="120" MaxHeight="240" PlaceholderText="可以在这里试用听写，也可以用快捷键直接输入到其他应用。" />
+                        </StackPanel>
+                        <StackPanel x:Name="TextPage" Spacing="16" Visibility="Collapsed">
+                            <TextBlock Text="看懂一段文字，也可以接着听。" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                            <TextBox x:Name="TextSource" Header="原文" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="140" MaxHeight="240" MaxLength="30000" PlaceholderText="输入或粘贴要翻译的文字" />
+                            <ComboBox x:Name="TextLanguage" SelectionChanged="ListenChoice_Changed" Header="译成" SelectedIndex="0" HorizontalAlignment="Stretch"><ComboBoxItem Content="中文" /><ComboBoxItem Content="英文" /></ComboBox>
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <Button x:Name="TextTranslateButton" Content="翻译" Click="TextTranslate_Click" Style="{StaticResource AccentButtonStyle}" />
+                                <Button x:Name="TextStopButton" Content="停止" Click="TextStop_Click" IsEnabled="False" />
+                            </StackPanel>
+                            <TextBlock x:Name="TextStatus" TextWrapping="Wrap" />
+                            <TextBox x:Name="TextResult" Header="译文" IsReadOnly="True" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="120" MaxHeight="260" />
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <Button x:Name="TextCopyButton" Content="复制译文" Click="TextCopy_Click" IsEnabled="False" />
+                                <Button x:Name="TextSpeakButton" Content="读给我听" Click="TextSpeak_Click" IsEnabled="False" />
+                            </StackPanel>
+                        </StackPanel>
                         <StackPanel x:Name="HistoryPage" Spacing="12" Visibility="Collapsed">
                             <TextBlock Text="完成转录后自动保存最终文字。记录仅保存在这台电脑上，重启后仍可查看。"
                                        TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
@@ -102,20 +156,7 @@
                             <Button x:Name="MoreHistoryButton" Content="加载更多" Click="MoreHistory_Click" Visibility="Collapsed" />
                         </StackPanel>
                         <StackPanel x:Name="GeneralPage" Spacing="16" Visibility="Collapsed">
-                            <Border Style="{StaticResource SettingsCardStyle}">
-                                <Grid ColumnSpacing="24">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="Auto" />
-                                    </Grid.ColumnDefinitions>
-                                    <TextBlock Text="去掉末尾句号" VerticalAlignment="Center"
-                                               Style="{StaticResource BodyStrongTextBlockStyle}" />
-                                    <ToggleSwitch x:Name="TrimTrailingPeriodToggle" Grid.Column="1" VerticalAlignment="Center"
-                                                  OffContent="" OnContent="" MinWidth="0"
-                                                  automation:AutomationProperties.Name="去掉末尾句号"
-                                                  Toggled="TextCleanupToggle_Toggled" />
-                                </Grid>
-                            </Border>
+
                             <Border Padding="16" CornerRadius="8" BorderThickness="1"
                                     Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
                                     BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}">
@@ -301,7 +342,7 @@
                             </Border>
                         </StackPanel>
                         <StackPanel x:Name="ReadingPage" Spacing="16" Visibility="Collapsed">
-                            <Border Style="{StaticResource SettingsCardStyle}">
+                            <Border x:Name="ReadingDailyOptions" Style="{StaticResource SettingsCardStyle}">
                                 <Grid ColumnSpacing="24" RowSpacing="12">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="Auto" MinWidth="64" />
@@ -318,19 +359,6 @@
                                         <ComboBoxItem Content="原文朗读" />
                                         <ComboBoxItem Content="中文译读" />
                                     </ComboBox>
-                                    <TextBlock Grid.Row="1" Text="服务" VerticalAlignment="Center" />
-                                    <Grid Grid.Row="1" Grid.Column="1">
-                                        <ComboBox x:Name="ReadingOriginalBackend" SelectedIndex="0" HorizontalAlignment="Stretch"
-                                                  SelectionChanged="ReadingLocalSettings_Changed" automation:AutomationProperties.Name="朗读服务">
-                                            <ComboBoxItem Content="豆包云端" />
-                                            <ComboBoxItem Content="本地 Mac" />
-                                        </ComboBox>
-                                        <ComboBox x:Name="ReadingTranslationBackend" SelectedIndex="0" HorizontalAlignment="Stretch" Visibility="Collapsed"
-                                                  SelectionChanged="ReadingLocalSettings_Changed" automation:AutomationProperties.Name="朗读服务">
-                                            <ComboBoxItem Content="千问云端" />
-                                            <ComboBoxItem Content="本地 Mac" />
-                                        </ComboBox>
-                                    </Grid>
                                     <TextBlock Grid.Row="2" Text="速度" VerticalAlignment="Center" />
                                     <Grid Grid.Row="2" Grid.Column="1">
                                         <ComboBox x:Name="ReadingLocalSpeed" SelectedIndex="1" HorizontalAlignment="Stretch" Visibility="Collapsed"
@@ -339,13 +367,6 @@
                                             <ComboBoxItem Content="1 倍" />
                                             <ComboBoxItem Content="1.15 倍" />
                                             <ComboBoxItem Content="1.3 倍" />
-                                        </ComboBox>
-                                        <ComboBox x:Name="ReadingTranslationSpeed" SelectedIndex="2" HorizontalAlignment="Stretch" Visibility="Collapsed"
-                                                  SelectionChanged="ReadingTranslationSpeed_Changed" automation:AutomationProperties.Name="播放速度">
-                                            <ComboBoxItem Content="慢速" />
-                                            <ComboBoxItem Content="正常" />
-                                            <ComboBoxItem Content="稍快" />
-                                            <ComboBoxItem Content="快速" />
                                         </ComboBox>
                                         <Grid x:Name="ReadingCloudSpeed" ColumnSpacing="12">
                                             <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
@@ -357,8 +378,9 @@
                                     </Grid>
                                 </Grid>
                             </Border>
-                            <Border Style="{StaticResource SettingsCardStyle}">
+                            <Border x:Name="ReadingDailyText" Style="{StaticResource SettingsCardStyle}">
                                 <StackPanel Spacing="12">
+                                    <TextBlock x:Name="SpeakHint" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                                     <TextBox x:Name="ReadingTextBox" Header="原文" AcceptsReturn="True" TextWrapping="Wrap"
                                              ScrollViewer.VerticalScrollBarVisibility="Auto" ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                                              MinHeight="120" MaxHeight="220" MaxLength="30000" PlaceholderText="输入或粘贴文字" />
@@ -379,9 +401,26 @@
                             </Border>
                             <Expander x:Name="ReadingSettingsExpander" Header="设置" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
                                 <StackPanel x:Name="ReadingConfiguration" Spacing="16">
+                                    <ComboBox Header="配置哪种朗读" SelectedIndex="{Binding SelectedIndex, ElementName=ReadingMode, Mode=TwoWay}" HorizontalAlignment="Stretch">
+                                        <ComboBoxItem Content="原文朗读" /><ComboBoxItem Content="中文译读" />
+                                    </ComboBox>
+                                    <TextBlock  Text="服务" VerticalAlignment="Center" />
+                                    <Grid  >
+                                        <ComboBox x:Name="ReadingOriginalBackend" SelectedIndex="0" HorizontalAlignment="Stretch"
+                                                  SelectionChanged="ReadingLocalSettings_Changed" automation:AutomationProperties.Name="朗读服务">
+                                            <ComboBoxItem Content="豆包云端" />
+                                            <ComboBoxItem Content="本地 Mac" />
+                                        </ComboBox>
+                                        <ComboBox x:Name="ReadingTranslationBackend" SelectedIndex="0" HorizontalAlignment="Stretch" Visibility="Collapsed"
+                                                  SelectionChanged="ReadingLocalSettings_Changed" automation:AutomationProperties.Name="朗读服务">
+                                            <ComboBoxItem Content="Mac 翻译 + 豆包朗读" />
+                                            <ComboBoxItem Content="本地 Mac" />
+                                        </ComboBox>
+                                    </Grid>
+
                                     <Grid ColumnSpacing="24">
                                         <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-                                        <TextBlock Text="启用朗读" VerticalAlignment="Center" />
+                                        <TextBlock Text="启用朗读快捷键" VerticalAlignment="Center" />
                                         <ToggleSwitch x:Name="ReadingEnabled" Grid.Column="1" MinWidth="0" OffContent="" OnContent=""
                                                       automation:AutomationProperties.Name="启用朗读" Toggled="ReadingToggle_Changed" />
                                     </Grid>
@@ -416,8 +455,6 @@
                                                          automation:AutomationProperties.Name="朗读 API Key" />
                                         </Grid>
                                     </StackPanel>
-                                    <HyperlinkButton x:Name="ReadingTranslationSettings" Content="百炼凭据" Padding="0"
-                                                     Click="ReadingTranslationSettings_Click" Visibility="Collapsed" />
                                     <Button x:Name="ReadingSaveButton" HorizontalAlignment="Right" Content="保存" Click="ReadingSave_Click" />
                                 </StackPanel>
                             </Expander>

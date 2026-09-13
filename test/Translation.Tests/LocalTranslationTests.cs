@@ -15,7 +15,7 @@ internal static class LocalTranslationTests
         var recent = SelfHostedTranslationSession.RecentPassage(source);
         Check(Encoding.UTF8.GetByteCount(recent) <= 900 && source.EndsWith(recent), "Bounded Unicode caption tail");
         Check(!char.IsLowSurrogate(recent[0]), "Keep surrogate pairs intact");
-        Check(SelfHostedTranslationSession.Endpoint("100.119.85.74").AbsoluteUri == "ws://100.119.85.74:18766/v1/translation", "Local endpoint");
+        Check(SelfHostedTextTranslator.Endpoint("100.119.85.74").AbsoluteUri == "ws://100.119.85.74:18766/v1/translation", "Local endpoint");
         foreach (var stopEarly in new[] { false, true }) await WireAsync(stopEarly);
         Console.WriteLine("Passed local translation, revision replacement, graceful stop, Unicode bounds, and tail delivery tests.");
     }

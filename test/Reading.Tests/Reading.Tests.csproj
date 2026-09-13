@@ -12,7 +12,8 @@
     <Compile Include="../../src/Shuo/Services/ClipboardSelectionMetadata.cs" Link="ClipboardSelectionMetadata.cs" />
     <Compile Include="../../src/Shuo/Services/ReadingText.cs" Link="ReadingText.cs" />
     <Compile Include="../../src/Shuo/Services/DoubaoSpeechClient.cs" Link="DoubaoSpeechClient.cs" />
-    <Compile Include="../../src/Shuo/Services/OmniReadingClient.cs" Link="OmniReadingClient.cs" />
     <Compile Include="../../src/Shuo/Services/SelfHostedReadingClient.cs" Link="SelfHostedReadingClient.cs" />
+    <Compile Include="../../src/Shuo/Services/LocalServiceEndpoint.cs" Link="LocalServiceEndpoint.cs" />
+    <Compile Include="../../src/Shuo/Services/LocalServiceHealth.cs" Link="LocalServiceHealth.cs" />
   </ItemGroup>
 </Project>

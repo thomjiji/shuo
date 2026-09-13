@@ -1,6 +1,5 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
-using Windows.Security.Credentials;
 
 namespace Shuo.Services;
 
@@ -16,8 +15,6 @@ internal sealed record CloudOptions(bool Enabled = false, string ResourceId = "v
 
 internal static class CloudSettings
 {
-    private const string VaultResource = "shuo-doubao";
-    private const string QwenVaultResource = "shuo-qwen";
 
     internal static CloudOptions Load()
     {
@@ -37,30 +34,9 @@ internal static class CloudSettings
             SelfHostedUrl: root?["selfhosted"]?["url"]?.GetValue<string>() ?? "",
             SelfHostedModel: root?["selfhosted"]?["model"]?.GetValue<string>() == "Qwen3-ASR-0.6B-8bit"
                 ? "Qwen3-ASR-0.6B-8bit" : "Qwen3-ASR-1.7B-8bit");
-        var vault = new PasswordVault();
-        var doubao = ReadSecret(vault, VaultResource, path);
-        if (doubao is not null)
-        {
-            var secret = JsonSerializer.Deserialize<CloudOptions>(doubao)
-                ?? throw new InvalidDataException("无法读取豆包凭据。");
-            options = options with { ApiKey = secret.ApiKey, AppId = secret.AppId, AccessToken = secret.AccessToken };
-        }
-        return options with { QwenApiKey = ReadSecret(vault, QwenVaultResource, path) ?? "" };
-    }
-
-    private static string? ReadSecret(PasswordVault vault, string resource, string path)
-    {
-        PasswordCredential credential;
-        try { credential = vault.Retrieve(resource, path); }
-        catch (Exception error) when (error.HResult == unchecked((int)0x80070490)) { return null; }
-        credential.RetrievePassword();
-        return credential.Password;
-    }
-
-    private static void RemoveSecret(PasswordVault vault, string resource, string path)
-    {
-        try { vault.Remove(vault.Retrieve(resource, path)); }
-        catch (Exception error) when (error.HResult == unchecked((int)0x80070490)) { }
+        var credentials = ServiceSettings.LoadDoubao(path);
+        return options with { ApiKey = credentials.ApiKey, AppId = credentials.AppId, AccessToken = credentials.AccessToken,
+            QwenApiKey = ServiceSettings.ReadSecret(ServiceSettings.BailianAsr, path) };
     }
 
     internal static void SaveProvider(string provider)
@@ -92,18 +68,11 @@ internal static class CloudSettings
         if (options.QwenRegion is not ("cn-beijing" or "ap-southeast-1"))
             throw new InvalidDataException("请选择百炼服务地域。");
 
-        var vault = new PasswordVault();
-        // Keep each provider's credentials when switching; no API keys enter settings.json.
-        if (!string.IsNullOrWhiteSpace(options.ApiKey) || !string.IsNullOrWhiteSpace(options.AppId)
-            || !string.IsNullOrWhiteSpace(options.AccessToken))
-            vault.Add(new PasswordCredential(VaultResource, path,
-                JsonSerializer.Serialize(new { options.ApiKey, options.AppId, options.AccessToken })));
-        else
-            RemoveSecret(vault, VaultResource, path);
-        if (!string.IsNullOrWhiteSpace(options.QwenApiKey))
-            vault.Add(new PasswordCredential(QwenVaultResource, path, options.QwenApiKey));
-        else
-            RemoveSecret(vault, QwenVaultResource, path);
+        var hasDoubao = !string.IsNullOrWhiteSpace(options.ApiKey) || !string.IsNullOrWhiteSpace(options.AppId)
+            || !string.IsNullOrWhiteSpace(options.AccessToken);
+        ServiceSettings.SaveSecret(ServiceSettings.Doubao, hasDoubao
+            ? JsonSerializer.Serialize(new DoubaoCredentials(options.ApiKey, options.AppId, options.AccessToken)) : "", path);
+        ServiceSettings.SaveSecret(ServiceSettings.BailianAsr, options.QwenApiKey, path);
 
         root["transcriptionProvider"] = options.Backend;
         var doubao = root["doubao"] as JsonObject ?? new JsonObject();

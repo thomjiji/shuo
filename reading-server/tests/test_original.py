@@ -15,7 +15,7 @@ class OriginalTests(unittest.TestCase):
 
         reader = Reader()
         # No translator is loaded: original reading must only use the speech model.
-        reader.speech = SimpleNamespace(generate=generate)
+        reader.speech.model = SimpleNamespace(generate=generate)
         source = "Hello. 会議は明日です。你好。"
         events = list(reader.original_events(source, 1, Event()))
         self.assertEqual(events[0], ("text", source))

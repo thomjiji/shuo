@@ -41,7 +41,9 @@ def create_app(reader):
 
     @app.get("/health")
     async def health():
-        return dict(ready=True, protocol=1, voice=VOICE, sample_rate=SAMPLE_RATE,
+        capabilities = reader.capabilities
+        return dict(ready=any(state["ready"] for state in capabilities.values()), protocol=1,
+                    capabilities=capabilities, voice=VOICE, sample_rate=SAMPLE_RATE,
                     format="pcm_s16le", busy=busy.locked(), speeds=SPEEDS)
 
     @app.websocket("/v1/reading")
@@ -86,6 +88,8 @@ def create_app(reader):
             target = config.get("target", "zh")
             if translating and target not in ("zh", "en"):
                 raise ValueError("不支持此字幕语言。")
+            reader.require(*(("translation",) if translating else ("speech",)
+                           if ws.url.path == "/v1/speech" else ("translation", "speech")))
             watcher = asyncio.create_task(controls())
             await ws.send_json(dict(type="ready", protocol=1) if translating else
                                dict(type="ready", protocol=1, sample_rate=SAMPLE_RATE, format="pcm_s16le", voice=VOICE))

@@ -16,6 +16,9 @@ class Reader:
         self.chunks = 0
 
     def load(self):
+        self.capabilities = {name: dict(ready=True, state="ready") for name in ("translation", "speech")}
+
+    def require(self, *capabilities):
         pass
 
     def translation_events(self, text, target, stopped):

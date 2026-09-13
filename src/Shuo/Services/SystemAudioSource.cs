@@ -1,5 +1,6 @@
 using System.Runtime.CompilerServices;
 using NAudio.Wave;
+using NAudio.CoreAudioApi;
 using NAudio.Wave.SampleProviders;
 
 namespace Shuo.Services;
@@ -7,9 +8,9 @@ namespace Shuo.Services;
 internal static class SystemAudioSource
 {
     internal static async IAsyncEnumerable<byte[]> ReadAsync(Action<double> level,
-        [EnumeratorCancellation] CancellationToken cancellationToken, Func<bool>? paused = null)
+        [EnumeratorCancellation] CancellationToken cancellationToken, Func<bool>? paused = null, bool microphone = false)
     {
-        using var capture = new WasapiLoopbackCapture();
+        using WasapiCapture capture = microphone ? new WasapiCapture() : new WasapiLoopbackCapture();
         var buffer = new BufferedWaveProvider(capture.WaveFormat)
         {
             BufferDuration = TimeSpan.FromSeconds(5),

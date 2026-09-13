@@ -1,20 +1,17 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
-using Windows.Security.Credentials;
 
 namespace Shuo.Services;
 
 internal static class TranslationSettings
 {
-    private const string VaultResource = "shuo-qwen-translation";
-
     internal static TranslationOptions Load()
     {
         var path = HotkeySettings.GetPath();
         if (!File.Exists(path)) return new();
         var root = JsonNode.Parse(File.ReadAllText(path)) as JsonObject
             ?? throw new InvalidDataException("Dictation settings must be a JSON object.");
-        if (root["translation"] is not JsonObject translation) return new();
+        if (root["translation"] is not JsonObject translation) return new(Host: ServiceSettings.CaptionHost(root));
         var defaults = new TranslationOptions();
         return new(
             translation["region"]?.GetValue<string>() is "ap-southeast-1" ? "ap-southeast-1" : "cn-beijing",
@@ -24,17 +21,10 @@ internal static class TranslationSettings
             translation["hotkeyModifiers"]?.GetValue<uint>() ?? defaults.HotkeyModifiers,
             translation["hotkeyVirtualKey"]?.GetValue<uint>() ?? defaults.HotkeyVirtualKey,
             translation["backend"]?.GetValue<string>() == "self-hosted" ? "self-hosted" : "cloud",
-            translation["host"]?.GetValue<string>() ?? "");
+            ServiceSettings.CaptionHost(root));
     }
 
-    internal static string LoadApiKey()
-    {
-        PasswordCredential credential;
-        try { credential = new PasswordVault().Retrieve(VaultResource, HotkeySettings.GetPath()); }
-        catch (Exception error) when (error.HResult == unchecked((int)0x80070490)) { return ""; }
-        credential.RetrievePassword();
-        return credential.Password;
-    }
+    internal static string LoadApiKey() => ServiceSettings.ReadSecret(ServiceSettings.BailianTranslation);
 
     internal static void Save(TranslationOptions options, string ownKey)
     {
@@ -44,13 +34,7 @@ internal static class TranslationSettings
             ? JsonNode.Parse(File.ReadAllText(path)) as JsonObject
                 ?? throw new InvalidDataException("Dictation settings must be a JSON object.")
             : new JsonObject();
-        var vault = new PasswordVault();
-        if (!string.IsNullOrWhiteSpace(ownKey)) vault.Add(new PasswordCredential(VaultResource, path, ownKey.Trim()));
-        else
-        {
-            try { vault.Remove(vault.Retrieve(VaultResource, path)); }
-            catch (Exception error) when (error.HResult == unchecked((int)0x80070490)) { }
-        }
+        ServiceSettings.SaveSecret(ServiceSettings.BailianTranslation, ownKey, path);
         root["translation"] = new JsonObject { ["region"] = options.Region, ["workspaceId"] = options.WorkspaceId,
             ["targetLanguage"] = options.TargetLanguage, ["enabled"] = options.Enabled,
             ["hotkeyModifiers"] = options.HotkeyModifiers, ["hotkeyVirtualKey"] = options.HotkeyVirtualKey,

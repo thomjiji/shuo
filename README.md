@@ -4,7 +4,7 @@ Windows 原生 WinUI 3 应用，提供语音输入、实时字幕和朗读。日
 
 ## 安装与使用
 
-从 [最新 Release](https://github.com/thomjiji/shuo/releases/latest) 下载安装版。当前分支的任务入口界面尚未发布，可按 [开发规则](AGENTS.md) 构建本地预览。
+从 [最新 Release](https://github.com/thomjiji/shuo/releases/latest) 下载安装版。开发者可按 [开发规则](AGENTS.md) 构建本地预览。
 
 - **语音输入**：在其他应用的输入框中按听写快捷键开始说话，再按一次将文字输入光标处。页面提供独立试用区，试用结果留在页面中。
 - **实时字幕**：为电脑播放的声音显示浮窗字幕，选择原文、中文或英文后点击“开启字幕”。字幕语言会记住，快捷键使用相同的语言设置。

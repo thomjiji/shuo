@@ -9,6 +9,67 @@ using System.Net.WebSockets;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
 
+if (args is ["--caption-quality", var qualityResult])
+{
+    await CaptionQualityBenchmark.RunAsync(qualityResult);
+    return;
+}
+
+if (args.Length == 3 && args[0] is "--contextual-translation" or "--realtime-translation")
+{
+    var contextualPcm = args[1];
+    var contextualResult = args[2];
+    var watch = new Stopwatch();
+    var records = new List<object>();
+    var pcm = await File.ReadAllBytesAsync(contextualPcm);
+    var gate = new object();
+    void Record(object value) { lock (gate) records.Add(new { seconds = watch.Elapsed.TotalSeconds, value }); }
+    try {
+        if (args[0] == "--realtime-translation")
+            await new TranslationSession(TranslationSettings.Load(), TranslationSettings.LoadApiKey(), () => watch.Start(),
+                text => { Record(new { stage = "caption", text }); Console.WriteLine($"{watch.Elapsed.TotalSeconds:F2}s: {text}"); },
+                _ => { }, received: message => Record(message.Clone())).RunAsync(CancellationToken.None, TimedReplay(pcm));
+        else await new ContextualTranslationSession(TranslationSettings.Load(), TranslationSettings.LoadApiKey(),
+        () => watch.Start(), text => { Record(new { stage = "caption", text }); Console.WriteLine($"{watch.Elapsed.TotalSeconds:F2}s: {text}"); },
+        _ => { }, received: message => Record(message.Clone()), diagnostic: Record)
+        .RunAsync(CancellationToken.None, TimedReplay(pcm)); }
+    finally { await File.WriteAllTextAsync(contextualResult, JsonSerializer.Serialize(records, new JsonSerializerOptions
+        { WriteIndented = true, Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping })); }
+    return;
+}
+
+if (args is ["--text-translation", var transcriptFile, var textResultFile])
+{
+    await FileTranslationBenchmark.RunTextAsync(transcriptFile, textResultFile);
+    return;
+}
+
+if (args is ["--file-translation", var audioFile, var resultFile])
+{
+    await FileTranslationBenchmark.RunAsync(audioFile, resultFile);
+    return;
+}
+
+if (args.Length == 5 && args[0] == "--diagnose")
+{
+    var options = TranslationSettings.Load();
+    var pcm = await File.ReadAllBytesAsync(args[1]);
+    var watch = Stopwatch.StartNew();
+    var events = new List<object>();
+    await new TranslationSession(options, TranslationSettings.LoadApiKey(), () => watch.Restart(),
+        text => events.Add(new { type = "display", seconds = watch.Elapsed.TotalSeconds, text }), _ => { },
+        silenceDurationMs: int.Parse(args[2]), received: value =>
+        {
+            var type = value.GetProperty("type").GetString() ?? "";
+            if (type.Contains("text") || type.Contains("transcription") || type.StartsWith("input_audio_buffer."))
+                events.Add(new { seconds = watch.Elapsed.TotalSeconds, message = value.Clone() });
+        }, includeSourceTranscript: true, sourceLanguage: args[3] == "auto" ? null : args[3])
+        .RunAsync(CancellationToken.None, TimedReplay(pcm));
+    await File.WriteAllTextAsync(args[4], JsonSerializer.Serialize(events, new JsonSerializerOptions { WriteIndented = true }));
+    Console.WriteLine("Saved source ASR and translation events.");
+    return;
+}
+
 if (args is ["--audio-source-smoke"])
 {
     foreach (var microphone in new[] { false, true })
@@ -75,12 +136,13 @@ if (args.Length == 6 && args[0] == "--latency")
         var type = value.GetProperty("type").GetString();
         if (type == "response.text.text" || type == "response.text.done")
             records.Add(new { stage = type, seconds = watch.Elapsed.TotalSeconds,
+                itemId = value.TryGetProperty("item_id", out var itemId) ? itemId.GetString() : "",
                 text = value.TryGetProperty("text", out var text) ? text.GetString() : "",
                 stash = value.TryGetProperty("stash", out var stash) ? stash.GetString() : "" });
         else if (type is "input_audio_buffer.speech_started" or "input_audio_buffer.speech_stopped")
             records.Add(new { stage = type, seconds = watch.Elapsed.TotalSeconds });
     }).RunAsync(CancellationToken.None, TimedReplay(pcm));
-    Console.WriteLine(JsonSerializer.Serialize(new { silenceMs = int.Parse(args[5]),
+    Console.WriteLine(JsonSerializer.Serialize(new { model = TranslationSession.Model, silenceMs = int.Parse(args[5]),
         audioSeconds = source.Length / 32000.0, formatMeanMs = formatTimes.DefaultIfEmpty().Average(),
         final = last, records }));
     return;
@@ -130,6 +192,20 @@ Assert(SystemAudioSource.LevelFromRms(0.001) == 0, "Noise below microphone meter
 Assert(Math.Abs(SystemAudioSource.LevelFromRms(0.01) - 0.375) < 0.0001, "Playback and microphone share loudness scale");
 Assert(SystemAudioSource.LevelFromRms(1) == 1, "Meter clips safely at full scale");
 var captions = new TranslationCaptions();
+var stableCaptions = new TranslationCaptions(finalOnly: true);
+Assert(Caption(stableCaptions, "response.text.text", "a", "Revised draft") is null, "Withhold drafts from stable captions");
+Assert(Caption(stableCaptions, "response.text.done", "a", "Final.") == "Final.", "Release complete final chunk");
+Assert(Caption(stableCaptions, "response.text.done", "a", "Final.") is null, "Do not enqueue duplicate final");
+Assert(Caption(stableCaptions, "response.text.done", "b", "Final.") == "Final.", "Keep repeated speech from another item");
+var rows = new CaptionLines();
+rows.Add("第一行。第二行。第三行。", value => value.Length <= 4);
+var now = DateTimeOffset.UtcNow;
+Assert(rows.Advance(now) == "第一行。", "First row appears immediately");
+Assert(rows.Advance(now.AddMilliseconds(100)) is null, "Keep reading dwell despite queued rows");
+Assert(rows.Advance(now.AddSeconds(3)) == "第一行。\n第二行。", "Keep preceding row unchanged");
+Assert(rows.Advance(now.AddSeconds(6)) == "第一行。\n第二行。\n第三行。", "Retain earlier rows for scrollable history");
+rows.Clear();
+Assert(rows.Advance(now.AddSeconds(9)) is null, "Clear pending rows on new session");
 Assert(Caption(captions, "response.text.text", "a", "", "wrong guess") is null, "Do not show predictions before confirmation");
 Assert(Caption(captions, "response.text.text", "a", "Hello", " wrong") == "Hello", "Show confirmed text only");
 Assert(Caption(captions, "response.text.text", "a", "Hello", " world") is null, "Prediction revisions do not redraw subtitles");
@@ -139,6 +215,12 @@ Assert(Caption(captions, "response.text.text", "b", "Goodbye", "!") == "Hello wo
 Assert(Caption(captions, "response.text.done", "a", "Hello world.") is null, "Duplicate final does not redraw");
 Assert(Caption(captions, "response.text.text", "a", "Late obsolete text") is null, "Finalized item cannot be revised by late preview");
 Assert(Caption(captions, "conversation.item.input_audio_transcription.text", "x", "source") is null, "Ignore source transcript");
+var punctuation = new TranslationCaptions();
+Assert(Caption(punctuation, "response.text.text", "one", "谢谢", "。") == "谢谢", "Unconfirmed punctuation waits for confirmation");
+Assert(Caption(punctuation, "response.text.done", "one", "谢谢。") == "谢谢。", "Final punctuation replaces the preview");
+Assert(Caption(punctuation, "response.text.done", "two", "但是我，只是想这么做。") == "谢谢。 但是我，只是想这么做。", "Preserve punctuation across separate items");
+Assert(Caption(punctuation, "response.text.done", "three", "下一句话没有标点") == "谢谢。 但是我，只是想这么做。 下一句话没有标点", "Unpunctuated API text is preserved without guessing sentence endings");
+Assert(Caption(punctuation, "response.text.done", "four", "另一件事。")!.EndsWith("下一句话没有标点 另一件事。"), "Missing punctuation never blocks the next item");
 for (var i = 0; i < 30; i++) Caption(captions, "response.text.done", i.ToString(), new string('a', 100));
 Assert(Caption(captions, "response.text.done", "last", "tail") is { Length: <= 1200 }, "Bound caption memory");
 foreach (var invalid in new[] { "", "../evil", "a.evil", "a?x", "a/b", "a\r\n" })
@@ -152,6 +234,7 @@ await CheckWire(false, false);
 await CheckWire(true, false);
 await CheckWire(false, true);
 await LocalTranslationTests.RunAsync();
+await ContextualTranslationTests.RunAsync();
 await CapabilityTests.RunAsync();
 await TranslatedSpeechTests.RunAsync();
 Console.WriteLine("Passed caption revision, endpoint validation, audio framing, graceful stop, tail delivery, and server error tests.");
@@ -166,6 +249,7 @@ async Task CheckWire(bool cancelCapture, bool fail)
     using var stop = new CancellationTokenSource();
     using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
     var final = "";
+    var previewSeen = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
     var server = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
     listener.Run(async context =>
     {
@@ -192,6 +276,8 @@ async Task CheckWire(bool cancelCapture, bool fail)
         using var packet = await Receive(socket);
         Assert(packet.RootElement.GetProperty("type").GetString() == "input_audio_buffer.append", "Audio event");
         Assert(Convert.FromBase64String(packet.RootElement.GetProperty("audio").GetString()!).SequenceEqual(new byte[] { 1, 2, 3, 4 }), "Exact PCM bytes");
+        await Send(socket, new { type = "response.text.text", item_id = "tail", text = "Draft" });
+        await previewSeen.Task.WaitAsync(deadline.Token);
         if (cancelCapture) stop.Cancel();
         using var finish = await Receive(socket);
         Assert(finish.RootElement.GetProperty("type").GetString() == "session.finish", "Finish after capture");
@@ -205,7 +291,8 @@ async Task CheckWire(bool cancelCapture, bool fail)
     });
     await listener.StartAsync(deadline.Token);
     var endpoint = new Uri(listener.Urls.Single().Replace("http:", "ws:"));
-    var client = new TranslationSession(new(WorkspaceId: "ws-example"), "test-key", () => { }, text => final = text, _ => { }, async (text, token) => { await Task.Delay(5, token); return "formatted:" + text; })
+    var client = new TranslationSession(new(WorkspaceId: "ws-example"), "test-key", () => { }, text =>
+        { final = text; if (text == "formatted:Draft") previewSeen.TrySetResult(); }, _ => { }, async (text, token) => { await Task.Delay(5, token); return "formatted:" + text; })
         .RunAsync(stop.Token, Packets(cancelCapture, stop.Token), endpoint);
     if (fail)
     {

@@ -7,7 +7,8 @@ namespace Shuo.Services;
 internal sealed class TranslationSession(TranslationOptions options, string apiKey,
     Action ready, Action<string> transcript, Action<double> audioLevel,
     Func<string, CancellationToken, Task<string>>? format = null,
-    int silenceDurationMs = 500, Action<JsonElement>? received = null)
+    int silenceDurationMs = 500, Action<JsonElement>? received = null,
+    bool includeSourceTranscript = false, string? sourceLanguage = null, bool sourceOnly = false)
 {
     internal const string Model = "qwen3.5-livetranslate-flash-realtime";
 
@@ -25,6 +26,7 @@ internal sealed class TranslationSession(TranslationOptions options, string apiK
     internal async Task RunAsync(CancellationToken stop, IAsyncEnumerable<byte[]>? audio = null, Uri? testEndpoint = null)
     {
         var endpoint = Endpoint(options);
+        if (sourceOnly) endpoint = new UriBuilder(endpoint) { Query = "model=qwen3-asr-flash-realtime" }.Uri;
         if (silenceDurationMs is < 200 or > 6000) throw new ArgumentOutOfRangeException(nameof(silenceDurationMs));
         if (string.IsNullOrWhiteSpace(apiKey)) throw new ArgumentException("请填写百炼 API Key，或先在转录服务中保存百炼凭据。");
         using var socket = new ClientWebSocket();
@@ -39,16 +41,24 @@ internal sealed class TranslationSession(TranslationOptions options, string apiK
             using var created = await ReceiveAsync(socket, connecting.Token);
             ThrowIfError(created.RootElement);
             if (Type(created.RootElement) != "session.created") throw new IOException("百炼未返回会话创建消息。");
+            object session = sourceOnly ? new
+            {
+                input_audio_format = "pcm", sample_rate = 16000,
+                input_audio_transcription = sourceLanguage is null ? new Dictionary<string, string>()
+                    : new Dictionary<string, string> { ["language"] = sourceLanguage },
+                turn_detection = new { type = "server_vad", threshold = 0.2, silence_duration_ms = silenceDurationMs },
+            } : new
+            {
+                modalities = new[] { "text" }, sample_rate = 16000, input_audio_format = "pcm",
+                input_audio_transcription = new { model = includeSourceTranscript ? "qwen3-asr-flash-realtime" : null,
+                    language = sourceLanguage },
+                translation = new { language = options.TargetLanguage },
+                turn_detection = new { type = "server_vad", threshold = 0.2, silence_duration_ms = silenceDurationMs },
+            };
             await SendAsync(socket, new
             {
                 event_id = EventId(), type = "session.update",
-                session = new
-                {
-                    modalities = new[] { "text" }, sample_rate = 16000, input_audio_format = "pcm",
-                    input_audio_transcription = new { model = (string?)null },
-                    translation = new { language = options.TargetLanguage },
-                    turn_detection = new { type = "server_vad", threshold = 0.2, silence_duration_ms = silenceDurationMs },
-                },
+                session,
             }, connecting.Token);
             while (true)
             {
@@ -121,6 +131,7 @@ internal sealed class TranslationSession(TranslationOptions options, string apiK
             received?.Invoke(value);
             ThrowIfError(value);
             if (Type(value) == "session.finished") return;
+            if (sourceOnly) continue;
             if (captions.Update(value) is { } text)
             {
                 // Format complete confirmed snapshots in receive order. Never feed rendered text back into the model state.
@@ -167,7 +178,7 @@ internal sealed class TranslationSession(TranslationOptions options, string apiK
 }
 
 // Display confirmed text only. Prediction (stash) is withheld until the service confirms it.
-internal sealed class TranslationCaptions
+internal sealed class TranslationCaptions(bool finalOnly = false)
 {
     private readonly List<(string Id, string Text, bool Done)> _items = [];
     private string _lastCaption = "";
@@ -175,15 +186,17 @@ internal sealed class TranslationCaptions
     {
         var type = message.GetProperty("type").GetString();
         if (type is not ("response.text.text" or "response.text.done")) return null;
+        if (finalOnly && type != "response.text.done") return null;
         var id = message.GetProperty("item_id").GetString() ?? throw new IOException("译文缺少消息 ID。");
         var text = message.GetProperty("text").GetString() ?? "";
 
-        if (text.Length > 1200) text = text[^1200..];
+        if (!finalOnly && text.Length > 1200) text = text[^1200..];
         var index = _items.FindIndex(item => item.Id == id);
         if (index >= 0 && _items[index].Done) return null;
         if (index < 0) _items.Add((id, text, type == "response.text.done"));
         else _items[index] = (id, text, type == "response.text.done");
         while (_items.Count > 20) _items.RemoveAt(0);
+        if (finalOnly) return string.IsNullOrWhiteSpace(text) ? null : text;
         var result = string.Join(" ", _items.Select(item => item.Text).Where(value => value.Length > 0));
         if (result.Length > 1200) result = result[^1200..];
         if (result == _lastCaption) return null;

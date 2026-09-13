@@ -31,5 +31,6 @@
     <Compile Include="../../src/Shuo/Services/LocalServiceHealth.cs" Link="LocalServiceHealth.cs" />
     <Compile Include="../../src/Shuo/Services/TranslationOptions.cs" Link="TranslationOptions.cs" />
     <Compile Include="../../src/Shuo/Services/DailySettings.cs" Link="DailySettings.cs" />
+    <Compile Include="../../src/Shuo/Services/MacServiceAddresses.cs" Link="MacServiceAddresses.cs" />
   </ItemGroup>
 </Project>

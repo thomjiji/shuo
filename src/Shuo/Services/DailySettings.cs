@@ -3,14 +3,11 @@ using System.Text.Json.Nodes;
 
 namespace Shuo.Services;
 
-internal sealed record DailyOptions(int Source = 0, int Destination = 0, int CaptionLanguage = 0, int TextLanguage = 0)
+internal sealed record DailyOptions(int CaptionLanguage = 0)
 {
     internal DailyOptions Normalize() => this with
     {
-        Source = Source == 1 ? 1 : 0,
-        Destination = Source == 1 ? 2 : Math.Clamp(Destination, 0, 2),
         CaptionLanguage = Math.Clamp(CaptionLanguage, 0, 2),
-        TextLanguage = TextLanguage == 1 ? 1 : 0,
     };
 }
 

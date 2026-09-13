@@ -13,11 +13,10 @@ public sealed partial class MainWindow
     private HotkeyBinding _readingHotkeyBinding = new ReadingOptions().Hotkey;
     private bool _readingLoaded;
     private bool _keepReadingOverlay;
-    private bool _testingReadingHost;
     private static readonly double[] LocalReadingSpeeds = [0.85, 1.0, 1.15, 1.3];
     private bool CanStartReading => !_exiting && !_closed && !_installingUpdate && !_dictationActive
         && !_togglePending && _pendingPastes == 0 && _translationCancellation is null
-        && _readingCancellation is null && _textTranslationCancellation is null;
+        && _readingCancellation is null;
 
     private void InitializeReading()
     {
@@ -56,11 +55,11 @@ public sealed partial class MainWindow
         UpdateReadingControls();
     }
 
-    private ReadingOptions CurrentReadingOptions() => new(ReadingEnabled.IsOn, ReadingUseExistingKey.IsOn,
+    private ReadingOptions CurrentReadingOptions() => new(ReadingEnabled.IsOn, ReadingSettings.Load().UseExistingKey,
         (ReadingSpeaker.SelectedItem as ReadingVoice)?.Id ?? "", (int)ReadingSpeed.Value,
         _readingHotkeyBinding.Modifiers, _readingHotkeyBinding.VirtualKey, ReadingMode.SelectedIndex == 1,
         ReadingTranslationBackend.SelectedIndex == 1,
-        ReadingLocalHost.Text.Trim(), LocalReadingSpeeds[Math.Max(0, ReadingLocalSpeed.SelectedIndex)],
+        ReadingSettings.Load().SelfHostedHost, LocalReadingSpeeds[Math.Max(0, ReadingLocalSpeed.SelectedIndex)],
         ReadingOriginalBackend.SelectedIndex == 1);
 
     private void ReadingLocalSettings_Changed(object sender, Microsoft.UI.Xaml.Controls.SelectionChangedEventArgs args)
@@ -68,11 +67,6 @@ public sealed partial class MainWindow
         if (!_readingLoaded) return;
         SaveLocalReadingSettings();
         UpdateReadingControls();
-    }
-
-    private void ReadingLocalHost_LostFocus(object sender, RoutedEventArgs args)
-    {
-        if (_readingLoaded) SaveLocalReadingSettings();
     }
 
     private void SaveLocalReadingSettings()
@@ -83,38 +77,12 @@ public sealed partial class MainWindow
             {
                 UseSelfHostedTranslation = ReadingTranslationBackend.SelectedIndex == 1,
                 UseSelfHostedOriginal = ReadingOriginalBackend.SelectedIndex == 1,
-                SelfHostedHost = ReadingLocalHost.Text.Trim(),
                 LocalPlaybackSpeed = LocalReadingSpeeds[Math.Max(0, ReadingLocalSpeed.SelectedIndex)],
             };
             ReadingSettings.Save(saved, ReadingSettings.LoadApiKey());
             ReadingStatus.Text = "已保存";
         }
         catch (Exception error) { ReadingStatus.Text = "朗读服务设置未保存：" + error.Message; }
-    }
-
-    private async void ReadingLocalTest_Click(object sender, RoutedEventArgs args)
-    {
-        _testingReadingHost = true;
-        UpdateReadingControls();
-        ReadingStatus.Text = "正在连接 Mac...";
-        try
-        {
-            var translate = ReadingMode.SelectedIndex == 1;
-            var local = (translate ? ReadingTranslationBackend : ReadingOriginalBackend).SelectedIndex == 1;
-            var capabilities = !local ? new[] { "translation" }
-                : translate ? new[] { "translation", "speech" } : new[] { "speech" };
-            await LocalServiceHealth.TestAsync(ReadingLocalHost.Text, _shutdown.Token, capabilities);
-            if (!_closed) ReadingStatus.Text = "连接正常";
-        }
-        catch (Exception error)
-        {
-            if (!_closed) ReadingStatus.Text = "Mac 连接失败：" + error.Message;
-        }
-        finally
-        {
-            _testingReadingHost = false;
-            if (!_closed) UpdateReadingControls();
-        }
     }
 
     private void ReadingMode_Changed(object sender, Microsoft.UI.Xaml.Controls.SelectionChangedEventArgs args)
@@ -201,7 +169,7 @@ public sealed partial class MainWindow
             var options = CurrentReadingOptions();
             options.Validate();
             RegisterReadingHotkeys();
-            ReadingSettings.Save(options, ReadingApiKey.Password);
+            ReadingSettings.Save(options, ReadingSettings.LoadApiKey());
             ReadingStatus.Text = "已保存";
         }
         catch (Exception error) { ReadingStatus.Text = "保存失败：" + error.Message; }
@@ -210,9 +178,13 @@ public sealed partial class MainWindow
     private void ReadingToggle_Changed(object sender, RoutedEventArgs args)
     {
         if (!_readingLoaded) return;
-        if (!ReadingEnabled.IsOn) CloseReading();
-        // Disabling takes effect immediately, including registered shortcuts.
-        if (!ReadingEnabled.IsOn) RegisterReadingHotkeys();
+        try
+        {
+            if (!ReadingEnabled.IsOn) CloseReading();
+            RegisterReadingHotkeys();
+            ReadingSettings.Save(ReadingSettings.Load() with { Enabled = ReadingEnabled.IsOn }, ReadingSettings.LoadApiKey());
+        }
+        catch (Exception error) { ReadingStatus.Text = "快捷键未保存：" + error.Message; }
         UpdateReadingControls();
     }
 
@@ -228,17 +200,15 @@ public sealed partial class MainWindow
         ReadingTextBox.IsReadOnly = active;
         Microsoft.UI.Xaml.Controls.ToolTipService.SetToolTip(ReadingShortcutButton, "选中文字后按此快捷键朗读，再次按下停止。");
         ReadingOriginalBackend.Visibility = translate ? Visibility.Collapsed : Visibility.Visible;
-        ReadingOriginalBackend.IsEnabled = !active && !_testingReadingHost;
+        ReadingOriginalBackend.IsEnabled = !active;
         ReadingTranslationBackend.Visibility = translate ? Visibility.Visible : Visibility.Collapsed;
-        ReadingTranslationBackend.IsEnabled = !active && !_testingReadingHost;
-        ReadingLocalSettings.Visibility = Visibility.Visible;
+        ReadingTranslationBackend.IsEnabled = !active;
         ReadingLocalSpeed.Visibility = local ? Visibility.Visible : Visibility.Collapsed;
         ReadingCloudSpeed.Visibility = doubao ? Visibility.Visible : Visibility.Collapsed;
-        ReadingCloudCredentials.Visibility = doubao ? Visibility.Visible : Visibility.Collapsed;
         ReadingSpeaker.Visibility = doubao ? Visibility.Visible : Visibility.Collapsed;
         ReadingFixedVoice.Visibility = doubao ? Visibility.Collapsed : Visibility.Visible;
         ReadingFixedVoice.Text = "Serena";
-        ReadingLocalHost.IsEnabled = ReadingLocalSpeed.IsEnabled = ReadingLocalTest.IsEnabled = !active && !_testingReadingHost;
+        ReadingLocalSpeed.IsEnabled = !active;
         ReadingTranslatedText.Visibility = translate && (active || !string.IsNullOrWhiteSpace(ReadingTranslatedText.Text))
             ? Visibility.Visible : Visibility.Collapsed;
         ReadingButton.IsEnabled = CanStartReading;
@@ -247,12 +217,9 @@ public sealed partial class MainWindow
         ReadingPause.Content = _readingPlayback?.Paused == true ? "继续" : "暂停";
         ReadingEnabled.IsEnabled = !active;
         ReadingShortcutButton.IsEnabled = !active;
-        ReadingUseExistingKey.IsEnabled = !active && doubao;
         ReadingSpeaker.IsEnabled = !active && doubao;
         ReadingSpeed.IsEnabled = !active && doubao;
         ReadingSaveButton.IsEnabled = !active;
-        ReadingApiKeyCard.Visibility = ReadingUseExistingKey.IsOn || !doubao ? Visibility.Collapsed : Visibility.Visible;
-        ReadingApiKey.IsEnabled = !active && doubao && !ReadingUseExistingKey.IsOn;
     }
 
     private void ReadingButton_Click(object sender, RoutedEventArgs args) => StartReading("text");
@@ -302,19 +269,19 @@ public sealed partial class MainWindow
             var local = translate ? options.UseSelfHostedTranslation : options.UseSelfHostedOriginal;
             var hybrid = translate && !local;
             var label = translate ? "中文译读" : "原文朗读";
-            var key = local ? "" : options.UseExistingKey ? ServiceSettings.LoadSpeechKey(true) : ReadingApiKey.Password.Trim();
+            var key = local ? "" : options.UseExistingKey ? ServiceSettings.LoadSpeechKey(true) : ReadingSettings.LoadApiKey().Trim();
             Uri? endpoint = null;
             if (hybrid)
             {
                 endpoint = SelfHostedTextTranslator.Endpoint(options.SelfHostedHost);
-                if (string.IsNullOrWhiteSpace(key)) throw new ArgumentException("请填写豆包语音 API Key，或使用转录服务中的火山引擎语音凭据。");
+                if (string.IsNullOrWhiteSpace(key)) throw new ArgumentException("请填写豆包语音 API Key，或使用服务设置中的豆包凭据。");
             }
             else if (local)
             {
                 endpoint = SelfHostedReadingClient.Endpoint(options.SelfHostedHost);
                 if (!translate) endpoint = new UriBuilder(endpoint) { Path = "/v1/speech" }.Uri;
             }
-            else if (string.IsNullOrWhiteSpace(key)) throw new ArgumentException("请填写语音 API Key，或在转录服务中配置火山引擎语音 API Key。");
+            else if (string.IsNullOrWhiteSpace(key)) throw new ArgumentException("请填写语音 API Key，或在服务设置中配置豆包 API Key。");
             ReadingStatus.Text = source == "selection" ? "正在读取选中文字..." : "正在准备文字...";
             if (translate) ReadingTranslatedText.Text = "";
             string text;
@@ -332,7 +299,7 @@ public sealed partial class MainWindow
             token.ThrowIfCancellationRequested();
             var chunks = ReadingText.Split(text, translate || local ? ReadingText.LocalRequestBytes : ReadingText.MaximumRequestBytes);
             if (source == "selection") ReadingTextBox.Text = text;
-            ReadingSettings.Save(options, ReadingApiKey.Password);
+            ReadingSettings.Save(options, ReadingSettings.LoadApiKey());
             ReadingStatus.Text = hybrid ? "正在翻译原文..." : local ? "正在连接 Mac " + label + "..." : "正在连接豆包语音合成...";
             _overlay.BeginReading();
             using var client = new System.Net.Http.HttpClient { Timeout = Timeout.InfiniteTimeSpan };
@@ -395,7 +362,7 @@ public sealed partial class MainWindow
                 UpdateReadingControls();
                 ReadingStatus.Text = error is TimeoutException ? "当前应用的选区读取超时，请重新选择文字后重试。" : "朗读失败：" + error.Message;
                 // Bring actionable failures into view; successful shortcuts never steal focus.
-                if (source != "selection") SettingsNavigation.SelectedItem = ReadingNavigationItem;
+                if (source != "selection") SettingsNavigation.SelectedItem = SpeakNavigationItem;
                 if (source != "selection") ShowSettings();
                 else await ShowReadingNoticeAsync(ReadingStatus.Text, cancellation.Token);
             }

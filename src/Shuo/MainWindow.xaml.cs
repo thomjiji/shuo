@@ -105,41 +105,17 @@ public sealed partial class MainWindow : Window
             QwenApiKey.Password = _cloudOptions.QwenApiKey;
             QwenModelPicker.SelectedIndex = _cloudOptions.QwenModel == "qwen3-asr-flash-realtime" ? 1 : 0;
             CloudApiKey.Password = _cloudOptions.ApiKey;
-            CloudAppId.Text = _cloudOptions.AppId;
-            CloudAccessToken.Password = _cloudOptions.AccessToken;
-            CloudResourceId.Text = _cloudOptions.ResourceId;
             UpdateDoubaoModelPicker();
         }
         catch (Exception cloudError) { CloudStatusMessage = cloudError.Message; }
         ProviderPicker_SelectionChanged(this, null!);
         _cloudFieldsLoaded = true;
-        CloudApiKey.PasswordChanged += (_, _) => SaveCloudFields();
-        CloudAccessToken.PasswordChanged += (_, _) => SaveCloudFields();
-        QwenApiKey.PasswordChanged += (_, _) => SaveCloudFields();
-        QwenModelPicker.SelectionChanged += (_, _) => SaveCloudFields();
-        SelfHostedUrl.TextChanged += (_, _) => SaveCloudFields();
-        SelfHostedModelPicker.SelectionChanged += (_, _) => SaveCloudFields();
-        CloudAppId.TextChanged += (_, _) => SaveCloudFields();
-        DoubaoModelPicker.SelectionChanged += (_, _) =>
-        {
-            if (_updatingDoubaoModel) return;
-            var suffix = CloudResourceId.Text.Trim().EndsWith(".concurrent", StringComparison.Ordinal) ? "concurrent" : "duration";
-            if (DoubaoModelPicker.SelectedIndex == 0) CloudResourceId.Text = $"volc.seedasr.sauc.{suffix}";
-            else if (DoubaoModelPicker.SelectedIndex == 1) CloudResourceId.Text = $"volc.bigasr.sauc.{suffix}";
-            else
-            {
-                TranscriptionSettingsExpander.IsExpanded = true;
-                DoubaoResourceSettings.IsExpanded = true;
-            }
-        };
-        CloudResourceId.TextChanged += (_, _) => { UpdateDoubaoModelPicker(); SaveCloudFields(); };
-        foreach (var field in CloudInputFields)
-            field.LostFocus += (_, _) => SaveCloudFields();
         RefreshCloudStatus();
         InitializeUpdates();
         InitializeTranslation();
         InitializeReading();
         InitializeDailyTasks();
+        InitializeServiceConnections();
     }
 
     internal void ShowSettings()
@@ -160,22 +136,18 @@ public sealed partial class MainWindow : Window
 
     private void SettingsNavigation_SelectionChanged(NavigationView sender, NavigationViewSelectionChangedEventArgs args)
     {
-        if (GeneralPage is null || TranscriptionPage is null) return;
-        var section = (args.SelectedItem as NavigationViewItem)?.Tag as string ?? "transcription";
+        if (GeneralPage is null || ServicesPage is null) return;
+        var section = (args.SelectedItem as NavigationViewItem)?.Tag as string ?? "listen";
         GeneralPage.Visibility = section == "general" ? Visibility.Visible : Visibility.Collapsed;
-        TranscriptionPage.Visibility = section is "transcription" or "services" ? Visibility.Visible : Visibility.Collapsed;
+        ServicesPage.Visibility = section == "services" ? Visibility.Visible : Visibility.Collapsed;
         HistoryPage.Visibility = section == "history" ? Visibility.Visible : Visibility.Collapsed;
-        TranslationPage.Visibility = section == "translation" ? Visibility.Visible : Visibility.Collapsed;
-        ReadingPage.Visibility = section is "reading" or "reading-settings" ? Visibility.Visible : Visibility.Collapsed;
+        ReadingPage.Visibility = section == "reading" ? Visibility.Visible : Visibility.Collapsed;
         ListenPage.Visibility = section == "listen" ? Visibility.Visible : Visibility.Collapsed;
-        TextPage.Visibility = section == "text" ? Visibility.Visible : Visibility.Collapsed;
-        ReadingDailyOptions.Visibility = ReadingDailyText.Visibility = section == "reading-settings" ? Visibility.Collapsed : Visibility.Visible;
-        ReadingSettingsExpander.Visibility = section == "reading-settings" ? Visibility.Visible : Visibility.Collapsed;
-        if (section == "reading-settings") ReadingSettingsExpander.IsExpanded = true;
+        CaptionPage.Visibility = section == "captions" ? Visibility.Visible : Visibility.Collapsed;
         if (section == "general") AcknowledgeAvailableUpdate();
         if (section == "history" && _historyEntries is null) LoadHistory();
-        if (section == "transcription") _ = RefreshModelsAsync();
-        PageTitle.Text = section switch { "listen" => "听", "reading" => "说", "text" => "译", "reading-settings" => "朗读与文字翻译", "general" => "关于", "history" => "历史", "translation" => "字幕翻译", "services" => "服务设置", _ => "声音识别" };
+        if (section == "services") _ = RefreshModelsAsync();
+        PageTitle.Text = section switch { "listen" => "语音输入", "captions" => "实时字幕", "reading" => "朗读", "general" => "关于", "history" => "历史", "services" => "服务设置", _ => "语音输入" };
         PageScroll.ChangeView(null, 0, null, disableAnimation: true);
         PlaySettingsPageTransition();
     }
@@ -231,7 +203,6 @@ public sealed partial class MainWindow : Window
     private async Task SwitchProviderAsync(string provider)
     {
         if (!_daemonReady || _dictationActive || _togglePending || _modelChanging || _installingUpdate || provider == _cloudOptions.Backend) return;
-        _cloudSaveDelay?.Cancel();
         try
         {
             var options = _cloudOptions with { Enabled = provider != "local", Provider = provider == "local" ? "doubao" : provider };
@@ -270,26 +241,30 @@ public sealed partial class MainWindow : Window
         }
     }
 
-    private bool _updatingDoubaoModel;
-
     private void UpdateDoubaoModelPicker()
     {
-        _updatingDoubaoModel = true;
-        try
+        DoubaoModelPicker.SelectedIndex = _cloudOptions.ResourceId.Trim() switch
         {
-            DoubaoModelPicker.SelectedIndex = CloudResourceId.Text.Trim() switch
-            {
-                "volc.seedasr.sauc.duration" or "volc.seedasr.sauc.concurrent" => 0,
-                "volc.bigasr.sauc.duration" or "volc.bigasr.sauc.concurrent" => 1,
-                _ => 2
-            };
-        }
-        finally { _updatingDoubaoModel = false; }
+            "volc.seedasr.sauc.duration" or "volc.seedasr.sauc.concurrent" => 0,
+            "volc.bigasr.sauc.duration" or "volc.bigasr.sauc.concurrent" => 1,
+            _ => 2,
+        };
+    }
+
+    private string SelectedDoubaoResource()
+    {
+        var suffix = _cloudOptions.ResourceId.EndsWith(".concurrent", StringComparison.Ordinal) ? "concurrent" : "duration";
+        return DoubaoModelPicker.SelectedIndex switch
+        {
+            0 => $"volc.seedasr.sauc.{suffix}",
+            1 => $"volc.bigasr.sauc.{suffix}",
+            _ => _cloudOptions.ResourceId,
+        };
     }
 
     private CloudOptions ReadCloudOptions() => new(ProviderPicker.SelectedIndex > 0,
-        CloudResourceId.Text.Trim(), CloudApiKey.Password.Trim(),
-        CloudAppId.Text.Trim(), CloudAccessToken.Password.Trim(),
+        SelectedDoubaoResource(), CloudApiKey.Password.Trim(),
+        _cloudOptions.AppId, _cloudOptions.AccessToken,
         Provider: ProviderPicker.SelectedIndex switch { 3 => "selfhosted", 2 => "qwen", _ => "doubao" },
         QwenApiKey: QwenApiKey.Password.Trim(),
         QwenRegion: "cn-beijing",
@@ -307,26 +282,6 @@ public sealed partial class MainWindow : Window
 
     private async void ProviderPicker_SelectionChanged(object sender, SelectionChangedEventArgs args)
     {
-        if (CloudFields is null) return;
-        CloudFields.Visibility = ProviderPicker.SelectedIndex == 1 ? Visibility.Visible : Visibility.Collapsed;
-        if (QwenFields is not null) QwenFields.Visibility = ProviderPicker.SelectedIndex == 2 ? Visibility.Visible : Visibility.Collapsed;
-        if (SelfHostedFields is not null) SelfHostedFields.Visibility = ProviderPicker.SelectedIndex == 3 ? Visibility.Visible : Visibility.Collapsed;
-        if (LocalModelCard is not null) LocalModelCard.Visibility = ProviderPicker.SelectedIndex == 0 ? Visibility.Visible : Visibility.Collapsed;
-        if (TranscriptionSettingsExpander is not null)
-        {
-            TranscriptionDoubaoCredentials.Visibility = CloudFields.Visibility;
-            TranscriptionQwenCredentials.Visibility = QwenFields!.Visibility;
-            TranscriptionHostSettings.Visibility = SelfHostedFields!.Visibility;
-            var needsSetup = ProviderPicker.SelectedIndex switch
-            {
-                1 => string.IsNullOrWhiteSpace(CloudApiKey.Password)
-                    && (string.IsNullOrWhiteSpace(CloudAppId.Text) || string.IsNullOrWhiteSpace(CloudAccessToken.Password)),
-                2 => string.IsNullOrWhiteSpace(QwenApiKey.Password),
-                3 => string.IsNullOrWhiteSpace(SelfHostedUrl.Text),
-                _ => false,
-            };
-            TranscriptionSettingsExpander.IsExpanded = needsSetup;
-        }
         RefreshCloudStatus();
         var provider = ProviderPicker.SelectedIndex switch { 3 => "selfhosted", 2 => "qwen", 1 => "doubao", _ => "local" };
         if (!_cloudFieldsLoaded || provider == _cloudOptions.Backend) return;
@@ -341,79 +296,12 @@ public sealed partial class MainWindow : Window
             accessToken = _cloudOptions.AccessToken, resourceId = _cloudOptions.ResourceId, url = _cloudOptions.SelfHostedUrl, model = _cloudOptions.Provider == "qwen" ? _cloudOptions.QwenModel : _cloudOptions.SelfHostedModel }
     }));
 
-    private async void SelfHostedTest_Click(object sender, RoutedEventArgs args)
-    {
-        if (!_daemonReady || _dictationActive || _togglePending || _modelChanging) return;
-        _cloudSaveDelay?.Cancel();
-        try
-        {
-            var options = ReadCloudOptions();
-            CloudSettings.Save(options);
-            _cloudOptions = options;
-            _cloudTesting = true;
-            _modelChanging = true;
-            _backendConfigured = false;
-            CloudStatusMessage = "正在测试自托管服务...";
-            UpdateModelControls();
-            await ConfigureBackendAsync();
-            await _daemon.SendAsync("test-cloud");
-        }
-        catch (Exception error)
-        {
-            _cloudTesting = false;
-            _modelChanging = false;
-            CloudStatusMessage = error.Message;
-            UpdateModelControls();
-        }
-    }
-
-    private Control[] CloudInputFields => [CloudApiKey, CloudAccessToken, QwenApiKey,
-        SelfHostedUrl, CloudAppId, CloudResourceId];
-
-    private CancellationTokenSource? _cloudSaveDelay;
-
-    private async void SaveCloudFields()
-    {
-        if (!_cloudFieldsLoaded || _closed || _exiting) return;
-        _cloudSaveDelay?.Cancel();
-        using var delay = CancellationTokenSource.CreateLinkedTokenSource(_shutdown.Token);
-        _cloudSaveDelay = delay;
-        try
-        {
-            var options = ReadCloudOptions();
-            if (options == _cloudOptions && _backendConfigured) return;
-            CloudSettings.Save(options);
-            _cloudOptions = options;
-            _backendConfigured = false;
-            CloudStatusMessage = "已自动保存。";
-            // Persist while typing; defer control-disabling configuration until the editor loses focus.
-            await Task.Delay(500, delay.Token);
-            if (CloudInputFields.Any(field => field.FocusState != FocusState.Unfocused)) return;
-            if (!_daemonReady || _dictationActive || _togglePending || _modelChanging) return;
-            _modelChanging = true;
-            UpdateModelControls();
-            await ConfigureBackendAsync();
-        }
-        catch (OperationCanceledException) when (delay.IsCancellationRequested) { }
-        catch (Exception error)
-        {
-            _modelChanging = false;
-            CloudStatusMessage = error.Message;
-            CloudStatus.Text = error.Message;
-            UpdateModelControls();
-        }
-        finally
-        {
-            if (_cloudSaveDelay == delay) _cloudSaveDelay = null;
-        }
-    }
-
     private void UpdateModelControls()
     {
         UpdateInstallControls();
         var idle = _readingCancellation is null && _translationCancellation is null && !_installingUpdate && _daemonReady && !_dictationActive && !_togglePending && !_modelChanging && !_loadingModels;
         var cloudIdle = _readingCancellation is null && _translationCancellation is null && !_installingUpdate && _daemonReady && !_dictationActive && !_togglePending && !_modelChanging;
-        foreach (var control in new Control[] { ProviderPicker, DoubaoModelPicker, CloudApiKey, CloudAppId, CloudAccessToken, CloudResourceId, QwenApiKey, QwenModelPicker, SelfHostedUrl, SelfHostedModelPicker, SelfHostedTestButton }) control.IsEnabled = cloudIdle;
+        foreach (var control in new Control[] { ProviderPicker, DoubaoModelPicker, CloudApiKey, QwenApiKey, QwenModelPicker, SelfHostedUrl, SelfHostedModelPicker }) control.IsEnabled = cloudIdle;
         ModelPicker.IsEnabled = idle && !_cloudOptions.Enabled && ModelPicker.Items.Count > 0;
         UpdateModelDownloadControls();
         TranscriptionShortcutButton.IsEnabled = !_modelChanging && !_dictationActive && !_togglePending
@@ -422,6 +310,7 @@ public sealed partial class MainWindow : Window
         UpdateTranslationControls();
         UpdateDailyControls();
         UpdateReadingControls();
+        UpdateServiceControls();
     }
 
     private void SelectCurrentModel()
@@ -523,13 +412,13 @@ public sealed partial class MainWindow : Window
         }
     }
 
-    private async Task ToggleAsync()
+    private async Task ToggleAsync(bool preview = false)
     {
         if (_capturingHotkey) return;
-        if (_readingCancellation is not null || _translationCancellation is not null || _textTranslationCancellation is not null) return;
+        if (_readingCancellation is not null || _translationCancellation is not null) return;
         if (_exiting || _closed || _installingUpdate) return;
-        if (_togglePending || _modelChanging) return;
-        if (!_dictationActive) _dictationDestination = ListenDestination.SelectedIndex == 1 ? 1 : 0;
+        if (_togglePending || _modelChanging || _pendingPastes > 0) return;
+        if (!_dictationActive) _dictationPreview = preview;
         _togglePending = true;
         UpdateModelControls();
         try
@@ -719,7 +608,7 @@ public sealed partial class MainWindow : Window
                     CloudStatusMessage = HistoryNotice.Text;
                 }
             }
-            if (_dictationDestination == 1) { ListenResult.Text = formatted; CopyDailyText(formatted); ListenStatus.Text = "已复制到剪贴板"; }
+            if (_dictationPreview) { ListenResult.Text = formatted; ListenStatus.Text = "试用完成"; }
             else { TranscriptPaster.Paste(formatted, _shutdown.Token); ListenStatus.Text = "已输入"; }
             _overlay.Hide();
         }
@@ -934,11 +823,10 @@ public sealed partial class MainWindow : Window
 
     private void UpdateHotkeyPreview()
     {
+        UpdateDailyControls();
         if (TranscriptionShortcutButton is not null)
             TranscriptionShortcutButton.Content = _hotkeyBinding?.DisplayText ?? "未设置";
-        if (DictationTrialInput is not null)
-            DictationTrialInput.PlaceholderText = _hotkeyBinding is { } binding
-                ? $"按 {binding.DisplayText} 开始听写" : "请在设置中指定听写快捷键";
+
     }
 
     private static uint CurrentModifiers()

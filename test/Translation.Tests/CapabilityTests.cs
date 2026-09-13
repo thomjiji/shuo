@@ -12,13 +12,23 @@ internal static class CapabilityTests
 {
     internal static async Task RunAsync()
     {
-        Check(new DailyOptions(Source: 1, Destination: 0).Normalize().Destination == 2, "System audio defaults to captions");
-        Check(new DailyOptions(Source: 0, Destination: 1).Normalize().Destination == 1, "Microphone clipboard choice retained");
+        var sharedMac = MacServiceAddresses.Shared(" mac.local ");
+        Check(sharedMac == new MacServiceAddresses("http://mac.local:18765", "mac.local", "mac.local"), "One Mac host resolves ports for all capabilities");
+        Check(!sharedMac.Separate && sharedMac.SharedHost == "mac.local", "Shared Mac is displayed once");
+        Check(new MacServiceAddresses("http://asr:18765", "captions", "reader").Separate, "Keep distinct existing hosts");
+        Check(new MacServiceAddresses("http://asr:19000", "asr", "asr").Separate, "Keep custom recognition port");
+        Check(MacServiceAddresses.Shared("[::1]").Recognition == "http://[::1]:18765", "Shared IPv6 host");
+        Check(new MacServiceAddresses("", "", "reader").SharedHost == "reader", "Reuse the sole configured Mac");
+        try { MacServiceAddresses.Shared("http://mac:19000"); throw new Exception("Shared host accepted a custom service port"); }
+        catch (ArgumentException) { }
+        sharedMac.Validate();
+        Check(new DailyOptions(CaptionLanguage: 9).Normalize() == new DailyOptions(2), "Normalize language preferences");
         var dailyPath = Path.Combine(Path.GetTempPath(), "shuo-daily-" + Guid.NewGuid().ToString("N") + ".json");
         try
         {
-            File.WriteAllText(dailyPath, "{\"unrelated\":42}");
-            var preferences = new DailyOptions(1, 2, 2, 1);
+            File.WriteAllText(dailyPath, "{\"unrelated\":42,\"daily\":{\"Source\":1,\"Destination\":1,\"CaptionLanguage\":2,\"TextLanguage\":1}}");
+            var preferences = new DailyOptions(2);
+            Check(DailySettings.Load(dailyPath) == preferences, "Ignore retired choices without losing caption language");
             DailySettings.Save(preferences, dailyPath);
             Check(DailySettings.Load(dailyPath) == preferences, "Daily choices survive restart");
             Check(JsonNode.Parse(File.ReadAllText(dailyPath))!["unrelated"]!.GetValue<int>() == 42, "Preserve service settings");

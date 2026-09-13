@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>实时字幕为什么会随着后文改写</title>
+  <style>
+    :root { color-scheme: light; --paper: #faf8f1; --ink: #202a35; --muted: #53616c; --blue: #2355b7; --green: #226444; --red: #a43238; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--paper); color: var(--ink); font: 18px/1.75 system-ui, "Microsoft YaHei", sans-serif; }
+    main { max-width: 1060px; margin: auto; padding: 54px 28px 70px; }
+    h1, h2, h3, p { margin-top: 0; }
+    h1 { font-size: clamp(34px, 5.8vw, 60px); line-height: 1.18; letter-spacing: -.035em; max-width: 850px; margin-bottom: 24px; }
+    h2 { font-size: 29px; line-height: 1.35; margin-bottom: 20px; }
+    h3 { font-size: 21px; line-height: 1.4; margin-bottom: 12px; }
+    p { margin-bottom: 16px; }
+    .eyebrow { font-size: 14px; font-weight: 750; letter-spacing: .08em; color: var(--blue); margin-bottom: 18px; }
+    .intro { max-width: 780px; font-size: 23px; line-height: 1.65; }
+    mark { color: inherit; background: #ffe591; padding: 0 .14em; }
+    section { margin-top: 54px; }
+    .demo { border: 2px solid #85a8e5; border-radius: 22px; padding: 30px; background: #fff; }
+    .label { color: var(--muted); font-size: 15px; font-weight: 650; margin-bottom: 10px; }
+    .sentence { display: flex; gap: 10px; flex-wrap: wrap; min-height: 74px; align-items: center; margin-bottom: 18px; }
+    .piece { padding: 8px 14px; border-radius: 12px; background: #edf2fc; font-size: 24px; font-weight: 650; }
+    .piece.pending { color: #65738b; background: #f3f4f6; font-weight: 400; }
+    .status { min-height: 92px; padding: 17px 20px; border-left: 5px solid #e4b221; background: #fff8de; border-radius: 0 14px 14px 0; margin-bottom: 22px; }
+    .status.done { border-color: #3c9061; background: #eef7ef; }
+    .status p { margin: 0; }
+    button { font: inherit; font-size: 17px; font-weight: 650; border: 0; cursor: pointer; border-radius: 12px; padding: 11px 20px; }
+    button.primary { color: white; background: var(--blue); }
+    button.secondary { background: #edf0f4; color: var(--ink); margin-left: 8px; }
+    button:disabled { opacity: .45; cursor: default; }
+    button:focus-visible { outline: 3px solid #202a35; outline-offset: 4px; }
+    .footnote { margin: 18px 0 0; font-size: 15px; color: var(--muted); }
+    .comparison { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; }
+    .card { padding: 25px; border-radius: 20px; background: #fff; border-top: 5px solid #d47373; }
+    .card.good { border-color: #4a9368; }
+    .card p:last-child { margin-bottom: 0; }
+    .card .sample { font-size: 23px; line-height: 1.65; margin: 20px 0; }
+    .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 22px; }
+    .step { border-top: 2px solid #c6ced5; padding-top: 18px; }
+    .number { display: inline-flex; justify-content: center; align-items: center; width: 34px; height: 34px; background: #ffe18a; border-radius: 10px; font-weight: 800; margin-bottom: 14px; }
+    .balance { padding: 28px 30px; background: #eaf0fc; border-radius: 22px; }
+    .balance p:last-child { margin-bottom: 0; }
+    .small { color: var(--muted); font-size: 16px; }
+    code, pre, kbd, samp { font-family: "Iosevka Doom Term", "Cascadia Mono", Consolas, monospace; }
+    @media (max-width: 680px) { main { padding: 32px 20px 48px; } section { margin-top: 38px; } .demo { padding: 22px; } .comparison, .steps { grid-template-columns: 1fr; } .intro { font-size: 21px; } .piece { font-size: 21px; } .status { min-height: 135px; } }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <p class="eyebrow">听懂一句话，需要哪些信息？</p>
+      <h1>字幕越早出现，<br>越可能随着后文改写。</h1>
+      <p class="intro">人说话会停顿，但<mark>停顿不一定代表意思说完了</mark>。实时字幕先把已经听到的内容显示出来，后面的词来了，再修正意思。</p>
+    </header>
+
+    <section class="demo" aria-labelledby="demo-title">
+      <h2 id="demo-title">试试：一句话是慢慢听到的</h2>
+      <p>这里用中文演示“后面的词，会帮助你理解前面的词”。翻译另一种语言时，提前显示的文字也可能需要修改。</p>
+      <div class="label">目前听到的内容</div>
+      <div class="sentence" id="sentence" aria-live="polite"><span class="piece">我最喜欢的</span><span class="piece pending">后面还没听到</span></div>
+      <div class="status" id="status" aria-live="polite"><p>最喜欢的什么？是人、书，还是游戏？现在还不能确定。</p></div>
+      <button class="primary" id="next" type="button">听下一小段</button>
+      <button class="secondary" id="reset" type="button">重新听</button>
+      <p class="footnote">演示的是信息逐渐变完整，不是要求字幕必须等到每一句话全部结束才出现。</p>
+    </section>
+
+    <section aria-labelledby="mistake-title">
+      <h2 id="mistake-title">一次输出不一定是一句话</h2>
+      <div class="comparison">
+        <article class="card">
+          <h3>翻译程序：“这次先输出到这里。”</h3>
+          <p class="sample">一直向往着<br>那个人<br>一直都没变。</p>
+          <p>程序结束一次输出，不代表它已经表达完整。把每次输出都另起一行并固定下来，可能会拆散词语之间的关系。</p>
+        </article>
+        <article class="card good">
+          <h3>读字幕的人：“我需要读懂这件事。”</h3>
+          <p class="sample">我一直憧憬的那个人，<br>始终没有改变。</p>
+          <p>后文能帮助程序弄清词语之间的关系，修订成更完整的译文。字幕根据窗口宽度换行，文字改写时，换行位置也可能变化。</p>
+        </article>
+      </div>
+    </section>
+
+    <section aria-labelledby="work-title">
+      <h2 id="work-title">实时字幕怎样跟上声音</h2>
+      <div class="steps">
+        <article class="step"><div class="number">1</div><h3>听着，记住前后内容</h3><p>保存已经听到的话，结合后面新来的话理解意思。这些前后的内容就叫<strong>上下文</strong>。</p></article>
+        <article class="step"><div class="number">2</div><h3>先显示，再随语音修订</h3><p>收到译文更新就显示。后面的话让意思更清楚时，程序可以改写当前字幕。</p></article>
+        <article class="step"><div class="number">3</div><h3>把字幕排得容易读</h3><p>窗口负责换行、显示和查看历史。窗口变宽或变窄，不应该改变这句话的意思。</p></article>
+      </div>
+    </section>
+
+    <section class="balance" aria-labelledby="tradeoff-title">
+      <h2 id="tradeoff-title">可是，也不能一直等下去</h2>
+      <p>写得太早，可能猜错；等得太久，字幕又跟不上视频。<strong>后半句话还没说出来时，再聪明的程序也不能保证猜中。</strong></p>
+      <p>Shuo 的百炼字幕优先及时显示，允许文字随着后文改写。这样读者能更早看到反馈，代价是字幕和换行位置可能跳动。</p>
+    </section>
+
+    <section aria-labelledby="test-title">
+      <h2 id="test-title">怎么比较字幕方案</h2>
+      <p>先核实音频真正说了什么，再让候选翻译程序听完整段，检查识别和翻译是否正确。</p>
+      <p>随后按真实播放速度一点一点给它声音，检查：<strong>第一批文字何时出现？有没有漏掉意思？后面改了多少？</strong></p>
+      <p class="small">等待更久不保证译得更好。翻译准确度、显示延迟和文字改写次数，需要放在一起比较。</p>
+    </section>
+  </main>
+  <script>
+    const fragments = ['我最喜欢的', '那本书', '找到了。'];
+    const explanations = [
+      '最喜欢的什么？是人、书，还是游戏？现在还不能确定。',
+      '知道了：说的是一本书。但这本书怎么了，还需要继续听。',
+      '现在这件事说清楚了：我最喜欢的那本书，找到了。前后的词可以连起来理解。'
+    ];
+    let heard = 1;
+    const sentence = document.getElementById('sentence');
+    const status = document.getElementById('status');
+    const next = document.getElementById('next');
+    function render() {
+      sentence.replaceChildren();
+      fragments.slice(0, heard).forEach(text => {
+        const span = document.createElement('span');
+        span.className = 'piece'; span.textContent = text; sentence.append(span);
+      });
+      if (heard < fragments.length) {
+        const pending = document.createElement('span');
+        pending.className = 'piece pending'; pending.textContent = '后面还没听到'; sentence.append(pending);
+      }
+      status.querySelector('p').textContent = explanations[heard - 1];
+      status.classList.toggle('done', heard === fragments.length);
+      next.disabled = heard === fragments.length;
+      next.textContent = next.disabled ? '这句话听完整了' : '听下一小段';
+    }
+    next.addEventListener('click', () => { if (heard < fragments.length) heard++; render(); });
+    document.getElementById('reset').addEventListener('click', () => { heard = 1; render(); });
+  </script>
+</body>
+</html>

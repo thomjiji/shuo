@@ -23,7 +23,7 @@ public sealed partial class MainWindow
         TranslationModelPicker.ItemsSource = new ServiceModelOption[]
         {
             new("阿里云百炼", TranslationSession.Model),
-            new("自托管 Mac", "mlx-community/Qwen3-8B-4bit"),
+            new("自托管 Mac", SelfHostedTranslationModels.Default),
         };
         _overlay.TranslationCloseRequested += CloseTranslation;
         _overlay.TranslationPauseRequested += PauseTranslation;
@@ -36,6 +36,7 @@ public sealed partial class MainWindow
             TranslationApiKey.Password = TranslationSettings.LoadApiKey();
             TranslationModelPicker.SelectedIndex = options.Backend == "self-hosted" ? 1 : 0;
             TranslationHost.Text = options.Host;
+            CaptionSelfHostedModelPicker.SelectedIndex = options.SelfHostedAsrModel == SelfHostedAsrModels.Small ? 1 : 0;
             _translationHotkeyBinding = options.Hotkey;
             TranslationShortcutButton.Content = _translationHotkeyBinding.DisplayText;
             if (!options.Enabled) TranslationStatus.Text = "未启用";
@@ -248,7 +249,8 @@ public sealed partial class MainWindow
                 if (_captionOriginal)
                 {
                     var endpoint = new UriBuilder(SelfHostedTextTranslator.Endpoint(options.Host)) { Port = 18765, Path = "/v1/asr" }.Uri;
-                    return new SelfHostedAsrClient(endpoint).RunAsync(audio, Ready, _ => { }, cancellation.Token, committed: Caption);
+                    return new SelfHostedAsrClient(endpoint).RunAsync(audio, Ready, _ => { }, cancellation.Token,
+                        committed: Caption, model: options.SelfHostedAsrModel);
                 }
                 return options.Backend == "self-hosted"
                     ? new SelfHostedTranslationSession(options, Ready, Caption, Format).RunAsync(audio, cancellation.Token)

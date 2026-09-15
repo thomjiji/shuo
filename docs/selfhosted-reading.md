@@ -1,6 +1,6 @@
 # 自托管朗读与译读
 
-Apple Silicon Mac 使用 Qwen3-TTS 0.6B 和 Serena 音色生成语音。原文朗读直接使用原文，模型自动判断语言；中文译读先由 Qwen3 8B 翻译成中文，再生成语音。Windows 上的 Shuo 负责取文和播放，两种方式均不调用云端 API。Mac 需要保持联网、不休眠，并为模型留出内存；朗读服务和转录服务分别运行，可以单独启动和停止。
+Apple Silicon Mac 使用 Qwen3-TTS 0.6B 或 1.7B CustomVoice 和 Serena 音色生成语音。原文朗读直接使用原文，模型自动判断语言；中文译读先由 Qwen3 8B 翻译成中文，再生成语音。Windows 上的 Shuo 负责取文和播放，两种方式均不调用云端 API。Mac 需要保持联网、不休眠，并为模型留出内存；朗读服务和转录服务分别运行，可以单独启动和停止。
 
 ## 在 Mac 部署
 
@@ -10,11 +10,15 @@ Apple Silicon Mac 使用 Qwen3-TTS 0.6B 和 Serena 音色生成语音。原文�
 uv run --python 3.12 scripts/shuo-reading-service.py up
 ```
 
-首次运行会安装锁定的依赖，下载 Qwen3-8B-4bit 和 Qwen3-TTS-12Hz-0.6B-CustomVoice-8bit，并分别预热模型。已有的 Hugging Face 缓存会直接复用。状态中的 `capabilities.translation.ready` 和 `capabilities.speech.ready` 分别表示文字翻译与语音合成可用；顶层 `ready: true` 表示至少一项可用。一个模型加载失败不会阻止另一个模型提供服务：原文朗读只需要语音合成，使用豆包声音服务的中文译读只需要文字翻译，本地中文译读需要两项。Shuo 的连接测试会分别显示各项能力的可用状态。
+首次运行会安装锁定的依赖，下载 Qwen3-8B-4bit 和默认的 Qwen3-TTS 0.6B，并分别预热模型。首次请求 1.7B 时才会下载并加载该模型；已有的 Hugging Face 缓存会直接复用。服务一次只保留一个 TTS 模型，模型切换与朗读共用同一个推理队列，第一次切换会比普通朗读慢。状态中的 `capabilities.translation.ready` 和 `capabilities.speech.ready` 分别表示文字翻译与语音合成可用，`translation_model` 表示固定的翻译模型，`speech_models` 列出当前服务支持的 TTS 模型，`speech_model` 表示当前加载的模型；顶层 `ready: true` 表示至少一项可用。一个能力加载失败不会阻止另一个能力提供服务：原文朗读只需要语音合成，使用豆包声音服务的中文译读只需要文字翻译，本地中文译读需要两项。Shuo 的连接测试会显示并核对翻译模型，并按设置中选择的 TTS 模型检查兼容性。
 
 服务仅监听 Mac 的 Tailscale IPv4 地址和 TCP 18766 端口。Tailnet 的访问规则需要允许运行 Shuo 的设备访问这个端口；转录服务的 18765 端口不变。浏览器页面不能直接调用译读 WebSocket 接口。
 
-在“设置 -> 自托管 Mac”中填写主机名或 IP，点击“测试连接与可用能力”，再保存服务设置。然后在“文字朗读”页选择原文朗读或中文译读，在“朗读设置”中将声音服务设为自托管 Mac。已有服务升级后需要执行 `up` 安装当前版本，才能使用原文语音接口 `/v1/speech`。
+在“设置 -> 自托管 Mac”中填写主机名或 IP，选择“语音合成模型”，点击“测试连接与可用能力”，再保存服务设置。旧设置默认继续使用 `mlx-community/Qwen3-TTS-12Hz-0.6B-CustomVoice-8bit`；1.7B 需要当前版本的 Mac 服务，旧服务会显示明确的兼容性错误。然后在“文字朗读”页选择原文朗读或中文译读，在“朗读设置”中将声音服务设为自托管 Mac。声音服务下方会显示当前 TTS 模型，无需重启页面。已有服务升级后需要执行 `up` 安装当前版本，才能使用模型选择和原文语音接口 `/v1/speech`。
+
+选择 `mlx-community/Qwen3-TTS-12Hz-1.7B-CustomVoice-8bit` 时，服务固定使用以下中文朗读指令；0.6B 不传朗读指令。
+
+> 请用自然、克制、清晰的中文文章朗读方式，根据语义安排停连和重音；突出转折、否定、数字与结论，不要逐字播报，不要夸张表演。
 
 本地播放速度可选 0.85、1、1.15 和 1.3 倍，默认 1 倍。变速保持音调不变。豆包的合成语速单独保存。
 

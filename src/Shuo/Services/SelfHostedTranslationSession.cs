@@ -41,7 +41,7 @@ internal sealed class SelfHostedTranslationSession(TranslationOptions options, A
                     {
                         if (!snapshots.Writer.TryWrite(text))
                             throw new IOException("Mac 翻译速度跟不上语音，请暂停后重试。");
-                    });
+                    }, model: options.SelfHostedAsrModel);
             }
             finally { snapshots.Writer.TryComplete(); }
         }

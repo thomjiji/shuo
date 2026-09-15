@@ -12,6 +12,7 @@ public sealed partial class MainWindow
     private GlobalHotkey? _readingSelectionHotkey;
     private HotkeyBinding _readingHotkeyBinding = new ReadingOptions().Hotkey;
     private bool _readingLoaded;
+    private bool _updatingReadingSpeechServices;
     private bool _keepReadingOverlay;
     private static readonly double[] LocalReadingSpeeds = [0.85, 1.0, 1.15, 1.3];
     private bool CanStartReading => !_exiting && !_closed && !_installingUpdate && !_dictationActive
@@ -20,16 +21,14 @@ public sealed partial class MainWindow
 
     private void InitializeReading()
     {
-        var speechServices = new ServiceModelOption[]
+        SelfHostedSpeechModelPicker.ItemsSource = new ServiceModelOption[]
         {
-            new("豆包", "seed-tts-2.0"),
-            new("自托管 Mac", "mlx-community/Qwen3-TTS-12Hz-0.6B-CustomVoice-8bit"),
+            new("Qwen3-TTS 0.6B CustomVoice（默认）", SelfHostedSpeechModels.Default),
+            new("Qwen3-TTS 1.7B CustomVoice", SelfHostedSpeechModels.Large),
         };
-        ReadingOriginalBackend.ItemsSource = speechServices;
-        ReadingTranslationBackend.ItemsSource = speechServices;
         ReadingTranslationServicePicker.ItemsSource = new ServiceModelOption[]
         {
-            new("自托管 Mac", "mlx-community/Qwen3-8B-4bit"),
+            new("自托管 Mac", SelfHostedTranslationModels.Default),
         };
         ReadingTranslationServicePicker.SelectedIndex = 0;
         _overlay.TranslationCloseRequested += CloseReading;
@@ -54,6 +53,8 @@ public sealed partial class MainWindow
             ReadingSpeaker.SelectedItem = selectedVoice;
             ReadingSpeed.Value = options.SpeechRate;
             ReadingLocalHost.Text = options.SelfHostedHost;
+            SelfHostedSpeechModelPicker.SelectedIndex = options.SelfHostedSpeechModel == SelfHostedSpeechModels.Large ? 1 : 0;
+            UpdateReadingSpeechServices();
             ReadingLocalSpeed.SelectedIndex = Math.Max(0, Array.IndexOf(LocalReadingSpeeds, options.LocalPlaybackSpeed));
             ReadingTranslationBackend.SelectedIndex = options.UseSelfHostedTranslation ? 1 : 0;
             ReadingOriginalBackend.SelectedIndex = options.UseSelfHostedOriginal ? 1 : 0;
@@ -72,11 +73,40 @@ public sealed partial class MainWindow
         _readingHotkeyBinding.Modifiers, _readingHotkeyBinding.VirtualKey, ReadingMode.SelectedIndex == 1,
         ReadingTranslationBackend.SelectedIndex == 1,
         ReadingSettings.Load().SelfHostedHost, LocalReadingSpeeds[Math.Max(0, ReadingLocalSpeed.SelectedIndex)],
-        ReadingOriginalBackend.SelectedIndex == 1);
+        ReadingOriginalBackend.SelectedIndex == 1, ReadingSettings.Load().SelfHostedSpeechModel);
+
+    private string SelectedSelfHostedSpeechModel() =>
+        (SelfHostedSpeechModelPicker.SelectedItem as ServiceModelOption)?.Model ?? SelfHostedSpeechModels.Default;
+
+    private void SelfHostedSpeechModelPicker_SelectionChanged(object sender, Microsoft.UI.Xaml.Controls.SelectionChangedEventArgs args)
+    {
+        UpdateReadingSpeechServices();
+    }
+
+    private void UpdateReadingSpeechServices()
+    {
+        if (ReadingOriginalBackend is null || ReadingTranslationBackend is null) return;
+        var original = Math.Max(0, ReadingOriginalBackend.SelectedIndex);
+        var translation = Math.Max(0, ReadingTranslationBackend.SelectedIndex);
+        var services = new ServiceModelOption[]
+        {
+            new("豆包", "seed-tts-2.0"),
+            new("自托管 Mac", SelectedSelfHostedSpeechModel()),
+        };
+        _updatingReadingSpeechServices = true;
+        try
+        {
+            ReadingOriginalBackend.ItemsSource = services;
+            ReadingTranslationBackend.ItemsSource = services;
+            ReadingOriginalBackend.SelectedIndex = original;
+            ReadingTranslationBackend.SelectedIndex = translation;
+        }
+        finally { _updatingReadingSpeechServices = false; }
+    }
 
     private void ReadingLocalSettings_Changed(object sender, Microsoft.UI.Xaml.Controls.SelectionChangedEventArgs args)
     {
-        if (!_readingLoaded) return;
+        if (!_readingLoaded || _updatingReadingSpeechServices) return;
         SaveLocalReadingSettings();
         UpdateReadingControls();
     }
@@ -347,7 +377,8 @@ public sealed partial class MainWindow
                     var audioStream = hybrid
                         ? new TranslatedSpeechClient(client).ReadAsync(chunk, endpoint!, options, key, onText, token)
                         : local
-                        ? SelfHostedReadingClient.ReadAsync(chunk, endpoint!, options.LocalPlaybackSpeed, onText, token)
+                        ? SelfHostedReadingClient.ReadAsync(chunk, endpoint!, options.LocalPlaybackSpeed,
+                            options.SelfHostedSpeechModel, onText, token)
                         : service.SynthesizeAsync(chunk, options, key, token);
                     await foreach (var audio in audioStream)
                     {

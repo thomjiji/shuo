@@ -19,7 +19,7 @@ class Model:
     def translation_events(self, source, target, stopped):
         yield "text", "translation"
 
-    def speech_events(self, text, speed, language, stopped):
+    def speech_events(self, text, speed, language, stopped, model_id):
         yield "audio", b"\x01\x00"
 
 
@@ -30,6 +30,7 @@ class CapabilityTests(unittest.TestCase):
                 translation, speech = Model(translation_failed), Model(speech_failed)
                 with TestClient(create_app(Reader(translation, speech))) as client:
                     health = client.get("/health").json()
+                    self.assertEqual(health["translation_model"], "mlx-community/Qwen3-8B-4bit")
                     self.assertEqual(health["ready"], not (translation_failed and speech_failed))
                     self.assertEqual(health["capabilities"]["translation"]["ready"], not translation_failed)
                     self.assertEqual(health["capabilities"]["speech"]["ready"], not speech_failed)

@@ -50,7 +50,9 @@ internal static class LocalTranslationTests
                     return;
                 }
                 Check(start.RootElement.GetProperty("sample_rate").GetInt32() == 16000, "ASR sample rate");
-                await Send(socket, new { type = "ready", protocol = 1 });
+                Check(start.RootElement.GetProperty("model").GetString() == SelfHostedAsrModels.Large,
+                    "Default caption ASR model");
+                await Send(socket, new { type = "ready", protocol = 1, model = SelfHostedAsrModels.Large });
                 var buffer = new byte[1024];
                 var frame = await socket.ReceiveAsync(buffer.AsMemory(), deadline.Token);
                 Check(frame.MessageType == WebSocketMessageType.Binary && frame.Count == 4, "Binary PCM");

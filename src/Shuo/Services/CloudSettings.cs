@@ -3,9 +3,19 @@ using System.Text.Json.Nodes;
 
 namespace Shuo.Services;
 
+internal static class SelfHostedAsrModels
+{
+    internal const string Large = "Qwen3-ASR-1.7B-8bit";
+    internal const string Small = "Qwen3-ASR-0.6B-8bit";
+    internal static readonly string[] All = [Large, Small];
+
+    internal static bool IsSupported(string model) => All.Contains(model, StringComparer.Ordinal);
+}
+
 internal sealed record CloudOptions(bool Enabled = false, string ResourceId = "volc.seedasr.sauc.duration",
     string ApiKey = "", string AppId = "", string AccessToken = "", string Provider = "doubao",
-    string QwenApiKey = "", string QwenRegion = "cn-beijing", string SelfHostedUrl = "", string SelfHostedModel = "Qwen3-ASR-1.7B-8bit", string QwenModel = "fun-asr-realtime")
+    string QwenApiKey = "", string QwenRegion = "cn-beijing", string SelfHostedUrl = "",
+    string SelfHostedModel = SelfHostedAsrModels.Large, string QwenModel = "fun-asr-realtime")
 {
     [System.Text.Json.Serialization.JsonIgnore]
     internal string Backend => Enabled ? Provider : "local";
@@ -32,8 +42,8 @@ internal static class CloudSettings
             QwenModel: root?["qwen"]?["model"]?.GetValue<string>() == "qwen3-asr-flash-realtime"
                 ? "qwen3-asr-flash-realtime" : "fun-asr-realtime",
             SelfHostedUrl: root?["selfhosted"]?["url"]?.GetValue<string>() ?? "",
-            SelfHostedModel: root?["selfhosted"]?["model"]?.GetValue<string>() == "Qwen3-ASR-0.6B-8bit"
-                ? "Qwen3-ASR-0.6B-8bit" : "Qwen3-ASR-1.7B-8bit");
+            SelfHostedModel: root?["selfhosted"]?["model"]?.GetValue<string>() == SelfHostedAsrModels.Small
+                ? SelfHostedAsrModels.Small : SelfHostedAsrModels.Large);
         var credentials = ServiceSettings.LoadDoubao(path);
         return options with { ApiKey = credentials.ApiKey, AppId = credentials.AppId, AccessToken = credentials.AccessToken,
             QwenApiKey = ServiceSettings.ReadSecret(ServiceSettings.BailianAsr, path) };

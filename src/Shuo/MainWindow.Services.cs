@@ -39,7 +39,7 @@ public sealed partial class MainWindow
         var idle = !_savingServices && !_testingServices && !_installingUpdate && !_dictationActive
             && !_togglePending && !_modelChanging && _readingCancellation is null && _translationCancellation is null && _pendingPastes == 0;
         foreach (var field in new Control[] { SharedMacHost, SeparateMacHosts, SelfHostedUrl, TranslationHost, ReadingLocalHost,
-            MacTestButton, CloudApiKey, DoubaoModelPicker,
+            SelfHostedSpeechModelPicker, CaptionSelfHostedModelPicker, MacTestButton, CloudApiKey, DoubaoModelPicker,
             QwenApiKey, QwenModelPicker, SelfHostedModelPicker, TranslationWorkspace, TranslationApiKey,
             ReadingUseExistingKey, ReadingApiKey, ServicesSaveButton }) field.IsEnabled = idle;
         MacHostOverrides.Visibility = SeparateMacHosts.IsOn ? Visibility.Visible : Visibility.Collapsed;
@@ -56,8 +56,10 @@ public sealed partial class MainWindow
         {
             var hosts = EditedMacAddresses();
             var cloud = ReadCloudOptions() with { SelfHostedUrl = hosts.Recognition };
-            var reading = ReadingSettings.Load() with { SelfHostedHost = hosts.Reading, UseExistingKey = ReadingUseExistingKey.IsOn };
-            var captions = TranslationSettings.Load() with { Host = hosts.Captions, WorkspaceId = TranslationWorkspace.Text.Trim() };
+            var reading = ReadingSettings.Load() with { SelfHostedHost = hosts.Reading, UseExistingKey = ReadingUseExistingKey.IsOn,
+                SelfHostedSpeechModel = SelectedSelfHostedSpeechModel() };
+            var captions = TranslationSettings.Load() with { Host = hosts.Captions, WorkspaceId = TranslationWorkspace.Text.Trim(),
+                SelfHostedAsrModel = SelectedCaptionAsrModel() };
             CloudSettings.Save(cloud);
             ReadingSettings.Save(reading, ReadingApiKey.Password);
             TranslationSettings.Save(captions, TranslationApiKey.Password);
@@ -94,19 +96,26 @@ public sealed partial class MainWindow
         try
         {
             var hosts = EditedMacAddresses();
+            var inputModel = ReadCloudOptions().SelfHostedModel;
+            var captionModel = SelectedCaptionAsrModel();
+            var speechModel = SelectedSelfHostedSpeechModel();
             var checks = new[]
             {
-                (Name: "语音输入识别", Host: hosts.Recognition, Capability: "asr"),
-                (Name: "字幕识别", Host: hosts.Captions, Capability: "asr"),
-                (Name: "字幕翻译", Host: hosts.Captions, Capability: "translation"),
-                (Name: "译读翻译", Host: hosts.Reading, Capability: "translation"),
-                (Name: "语音合成", Host: hosts.Reading, Capability: "speech"),
+                (Name: $"语音输入识别（{inputModel}）", Host: hosts.Recognition, Capability: "asr", Model: inputModel),
+                (Name: $"实时字幕识别（{captionModel}）", Host: hosts.Captions, Capability: "asr", Model: captionModel),
+                (Name: $"实时字幕翻译（{SelfHostedTranslationModels.Default}）", Host: hosts.Captions, Capability: "translation-model", Model: SelfHostedTranslationModels.Default),
+                (Name: $"译读翻译（{SelfHostedTranslationModels.Default}）", Host: hosts.Reading, Capability: "translation-model", Model: SelfHostedTranslationModels.Default),
+                (Name: $"语音合成（{speechModel}）", Host: hosts.Reading, Capability: "speech-model", Model: speechModel),
             };
             var results = await Task.WhenAll(checks.Select(async check =>
             {
                 try
                 {
-                    if (check.Capability == "asr") await TestRecognitionHealthAsync(check.Host, _shutdown.Token);
+                    if (check.Capability == "asr") await TestRecognitionHealthAsync(check.Host, check.Model, _shutdown.Token);
+                    else if (check.Capability == "speech-model")
+                        await LocalServiceHealth.TestSpeechModelAsync(check.Host, check.Model, _shutdown.Token);
+                    else if (check.Capability == "translation-model")
+                        await LocalServiceHealth.TestTranslationModelAsync(check.Host, _shutdown.Token);
                     else await LocalServiceHealth.TestAsync(check.Host, _shutdown.Token, check.Capability);
                     return $"{check.Name}：ok";
                 }
@@ -118,7 +127,10 @@ public sealed partial class MainWindow
         finally { _testingServices = false; if (!_closed) UpdateServiceControls(); }
     }
 
-    private static async Task TestRecognitionHealthAsync(string host, CancellationToken token)
+    private string SelectedCaptionAsrModel() => CaptionSelfHostedModelPicker.SelectedIndex == 1
+        ? SelfHostedAsrModels.Small : SelfHostedAsrModels.Large;
+
+    private static async Task TestRecognitionHealthAsync(string host, string model, CancellationToken token)
     {
         var endpoint = LocalServiceEndpoint.Create(host, 18765, "/health");
         var health = new UriBuilder(endpoint) { Scheme = endpoint.Scheme == "wss" ? "https" : "http" }.Uri;
@@ -126,7 +138,12 @@ public sealed partial class MainWindow
         using var response = await http.GetAsync(health, token);
         response.EnsureSuccessStatusCode();
         using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync(token));
-        if (body.RootElement.GetProperty("protocol").GetInt32() != 1 || !body.RootElement.GetProperty("ready").GetBoolean())
+        var root = body.RootElement;
+        if (root.GetProperty("protocol").GetInt32() != 1 || !root.GetProperty("ready").GetBoolean())
             throw new IOException("Mac 语音识别尚未就绪或协议不兼容。");
+        var available = root.TryGetProperty("models", out var models) && models.ValueKind == JsonValueKind.Array
+            ? models.EnumerateArray().Any(item => item.GetString() == model)
+            : root.TryGetProperty("model", out var selected) && selected.GetString() == model;
+        if (!available) throw new IOException($"Mac 语音识别服务不支持所选模型：{model}。");
     }
 }

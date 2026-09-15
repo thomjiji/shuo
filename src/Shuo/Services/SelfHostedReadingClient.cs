@@ -12,15 +12,19 @@ internal static class SelfHostedReadingClient
 {
     internal static Uri Endpoint(string host) => LocalServiceEndpoint.Create(host, 18766, "/v1/reading");
 
-    internal static Task TestAsync(string host, CancellationToken token) =>
-        LocalServiceHealth.TestAsync(host, token, "translation", "speech");
+    internal static async Task TestAsync(string host, string speechModel, CancellationToken token)
+    {
+        await LocalServiceHealth.TestAsync(host, token, "translation", "speech");
+        await LocalServiceHealth.TestSpeechModelAsync(host, speechModel, token);
+    }
 
     internal static async IAsyncEnumerable<byte[]> ReadAsync(string text, Uri endpoint, double speed,
-        Action<string> translated, [EnumeratorCancellation] CancellationToken token)
+        string speechModel, Action<string> translated, [EnumeratorCancellation] CancellationToken token)
     {
         if (string.IsNullOrWhiteSpace(text) || Encoding.UTF8.GetByteCount(text) > ReadingText.LocalRequestBytes)
             throw new ArgumentException("本段文字为空或过长。");
         if (speed is not (0.85 or 1.0 or 1.15 or 1.3)) throw new ArgumentException("无效的播放速度。");
+        if (!SelfHostedSpeechModels.IsSupported(speechModel)) throw new ArgumentException("不支持此自托管语音合成模型。");
         using var socket = new ClientWebSocket();
         socket.Options.Proxy = null;
         socket.Options.KeepAliveInterval = TimeSpan.FromSeconds(20);
@@ -29,13 +33,15 @@ internal static class SelfHostedReadingClient
             connecting.CancelAfter(TimeSpan.FromSeconds(10));
             await socket.ConnectAsync(endpoint, connecting.Token);
         }
-        var request = JsonSerializer.SerializeToUtf8Bytes(new { type = "start", protocol = 1, text, speed });
+        var request = speechModel == SelfHostedSpeechModels.Default
+            ? JsonSerializer.SerializeToUtf8Bytes(new { type = "start", protocol = 1, text, speed })
+            : JsonSerializer.SerializeToUtf8Bytes(new { type = "start", protocol = 2, text, speed, speech_model = speechModel });
         await socket.SendAsync(request.AsMemory(), WebSocketMessageType.Text, true, token);
-        await foreach (var audio in ReadEventsAsync(socket, translated, token)) yield return audio;
+        await foreach (var audio in ReadEventsAsync(socket, translated, token, speechModel)) yield return audio;
     }
 
     internal static async IAsyncEnumerable<byte[]> ReadEventsAsync(WebSocket socket, Action<string> translated,
-        [EnumeratorCancellation] CancellationToken token)
+        [EnumeratorCancellation] CancellationToken token, string speechModel = SelfHostedSpeechModels.Default)
     {
         var buffer = new byte[16384];
         var ready = false;
@@ -78,7 +84,7 @@ internal static class SelfHostedReadingClient
             {
                 case "ready":
                     if (ready) throw new IOException("Mac 重复发送译读就绪消息。");
-                    ValidateFormat(root);
+                    ValidateFormat(root, speechModel);
                     ready = true;
                     break;
                 case "text" when ready:
@@ -91,17 +97,25 @@ internal static class SelfHostedReadingClient
                     if (audioBytes == 0 || textLength == 0) throw new IOException("Mac 未返回完整的译文和音频。");
                     yield break;
                 case "error":
-                    throw new IOException(root.GetProperty("message").GetString() ?? "Mac 译读失败。");
+                    var error = root.GetProperty("message").GetString() ?? "Mac 译读失败。";
+                    if (speechModel != SelfHostedSpeechModels.Default && error.Contains("协议不兼容", StringComparison.Ordinal))
+                        throw new IOException("Mac 服务不支持所选语音合成模型，请更新服务或改用 0.6B。");
+                    throw new IOException(error);
                 default:
                     throw new IOException("Mac 译读协议不兼容，请更新服务。");
             }
         }
     }
 
-    private static void ValidateFormat(JsonElement root)
+    private static void ValidateFormat(JsonElement root, string speechModel)
     {
-        if (root.GetProperty("protocol").GetInt32() != 1 || root.GetProperty("sample_rate").GetInt32() != 24000
+        var protocol = root.GetProperty("protocol").GetInt32();
+        if (protocol is not (1 or 2) || root.GetProperty("sample_rate").GetInt32() != 24000
             || root.GetProperty("format").GetString() != "pcm_s16le" || root.GetProperty("voice").GetString() != "Serena")
             throw new IOException("Mac 译读协议或音色不兼容，请更新服务。");
+        if (speechModel != SelfHostedSpeechModels.Default
+            && (protocol < 2 || !root.TryGetProperty("speech_model", out var selected)
+                || selected.GetString() != speechModel))
+            throw new IOException("Mac 服务不支持所选语音合成模型，请更新服务或改用 0.6B。");
     }
 }

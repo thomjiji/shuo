@@ -21,7 +21,9 @@ internal static class TranslationSettings
             translation["hotkeyModifiers"]?.GetValue<uint>() ?? defaults.HotkeyModifiers,
             translation["hotkeyVirtualKey"]?.GetValue<uint>() ?? defaults.HotkeyVirtualKey,
             translation["backend"]?.GetValue<string>() == "self-hosted" ? "self-hosted" : "cloud",
-            ServiceSettings.CaptionHost(root));
+            ServiceSettings.CaptionHost(root),
+            translation["selfHostedAsrModel"]?.GetValue<string>() == SelfHostedAsrModels.Small
+                ? SelfHostedAsrModels.Small : SelfHostedAsrModels.Large);
     }
 
     internal static string LoadApiKey() => ServiceSettings.ReadSecret(ServiceSettings.BailianTranslation);
@@ -38,7 +40,8 @@ internal static class TranslationSettings
         root["translation"] = new JsonObject { ["region"] = options.Region, ["workspaceId"] = options.WorkspaceId,
             ["targetLanguage"] = options.TargetLanguage, ["enabled"] = options.Enabled,
             ["hotkeyModifiers"] = options.HotkeyModifiers, ["hotkeyVirtualKey"] = options.HotkeyVirtualKey,
-            ["backend"] = options.Backend, ["host"] = options.Host };
+            ["backend"] = options.Backend, ["host"] = options.Host,
+            ["selfHostedAsrModel"] = options.SelfHostedAsrModel };
         var temporary = path + "." + Guid.NewGuid().ToString("N") + ".tmp";
         try
         {

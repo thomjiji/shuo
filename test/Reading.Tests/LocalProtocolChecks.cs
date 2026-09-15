@@ -24,9 +24,27 @@ internal static class LocalProtocolChecks
             catch (ArgumentException) { Check(true, "invalid local endpoint rejected"); }
         }
         var old = JsonSerializer.Deserialize<ReadingOptions>("{}")!;
-        Check(!old.UseSelfHostedTranslation && old.LocalPlaybackSpeed == 1, "old settings preserve cloud backend and natural local speed");
-        var settings = old with { UseSelfHostedTranslation = true, SelfHostedHost = "100.64.1.2", LocalPlaybackSpeed = 1.3 };
-        Check(JsonSerializer.Deserialize<ReadingOptions>(JsonSerializer.Serialize(settings)) == settings, "local backend host and speed survive settings roundtrip");
+        Check(!old.UseSelfHostedTranslation && old.LocalPlaybackSpeed == 1
+            && old.SelfHostedSpeechModel == SelfHostedSpeechModels.Default,
+            "old settings preserve cloud backend, natural local speed, and the 0.6B speech model");
+        var settings = old with { UseSelfHostedTranslation = true, SelfHostedHost = "100.64.1.2", LocalPlaybackSpeed = 1.3,
+            SelfHostedSpeechModel = SelfHostedSpeechModels.Large };
+        Check(JsonSerializer.Deserialize<ReadingOptions>(JsonSerializer.Serialize(settings)) == settings,
+            "local backend host, speed, and speech model survive settings roundtrip");
+        using (var currentHealth = JsonDocument.Parse(JsonSerializer.Serialize(new { protocol = 1, ready = true,
+            capabilities = new { speech = new { ready = true } }, sample_rate = 24000, format = "pcm_s16le",
+            voice = "Serena", speech_models = SelfHostedSpeechModels.All })))
+            LocalServiceHealth.ValidateSpeechModel(currentHealth.RootElement, SelfHostedSpeechModels.Large);
+        using (var legacyHealth = JsonDocument.Parse("""{"protocol":1,"ready":true,"sample_rate":24000,"format":"pcm_s16le","voice":"Serena"}"""))
+        {
+            LocalServiceHealth.ValidateSpeechModel(legacyHealth.RootElement, SelfHostedSpeechModels.Default);
+            try
+            {
+                LocalServiceHealth.ValidateSpeechModel(legacyHealth.RootElement, SelfHostedSpeechModels.Large);
+                throw new Exception("Legacy health accepted the large model");
+            }
+            catch (IOException) { Check(true, "legacy Mac health remains compatible only with the default speech model"); }
+        }
         using (var socket = new FakeSocket())
         {
             socket.Text(Ready);
@@ -40,6 +58,17 @@ internal static class LocalProtocolChecks
             Check(await stream.MoveNextAsync() && stream.Current.SequenceEqual(new byte[] { 1, 2, 3, 4 }) && translated == "你好。", "local fragmented text and PCM are delivered without loss");
             Check(socket.Acknowledged == 0, "local audio is not acknowledged before the player accepts it");
             Check(!await stream.MoveNextAsync() && socket.Acknowledged == 1, "local audio acknowledgment follows consumption and done completes");
+        }
+        using (var socket = new FakeSocket())
+        {
+            socket.Text(Ready);
+            try
+            {
+                await foreach (var _ in SelfHostedReadingClient.ReadEventsAsync(socket, _ => { }, default,
+                    SelfHostedSpeechModels.Large)) { }
+                throw new Exception("Legacy ready accepted the large model");
+            }
+            catch (IOException) { Check(true, "large speech model requires explicit protocol confirmation"); }
         }
         foreach (var scenario in new[] { "truncated", "odd", "missing-text", "wrong-format", "busy" })
         {

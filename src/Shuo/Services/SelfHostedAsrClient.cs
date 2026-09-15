@@ -6,8 +6,10 @@ namespace Shuo.Services;
 internal sealed class SelfHostedAsrClient(Uri endpoint)
 {
     internal async Task RunAsync(IAsyncEnumerable<byte[]> audio, Action ready, Action<string> snapshot,
-        CancellationToken stop, CancellationToken abort = default, Action<string>? committed = null)
+        CancellationToken stop, CancellationToken abort = default, Action<string>? committed = null,
+        string model = SelfHostedAsrModels.Large)
     {
+        if (!SelfHostedAsrModels.IsSupported(model)) throw new ArgumentException("不支持所选实时字幕识别模型。");
         using var socket = new ClientWebSocket();
         socket.Options.Proxy = null;
         using var lifetime = CancellationTokenSource.CreateLinkedTokenSource(abort);
@@ -16,10 +18,14 @@ internal sealed class SelfHostedAsrClient(Uri endpoint)
             connecting.CancelAfter(TimeSpan.FromSeconds(15));
             await socket.ConnectAsync(endpoint, connecting.Token);
             await SendAsync(socket, new { type = "start", protocol = 1, sample_rate = 16000,
-                format = "pcm_s16le", language = "auto", captions = committed is not null }, connecting.Token);
+                format = "pcm_s16le", language = "auto", captions = committed is not null, model }, connecting.Token);
             using var response = await ReceiveAsync(socket, connecting.Token);
-            if (response.RootElement.GetProperty("type").GetString() != "ready")
+            var root = response.RootElement;
+            if (root.GetProperty("type").GetString() != "ready")
                 throw new IOException("Mac 语音识别尚未就绪或正被占用，请稍后重试。");
+            if (root.GetProperty("protocol").GetInt32() != 1 || !root.TryGetProperty("model", out var selected)
+                || selected.GetString() != model)
+                throw new IOException("Mac 返回的实时字幕识别模型与所选模型不同，请更新 Mac 服务或重新选择模型。");
         }
         ready();
         using var capture = CancellationTokenSource.CreateLinkedTokenSource(stop, lifetime.Token);

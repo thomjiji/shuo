@@ -53,6 +53,7 @@ await Fails<JsonException>(() => Parse("data: not-json\n\n"), "invalid event rej
 
 var migrated = JsonSerializer.Deserialize<ReadingOptions>("{\"Enabled\":true}")!;
 Check(migrated.Hotkey == new HotkeyBinding(3, 0x20), "missing shortcut uses Ctrl Alt Space");
+Check(migrated.SelfHostedSpeechModel == SelfHostedSpeechModels.Default, "old reading settings keep the 0.6B speech model");
 var custom = new ReadingOptions(HotkeyModifiers: 6, HotkeyVirtualKey: 0x79);
 Check(JsonSerializer.Deserialize<ReadingOptions>(JsonSerializer.Serialize(custom))!.Hotkey == custom.Hotkey, "custom reading shortcut survives settings roundtrip");
 Check(ReadingVoices.All.Any(voice => voice.Id == new ReadingOptions().Speaker), "default voice appears in picker");

@@ -8,21 +8,27 @@ import logging
 from threading import Event
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
-from .engine import MAX_PASSAGE_BYTES, SAMPLE_RATE, SPEEDS, VOICE, Reader
+from .engine import MAX_PASSAGE_BYTES, SAMPLE_RATE, SPEEDS, SPEECH, SPEECH_MODELS, TRANSLATOR, VOICE, Reader
 
 logger = logging.getLogger("shuo_reading")
 
 
 def validate_start(config):
-    if not isinstance(config, dict) or config.get("type") != "start" or config.get("protocol") != 1:
-        raise ValueError("译读协议不兼容，请更新 Shuo。")
+    if not isinstance(config, dict) or config.get("type") != "start" or config.get("protocol") not in (1, 2):
+        raise ValueError("朗读协议不兼容，请更新 Shuo 或 Mac 服务。")
     text = config.get("text")
     if not isinstance(text, str) or not text.strip() or len(text.encode("utf-8")) > MAX_PASSAGE_BYTES:
         raise ValueError("本段文字为空或过长，请更新 Shuo 或缩短选文。")
     speed = config.get("speed", 1.0)
     if isinstance(speed, bool) or speed not in SPEEDS:
         raise ValueError("不支持此播放速度。")
-    return text, speed
+    protocol = config["protocol"]
+    speech_model = config.get("speech_model", SPEECH)
+    if protocol == 1 and speech_model != SPEECH:
+        raise ValueError("此协议只支持默认的 0.6B 语音合成模型，请更新 Mac 服务。")
+    if speech_model not in SPEECH_MODELS:
+        raise ValueError("不支持所选语音合成模型，请更新 Shuo 或 Mac 服务。")
+    return text, speed, speech_model, protocol
 
 
 def create_app(reader):
@@ -42,9 +48,14 @@ def create_app(reader):
     @app.get("/health")
     async def health():
         capabilities = reader.capabilities
+        # Keep the health protocol at 1 so older Windows clients can still test this service.
+        # Request protocol 2 adds per-request speech model selection.
         return dict(ready=any(state["ready"] for state in capabilities.values()), protocol=1,
                     capabilities=capabilities, voice=VOICE, sample_rate=SAMPLE_RATE,
-                    format="pcm_s16le", busy=busy.locked(), speeds=SPEEDS)
+                    format="pcm_s16le", busy=busy.locked(), speeds=SPEEDS,
+                    translation_model=TRANSLATOR,
+                    speech_models=SPEECH_MODELS,
+                    speech_model=getattr(getattr(reader, "speech", None), "model_id", None))
 
     @app.websocket("/v1/reading")
     @app.websocket("/v1/translation")
@@ -83,7 +94,7 @@ def create_app(reader):
             await busy.acquire()
             acquired = True
             config = await asyncio.wait_for(ws.receive_json(), 10)
-            text, speed = validate_start(config)
+            text, speed, speech_model, protocol = validate_start(config)
             translating = ws.url.path == "/v1/translation"
             target = config.get("target", "zh")
             if translating and target not in ("zh", "en"):
@@ -92,13 +103,15 @@ def create_app(reader):
                            if ws.url.path == "/v1/speech" else ("translation", "speech")))
             watcher = asyncio.create_task(controls())
             await ws.send_json(dict(type="ready", protocol=1) if translating else
-                               dict(type="ready", protocol=1, sample_rate=SAMPLE_RATE, format="pcm_s16le", voice=VOICE))
+                               dict(type="ready", protocol=protocol, sample_rate=SAMPLE_RATE,
+                                    format="pcm_s16le", voice=VOICE, **({"speech_model": speech_model}
+                                    if protocol >= 2 else {})))
             if translating:
                 iterator = reader.translation_events(text, target, stopped)
             elif ws.url.path == "/v1/speech":
-                iterator = reader.original_events(text, speed, stopped)
+                iterator = reader.original_events(text, speed, stopped, speech_model)
             else:
-                iterator = reader.events(text, speed, stopped)
+                iterator = reader.events(text, speed, stopped, speech_model)
             while True:
                 pending = loop.run_in_executor(pool, next, iterator, None)
                 event = await asyncio.shield(pending)

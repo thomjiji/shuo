@@ -14,6 +14,7 @@ class Reader:
         self.started = threading.Event()
         self.closed = threading.Event()
         self.chunks = 0
+        self.speech_models = []
 
     def load(self):
         self.capabilities = {name: dict(ready=True, state="ready") for name in ("translation", "speech")}
@@ -31,11 +32,13 @@ class Reader:
         finally:
             self.closed.set()
 
-    def original_events(self, text, speed, stopped):
+    def original_events(self, text, speed, stopped, speech_model):
+        self.speech_models.append(speech_model)
         yield "text", text
         yield "audio", b"\x01\x00" * 120
 
-    def events(self, text, speed, stopped):
+    def events(self, text, speed, stopped, speech_model):
+        self.speech_models.append(speech_model)
         try:
             self.started.set()
             if self.block:
@@ -63,6 +66,24 @@ class ProtocolTests(unittest.TestCase):
                 ws.send_json(dict(type="ack"))
                 self.assertEqual(ws.receive_json(), dict(type="done"))
             self.wait_idle(client)
+
+    def test_selected_speech_model_is_confirmed_and_reaches_reader(self):
+        selected = "mlx-community/Qwen3-TTS-12Hz-1.7B-CustomVoice-8bit"
+        reader = Reader()
+        with TestClient(create_app(reader)) as client:
+            health = client.get("/health").json()
+            self.assertEqual(health["protocol"], 1)
+            self.assertIn(selected, health["speech_models"])
+            with client.websocket_connect("/v1/speech") as ws:
+                ws.send_json({**START, "protocol": 2, "speech_model": selected})
+                ready = ws.receive_json()
+                self.assertEqual(ready["speech_model"], selected)
+                self.assertEqual(ready["protocol"], 2)
+                ws.receive_json()
+                ws.receive_bytes()
+                ws.send_json(dict(type="ack"))
+                self.assertEqual(ws.receive_json(), dict(type="done"))
+        self.assertEqual(reader.speech_models, [selected])
 
     def test_translation_only_in_both_languages(self):
         for target, expected in (("zh", "会议是明天。"), ("en", "The meeting is tomorrow.")):
@@ -118,7 +139,8 @@ class ProtocolTests(unittest.TestCase):
                     ws.send_json(dict(type="ack"))
                 self.assertEqual(ws.receive_json(), dict(type="done"))
             self.wait_idle(client)
-            self.assertTrue(reader.closed.is_set())
+        self.assertEqual(reader.speech_models, ["mlx-community/Qwen3-TTS-12Hz-0.6B-CustomVoice-8bit"])
+        self.assertTrue(reader.closed.is_set())
 
     def test_busy_and_disconnect_release_slot(self):
         reader = Reader()
@@ -146,7 +168,8 @@ class ProtocolTests(unittest.TestCase):
                 self.wait_idle(client)
 
     def test_invalid_request_does_not_run_model(self):
-        for changes in (dict(protocol=2), dict(text=""), dict(text="字" * 301), dict(speed=2), dict(speed=True)):
+        for changes in (dict(protocol=3), dict(text=""), dict(text="字" * 301), dict(speed=2), dict(speed=True),
+                        dict(protocol=2, speech_model="unsupported")):
             reader = Reader()
             with TestClient(create_app(reader)) as client:
                 with client.websocket_connect("/v1/reading") as ws:

@@ -8,6 +8,8 @@
   <ItemGroup>
     <Compile Include="../../src/Shuo/Services/SelfHostedReadingClient.cs" Link="SelfHostedReadingClient.cs" />
     <Compile Include="../../src/Shuo/Services/ReadingText.cs" Link="ReadingText.cs" />
+    <Compile Include="../../src/Shuo/Services/ReadingOptions.cs" Link="ReadingOptions.cs" />
+    <Compile Include="../../src/Shuo/Services/HotkeyBinding.cs" Link="HotkeyBinding.cs" />
     <Compile Include="../../src/Shuo/Services/ReadingPlayback.cs" Link="ReadingPlayback.cs" />
     <Compile Include="../../src/Shuo/Services/ReadingAudioBuffer.cs" Link="ReadingAudioBuffer.cs" />
     <PackageReference Include="NAudio.Wasapi" Version="2.2.1" />

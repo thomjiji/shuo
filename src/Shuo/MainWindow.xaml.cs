@@ -101,7 +101,7 @@ public sealed partial class MainWindow : Window
             _cloudOptions = CloudSettings.Load();
             ProviderPicker.SelectedIndex = _cloudOptions.Backend switch { "selfhosted" => 3, "qwen" => 2, "doubao" => 1, _ => 0 };
             SelfHostedUrl.Text = SelfHostedAddress.ToDisplay(_cloudOptions.SelfHostedUrl);
-            SelfHostedModelPicker.SelectedIndex = _cloudOptions.SelfHostedModel == "Qwen3-ASR-0.6B-8bit" ? 1 : 0;
+            SelfHostedModelPicker.SelectedIndex = _cloudOptions.SelfHostedModel == SelfHostedAsrModels.Small ? 1 : 0;
             QwenApiKey.Password = _cloudOptions.QwenApiKey;
             QwenModelPicker.SelectedIndex = _cloudOptions.QwenModel == "qwen3-asr-flash-realtime" ? 1 : 0;
             CloudApiKey.Password = _cloudOptions.ApiKey;
@@ -272,7 +272,7 @@ public sealed partial class MainWindow : Window
         QwenRegion: "cn-beijing",
         QwenModel: QwenModelPicker.SelectedIndex == 1 ? "qwen3-asr-flash-realtime" : "fun-asr-realtime",
         SelfHostedUrl: SelfHostedAddress.ToUrl(SelfHostedUrl.Text),
-        SelfHostedModel: SelfHostedModelPicker.SelectedIndex == 1 ? "Qwen3-ASR-0.6B-8bit" : "Qwen3-ASR-1.7B-8bit");
+        SelfHostedModel: SelfHostedModelPicker.SelectedIndex == 1 ? SelfHostedAsrModels.Small : SelfHostedAsrModels.Large);
 
     private void RefreshCloudStatus()
     {

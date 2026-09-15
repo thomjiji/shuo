@@ -23,6 +23,10 @@ internal static class CapabilityTests
         catch (ArgumentException) { }
         sharedMac.Validate();
         Check(new DailyOptions(CaptionLanguage: 9).Normalize() == new DailyOptions(2), "Normalize language preferences");
+        Check(new TranslationOptions().SelfHostedAsrModel == SelfHostedAsrModels.Large,
+            "Legacy caption settings default to the existing 1.7B ASR behavior");
+        Check(new TranslationOptions(SelfHostedAsrModel: SelfHostedAsrModels.Small).SelfHostedAsrModel == SelfHostedAsrModels.Small,
+            "Caption ASR model can select 0.6B independently");
         var dailyPath = Path.Combine(Path.GetTempPath(), "shuo-daily-" + Guid.NewGuid().ToString("N") + ".json");
         try
         {
@@ -53,6 +57,14 @@ internal static class CapabilityTests
             }
             catch (IOException) when (!speechReady) { }
         }
+        using (var selectable = JsonDocument.Parse(JsonSerializer.Serialize(new { protocol = 1, ready = true,
+            capabilities = new { speech = new { ready = true } }, sample_rate = 24000, format = "pcm_s16le",
+            voice = "Serena", speech_models = SelfHostedSpeechModels.All })))
+            LocalServiceHealth.ValidateSpeechModel(selectable.RootElement, SelfHostedSpeechModels.Large);
+        using (var translation = JsonDocument.Parse(JsonSerializer.Serialize(new { protocol = 1, ready = true,
+            capabilities = new { translation = new { ready = true } },
+            translation_model = SelfHostedTranslationModels.Default })))
+            LocalServiceHealth.ValidateTranslationModel(translation.RootElement);
         using (var legacy = JsonDocument.Parse("""{"protocol":1,"ready":true}"""))
             LocalServiceHealth.Validate(legacy.RootElement, "translation");
         await AsrAsync(false);
@@ -80,7 +92,9 @@ internal static class CapabilityTests
                 await SendAsync(socket, new { type = "error", message = "Translation unavailable" }, deadline.Token);
                 return;
             }
-            await SendAsync(socket, new { type = "ready", protocol = 1 }, deadline.Token);
+            Check(start.RootElement.GetProperty("model").GetString() == SelfHostedAsrModels.Large,
+                "Caption ASR model is forwarded");
+            await SendAsync(socket, new { type = "ready", protocol = 1, model = SelfHostedAsrModels.Large }, deadline.Token);
             await socket.ReceiveAsync(new byte[16].AsMemory(), deadline.Token);
             await SendAsync(socket, new { type = "partial", text = "hello", confirmed = "hello" }, deadline.Token);
             if (translationFails)

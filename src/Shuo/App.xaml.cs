@@ -22,6 +22,21 @@ public partial class App : Application
     {
 #if DEBUG
         // Exercise the real passive overlay without opening an audio session.
+        if (Environment.GetCommandLineArgs().Contains("--indicator-preview"))
+        {
+            _captionPreview = new OverlayWindow();
+            _captionPreview.Begin(false);
+            var text = "前面的内容已经超过浮窗宽度，理解的一个模型来才能完成这件事情。";
+            _captionPreview.UpdateTranscript(text);
+            await Task.Delay(700);
+            foreach (var glyph in "我猜这样就不会从右边切着出来了。")
+            {
+                text += glyph;
+                _captionPreview.UpdateTranscript(text);
+                await Task.Delay(450);
+            }
+            return;
+        }
         if (Environment.GetCommandLineArgs().Contains("--caption-preview"))
         {
             _captionPreview = new OverlayWindow();

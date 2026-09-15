@@ -25,6 +25,7 @@ public sealed partial class OverlayWindow : Window
     private const int CaptionWidth = 680;
     private const int CaptionMaxLines = 2;
     private const double SlideSeconds = 0.16;
+    private const double TranscriptRightInset = 14;
     private readonly IntPtr _handle;
     private readonly UISettings _themeSettings = new();
     private bool _closed;
@@ -221,7 +222,7 @@ public sealed partial class OverlayWindow : Window
         _textWidth = TranscriptText.DesiredSize.Width;
         TrackGrid.ColumnSpacing = _hasText ? 8 : 0;
         // The 6 px dot is centered in a 24 px slot: its left inset is 5 + 9 px.
-        OverlaySurface.Padding = new Thickness(5, 0, _hasText ? 14 : 5, 0);
+        OverlaySurface.Padding = new Thickness(5, 0, _hasText ? TranscriptRightInset : 5, 0);
         var width = _hasText ? Math.Min(OverlayWidth, Math.Ceiling(_textWidth) + 53) : 36;
         if (_panelWidth != width)
         {
@@ -540,7 +541,9 @@ public sealed partial class OverlayWindow : Window
 
     private void TextViewport_SizeChanged(object sender, SizeChangedEventArgs args)
     {
-        TextClip.Rect = new Rect(0, 0, Math.Max(0, args.NewSize.Width), Math.Max(0, args.NewSize.Height));
+        // Let one new glyph enter through the reserved right inset instead of being
+        // sliced by the viewport edge while the transcript slides to its new position.
+        TextClip.Rect = new Rect(0, 0, Math.Max(0, args.NewSize.Width + TranscriptRightInset), Math.Max(0, args.NewSize.Height));
         if (_translation) LayoutTranslationText();
         else FollowLatestText();
     }

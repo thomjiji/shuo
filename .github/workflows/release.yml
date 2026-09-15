@@ -32,6 +32,7 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm test
+      - run: dotnet run --project test/Startup.Tests/Startup.Tests.csproj --configuration Release
       - run: dotnet run --project test/TextCleanup.Tests/TextCleanup.Tests.csproj --configuration Release
       - run: dotnet run --project test/Translation.Tests/Translation.Tests.csproj --configuration Release
       - name: Build installer and update feed

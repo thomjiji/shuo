@@ -51,6 +51,8 @@ Windows 原生 WinUI 3 应用，提供语音输入、实时字幕和文字朗读
 
 新安装的配置位于 `%LOCALAPPDATA%\Shuo\settings.json`。若不存在，则继续使用已有的 `%LOCALAPPDATA%\WindowsDictation\settings.json`。两者都不存在时，首次启动会从 `~/.pi/agent/pi-transcribe.json` 导入已有配置，或创建默认配置。
 
+在“设置 -> 应用”中可以开启“登录 Windows 后自动启动”。该开关直接读取当前用户的 Windows 启动项；登录启动时 Shuo 在后台运行，不会自动打开设置窗口。
+
 ## 开发与发布
 
 需要 Windows、.NET SDK 10 和 Node.js 22+。本地听写还需 GGUF 模型，也可配置云端服务。

@@ -1,6 +1,7 @@
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using Microsoft.Windows.AppLifecycle;
+using Shuo.Services;
 
 namespace Shuo;
 
@@ -20,6 +21,7 @@ public partial class App : Application
 
     protected override async void OnLaunched(LaunchActivatedEventArgs args)
     {
+        var startupLaunch = StartupRegistration.IsStartupLaunch(Environment.GetCommandLineArgs());
 #if DEBUG
         // Exercise the real passive overlay without opening an audio session.
         if (Environment.GetCommandLineArgs().Contains("--indicator-preview"))
@@ -49,14 +51,15 @@ public partial class App : Application
         _instance = AppInstance.FindOrRegisterForKey("Shuo.Main");
         if (!_instance.IsCurrent)
         {
-            await _instance.RedirectActivationToAsync(AppInstance.GetCurrent().GetActivatedEventArgs());
+            if (!startupLaunch)
+                await _instance.RedirectActivationToAsync(AppInstance.GetCurrent().GetActivatedEventArgs());
             Exit();
             return;
         }
 
         _instance.Activated += (_, _) => _dispatcher.TryEnqueue(() => _window?.ShowSettings());
         _window = new MainWindow();
-        _window.ShowSettings();
+        if (!startupLaunch) _window.ShowSettings();
         _ = _window.StartAsync();
     }
 }

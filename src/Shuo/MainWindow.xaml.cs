@@ -116,6 +116,7 @@ public sealed partial class MainWindow : Window
         InitializeReading();
         InitializeDailyTasks();
         InitializeServiceConnections();
+        InitializeStartupRegistration();
     }
 
     internal void ShowSettings()
@@ -124,6 +125,7 @@ public sealed partial class MainWindow : Window
         if (AppWindow.Presenter is OverlappedPresenter presenter) presenter.Restore();
         AppWindow.Show();
         Activate();
+        RefreshStartupRegistration();
         _ = RefreshModelsAsync();
     }
 

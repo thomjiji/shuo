@@ -212,6 +212,16 @@
                                     <TextBlock Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Text="关闭窗口后仍在托盘运行。右键托盘图标可退出。" TextWrapping="Wrap" />
                                 </StackPanel>
                                 <StackPanel x:Name="ServicesPage" Spacing="16" Visibility="Collapsed">
+                                    <Expander Header="应用" IsExpanded="True" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
+                                        <Grid ColumnSpacing="24">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Text="登录 Windows 后自动启动" VerticalAlignment="Center" TextWrapping="Wrap" />
+                                            <ToggleSwitch x:Name="StartupAtLogin" Grid.Column="1" OffContent="" OnContent="" MinWidth="0" VerticalAlignment="Center" automation:AutomationProperties.Name="登录 Windows 后自动启动 Shuo" Toggled="StartupAtLogin_Toggled" />
+                                        </Grid>
+                                    </Expander>
                                     <Expander x:Name="LocalServiceExpander" Header="本机模型" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
                                         <StackPanel Spacing="12">
                                             <StackPanel x:Name="LocalModelCard" Spacing="12">

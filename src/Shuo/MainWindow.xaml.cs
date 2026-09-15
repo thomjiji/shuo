@@ -147,7 +147,7 @@ public sealed partial class MainWindow : Window
         if (section == "general") AcknowledgeAvailableUpdate();
         if (section == "history" && _historyEntries is null) LoadHistory();
         if (section == "services") _ = RefreshModelsAsync();
-        PageTitle.Text = section switch { "listen" => "语音输入", "captions" => "实时字幕", "reading" => "朗读", "general" => "关于", "history" => "历史", "services" => "服务设置", _ => "语音输入" };
+        PageTitle.Text = section switch { "listen" => "语音输入", "captions" => "实时字幕", "reading" => "文字朗读", "general" => "关于", "history" => "历史", "services" => "设置", _ => "语音输入" };
         PageScroll.ChangeView(null, 0, null, disableAnimation: true);
         PlaySettingsPageTransition();
     }
@@ -886,3 +886,5 @@ public sealed partial class MainWindow : Window
         await ExitAsync();
     }
 }
+
+internal sealed record ServiceModelOption(string Name, string Model);

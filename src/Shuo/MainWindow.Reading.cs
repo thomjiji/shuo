@@ -20,6 +20,18 @@ public sealed partial class MainWindow
 
     private void InitializeReading()
     {
+        var speechServices = new ServiceModelOption[]
+        {
+            new("豆包", "seed-tts-2.0"),
+            new("自托管 Mac", "mlx-community/Qwen3-TTS-12Hz-0.6B-CustomVoice-8bit"),
+        };
+        ReadingOriginalBackend.ItemsSource = speechServices;
+        ReadingTranslationBackend.ItemsSource = speechServices;
+        ReadingTranslationServicePicker.ItemsSource = new ServiceModelOption[]
+        {
+            new("自托管 Mac", "mlx-community/Qwen3-8B-4bit"),
+        };
+        ReadingTranslationServicePicker.SelectedIndex = 0;
         _overlay.TranslationCloseRequested += CloseReading;
         _overlay.ReadingPauseRequested += ToggleReadingPause;
         _overlay.ReadingStopRequested += StopReading;
@@ -203,11 +215,11 @@ public sealed partial class MainWindow
         ReadingOriginalBackend.IsEnabled = !active;
         ReadingTranslationBackend.Visibility = translate ? Visibility.Visible : Visibility.Collapsed;
         ReadingTranslationBackend.IsEnabled = !active;
+        ReadingTranslationServiceRow.Visibility = translate ? Visibility.Visible : Visibility.Collapsed;
         ReadingLocalSpeed.Visibility = local ? Visibility.Visible : Visibility.Collapsed;
         ReadingCloudSpeed.Visibility = doubao ? Visibility.Visible : Visibility.Collapsed;
         ReadingSpeaker.Visibility = doubao ? Visibility.Visible : Visibility.Collapsed;
         ReadingFixedVoice.Visibility = doubao ? Visibility.Collapsed : Visibility.Visible;
-        ReadingFixedVoice.Text = "Serena";
         ReadingLocalSpeed.IsEnabled = !active;
         ReadingTranslatedText.Visibility = translate && (active || !string.IsNullOrWhiteSpace(ReadingTranslatedText.Text))
             ? Visibility.Visible : Visibility.Collapsed;
@@ -274,14 +286,14 @@ public sealed partial class MainWindow
             if (hybrid)
             {
                 endpoint = SelfHostedTextTranslator.Endpoint(options.SelfHostedHost);
-                if (string.IsNullOrWhiteSpace(key)) throw new ArgumentException("请填写豆包语音 API Key，或使用服务设置中的豆包凭据。");
+                if (string.IsNullOrWhiteSpace(key)) throw new ArgumentException("请填写豆包语音 API Key，或使用“设置”中的豆包凭据。");
             }
             else if (local)
             {
                 endpoint = SelfHostedReadingClient.Endpoint(options.SelfHostedHost);
                 if (!translate) endpoint = new UriBuilder(endpoint) { Path = "/v1/speech" }.Uri;
             }
-            else if (string.IsNullOrWhiteSpace(key)) throw new ArgumentException("请填写语音 API Key，或在服务设置中配置豆包 API Key。");
+            else if (string.IsNullOrWhiteSpace(key)) throw new ArgumentException("请填写语音 API Key，或在“设置”中配置豆包 API Key。");
             ReadingStatus.Text = source == "selection" ? "正在读取选中文字..." : "正在准备文字...";
             if (translate) ReadingTranslatedText.Text = "";
             string text;

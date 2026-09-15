@@ -26,11 +26,11 @@
             <NavigationView.MenuItems>
                 <NavigationViewItem x:Name="ListenNavigationItem" Content="语音输入" Tag="listen" Icon="Microphone" />
                 <NavigationViewItem x:Name="CaptionNavigationItem" Content="实时字幕" Tag="captions" Icon="ClosedCaption" />
-                <NavigationViewItem x:Name="SpeakNavigationItem" Content="朗读" Tag="reading" Icon="Volume" />
+                <NavigationViewItem x:Name="SpeakNavigationItem" Content="文字朗读" Tag="reading" Icon="Volume" />
             </NavigationView.MenuItems>
             <NavigationView.FooterMenuItems>
                 <NavigationViewItem Content="历史" Tag="history" Icon="Clock" />
-                <NavigationViewItem x:Name="ServicesNavigationItem" Content="服务设置" Tag="services" Icon="Setting" />
+                <NavigationViewItem x:Name="ServicesNavigationItem" Content="设置" Tag="services" Icon="Setting" />
                 <NavigationViewItem x:Name="GeneralNavigationItem" Content="关于" Tag="general">
                     <NavigationViewItem.Icon>
                         <FontIcon Glyph="" />
@@ -146,19 +146,15 @@
                                                     <ColumnDefinition Width="2*" />
                                                 </Grid.ColumnDefinitions>
                                                 <TextBlock Text="翻译服务" VerticalAlignment="Center" TextWrapping="Wrap" />
-                                                <ComboBox Grid.Column="1" x:Name="TranslationModelPicker" SelectedIndex="0" HorizontalAlignment="Stretch" SelectionChanged="TranslationBackend_Changed">
-                                                    <ComboBoxItem>
-                                                        <StackPanel>
-                                                            <TextBlock Text="阿里云百炼" />
-                                                            <TextBlock x:Name="CaptionCloudModel" FontSize="12" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                                                        </StackPanel>
-                                                    </ComboBoxItem>
-                                                    <ComboBoxItem>
-                                                        <StackPanel>
-                                                            <TextBlock Text="自托管 Mac" />
-                                                            <TextBlock Text="mlx-community/Qwen3-8B-4bit" FontSize="12" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                                                        </StackPanel>
-                                                    </ComboBoxItem>
+                                                <ComboBox Grid.Column="1" x:Name="TranslationModelPicker" SelectedIndex="0" Height="48" Padding="12,4" HorizontalAlignment="Stretch" VerticalContentAlignment="Center" SelectionChanged="TranslationBackend_Changed">
+                                                    <ComboBox.ItemTemplate>
+                                                        <DataTemplate>
+                                                            <StackPanel ToolTipService.ToolTip="{Binding Model}">
+                                                                <TextBlock Text="{Binding Name}" LineHeight="18" />
+                                                                <TextBlock Text="{Binding Model}" FontSize="12" LineHeight="14" TextTrimming="CharacterEllipsis" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                                            </StackPanel>
+                                                        </DataTemplate>
+                                                    </ComboBox.ItemTemplate>
                                                 </ComboBox>
                                             </Grid>
                                             <Button x:Name="TranslationSaveButton" Content="保存" HorizontalAlignment="Right" Click="TranslationSave_Click" />
@@ -457,15 +453,44 @@
                                                 </Grid.ColumnDefinitions>
                                                 <TextBlock Text="声音服务" VerticalAlignment="Center" />
                                                 <Grid Grid.Column="1">
-                                                    <ComboBox x:Name="ReadingOriginalBackend" SelectedIndex="0" HorizontalAlignment="Stretch" SelectionChanged="ReadingLocalSettings_Changed" automation:AutomationProperties.Name="声音服务">
-                                                        <ComboBoxItem Content="豆包" />
-                                                        <ComboBoxItem Content="自托管 Mac" />
+                                                    <ComboBox x:Name="ReadingOriginalBackend" SelectedIndex="0" Height="48" Padding="12,4" HorizontalAlignment="Stretch" VerticalContentAlignment="Center" SelectionChanged="ReadingLocalSettings_Changed" automation:AutomationProperties.Name="声音服务">
+                                                        <ComboBox.ItemTemplate>
+                                                            <DataTemplate>
+                                                                <StackPanel ToolTipService.ToolTip="{Binding Model}">
+                                                                    <TextBlock Text="{Binding Name}" LineHeight="18" />
+                                                                    <TextBlock Text="{Binding Model}" FontSize="12" LineHeight="14" TextTrimming="CharacterEllipsis" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                                                </StackPanel>
+                                                            </DataTemplate>
+                                                        </ComboBox.ItemTemplate>
                                                     </ComboBox>
-                                                    <ComboBox x:Name="ReadingTranslationBackend" SelectedIndex="0" HorizontalAlignment="Stretch" Visibility="Collapsed" SelectionChanged="ReadingLocalSettings_Changed" automation:AutomationProperties.Name="声音服务">
-                                                        <ComboBoxItem Content="豆包" />
-                                                        <ComboBoxItem Content="自托管 Mac" />
+                                                    <ComboBox x:Name="ReadingTranslationBackend" SelectedIndex="0" Height="48" Padding="12,4" HorizontalAlignment="Stretch" VerticalContentAlignment="Center" Visibility="Collapsed" SelectionChanged="ReadingLocalSettings_Changed" automation:AutomationProperties.Name="声音服务">
+                                                        <ComboBox.ItemTemplate>
+                                                            <DataTemplate>
+                                                                <StackPanel ToolTipService.ToolTip="{Binding Model}">
+                                                                    <TextBlock Text="{Binding Name}" LineHeight="18" />
+                                                                    <TextBlock Text="{Binding Model}" FontSize="12" LineHeight="14" TextTrimming="CharacterEllipsis" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                                                </StackPanel>
+                                                            </DataTemplate>
+                                                        </ComboBox.ItemTemplate>
                                                     </ComboBox>
                                                 </Grid>
+                                            </Grid>
+                                            <Grid x:Name="ReadingTranslationServiceRow" ColumnSpacing="24" Visibility="Collapsed">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="2*" />
+                                                </Grid.ColumnDefinitions>
+                                                <TextBlock Text="翻译服务" VerticalAlignment="Center" />
+                                                <ComboBox Grid.Column="1" x:Name="ReadingTranslationServicePicker" SelectedIndex="0" Height="48" Padding="12,4" HorizontalAlignment="Stretch" VerticalContentAlignment="Center" automation:AutomationProperties.Name="翻译服务">
+                                                    <ComboBox.ItemTemplate>
+                                                        <DataTemplate>
+                                                            <StackPanel ToolTipService.ToolTip="{Binding Model}">
+                                                                <TextBlock Text="{Binding Name}" LineHeight="18" />
+                                                                <TextBlock Text="{Binding Model}" FontSize="12" LineHeight="14" TextTrimming="CharacterEllipsis" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                                            </StackPanel>
+                                                        </DataTemplate>
+                                                    </ComboBox.ItemTemplate>
+                                                </ComboBox>
                                             </Grid>
                                             <Grid>
                                                 <Grid ColumnSpacing="24">
@@ -475,8 +500,10 @@
                                                     </Grid.ColumnDefinitions>
                                                     <TextBlock Text="音色" VerticalAlignment="Center" TextWrapping="Wrap" />
                                                     <Grid Grid.Column="1">
-                                                        <ComboBox x:Name="ReadingSpeaker" HorizontalAlignment="Stretch" DisplayMemberPath="Name" MaxDropDownHeight="320" />
-                                                        <TextBlock x:Name="ReadingFixedVoice" Text="Serena" Visibility="Collapsed" HorizontalAlignment="Right" VerticalAlignment="Center" />
+                                                        <ComboBox x:Name="ReadingSpeaker" Height="40" HorizontalAlignment="Stretch" DisplayMemberPath="Name" MaxDropDownHeight="320" />
+                                                        <ComboBox x:Name="ReadingFixedVoice" Height="40" SelectedIndex="0" Visibility="Collapsed" HorizontalAlignment="Stretch" automation:AutomationProperties.Name="音色">
+                                                            <ComboBoxItem Content="Serena" />
+                                                        </ComboBox>
                                                     </Grid>
                                                 </Grid>
                                             </Grid>

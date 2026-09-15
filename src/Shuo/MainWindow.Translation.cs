@@ -20,7 +20,11 @@ public sealed partial class MainWindow
 
     private void InitializeTranslation()
     {
-        CaptionCloudModel.Text = TranslationSession.Model;
+        TranslationModelPicker.ItemsSource = new ServiceModelOption[]
+        {
+            new("阿里云百炼", TranslationSession.Model),
+            new("自托管 Mac", "mlx-community/Qwen3-8B-4bit"),
+        };
         _overlay.TranslationCloseRequested += CloseTranslation;
         _overlay.TranslationPauseRequested += PauseTranslation;
         _overlay.TranslationStopRequested += StopTranslation;

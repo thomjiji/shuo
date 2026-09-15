@@ -71,11 +71,25 @@ try
         Assert(stored["custom"]!["keep"]!.GetValue<bool>(), "Unknown nested fields are preserved.");
     }
 
+    Assert(HotkeySettings.LoadEnabled(), "Existing hotkey settings default to enabled.");
+    HotkeySettings.SaveEnabled(false);
+    Assert(!HotkeySettings.LoadEnabled(), "Disabling the transcription hotkey persists.");
+    var disabledSettings = JsonNode.Parse(File.ReadAllText(settingsPath))!;
+    Assert(disabledSettings["hotkey"]!["virtualKey"]!.GetValue<int>() == 220, "Disabling preserves the configured hotkey.");
+    Assert(disabledSettings["custom"]!["keep"]!.GetValue<bool>(), "Disabling preserves unrelated settings.");
+    HotkeySettings.SaveEnabled(true);
+    Assert(HotkeySettings.LoadEnabled(), "Re-enabling the transcription hotkey persists.");
+    File.WriteAllText(settingsPath, """{"hotkey":null}""");
+    Assert(!HotkeySettings.LoadEnabled(), "A legacy null hotkey migrates as disabled.");
+    File.WriteAllText(settingsPath, """{"model":"existing-model"}""");
+    Assert(HotkeySettings.LoadEnabled(), "Settings without a hotkey keep the default enabled behavior.");
+
     foreach (var malformed in new[] { "{invalid", "[]", "null" })
     {
         File.WriteAllText(settingsPath, malformed);
         ExpectFailure(() => TextCleanupSettings.Load());
         ExpectFailure(() => TextCleanupSettings.Save(periods));
+        ExpectFailure(() => HotkeySettings.SaveEnabled(false));
         Assert(File.ReadAllText(settingsPath) == malformed, "Invalid settings remain unchanged.");
     }
     Assert(Directory.GetFiles(temporaryDirectory).Length == 1, "No temporary files remain.");

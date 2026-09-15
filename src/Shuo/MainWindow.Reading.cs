@@ -131,7 +131,7 @@ public sealed partial class MainWindow
         {
             if (await CaptureHotkeyAsync("朗读快捷键", previous) is { } selected)
             {
-                if (selected == _hotkeyBinding) throw new ArgumentException("此组合已用于听写，请选择其他快捷键。");
+                if (TranscriptionEnabled.IsOn && selected == _hotkeyBinding) throw new ArgumentException("此组合已用于听写，请选择其他快捷键。");
                 if (TranslationEnabled.IsOn && selected == _translationHotkeyBinding)
                     throw new ArgumentException("此组合已用于翻译，请选择其他快捷键。");
                 _readingHotkeyBinding = selected;
@@ -154,7 +154,7 @@ public sealed partial class MainWindow
 
     private void RegisterReadingHotkeys()
     {
-        if (ReadingEnabled.IsOn && _readingHotkeyBinding == _hotkeyBinding)
+        if (ReadingEnabled.IsOn && TranscriptionEnabled.IsOn && _readingHotkeyBinding == _hotkeyBinding)
             throw new ArgumentException("朗读与转录不能使用同一个快捷键，请更换其中一个。");
         if (ReadingEnabled.IsOn && TranslationEnabled.IsOn && _readingHotkeyBinding == _translationHotkeyBinding)
             throw new ArgumentException("朗读与翻译不能使用同一个快捷键，请更换其中一个。");

@@ -82,7 +82,7 @@ public sealed partial class MainWindow
                 RegisterTranslationHotkey();
                 return;
             }
-            if (selected == _hotkeyBinding) throw new ArgumentException("此组合已用于听写，请选择其他快捷键。");
+            if (TranscriptionEnabled.IsOn && selected == _hotkeyBinding) throw new ArgumentException("此组合已用于听写，请选择其他快捷键。");
             if (ReadingEnabled.IsOn && selected == _readingHotkeyBinding)
                 throw new ArgumentException("此组合已用于朗读，请选择其他快捷键。");
             _translationHotkeyBinding = selected;
@@ -107,7 +107,7 @@ public sealed partial class MainWindow
 
     private void RegisterTranslationHotkey()
     {
-        if (TranslationEnabled.IsOn && _translationHotkeyBinding == _hotkeyBinding)
+        if (TranslationEnabled.IsOn && TranscriptionEnabled.IsOn && _translationHotkeyBinding == _hotkeyBinding)
             throw new ArgumentException("翻译与听写不能使用同一个快捷键，请更换其中一个。");
         if (TranslationEnabled.IsOn && ReadingEnabled.IsOn && _translationHotkeyBinding == _readingHotkeyBinding)
             throw new ArgumentException("翻译与朗读不能使用同一个快捷键，请更换其中一个。");

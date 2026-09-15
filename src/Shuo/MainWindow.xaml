@@ -56,6 +56,7 @@
                                             <TextBlock Text="快捷键" VerticalAlignment="Center" TextWrapping="Wrap" />
                                             <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
                                                 <Button x:Name="TranscriptionShortcutButton" Content="设置快捷键" Click="TranscriptionShortcut_Click" />
+                                                <ToggleSwitch x:Name="TranscriptionEnabled" OffContent="" OnContent="" MinWidth="0" VerticalAlignment="Center" automation:AutomationProperties.Name="启用快捷键" Toggled="TranscriptionToggle_Changed" />
                                             </StackPanel>
                                         </Grid>
                                     </Border>

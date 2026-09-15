@@ -32,6 +32,8 @@ public sealed partial class MainWindow : Window
     private bool _exiting;
     private HotkeyBinding? _hotkeyBinding;
     private GlobalHotkey? _hotkey;
+    private bool _transcriptionHotkeyLoaded;
+    private bool _updatingTranscriptionToggle;
     private bool _capturingHotkey;
     private string? _autocorrectPath;
     private bool _togglePending;
@@ -79,11 +81,15 @@ public sealed partial class MainWindow : Window
         _daemon.Exited += OnDaemonExited;
         Closed += OnClosed;
 
-        _hotkeyBinding = HotkeySettings.Load();
-        if (_hotkeyBinding is { } binding && !TryRegisterHotkey(binding, out var error))
+        var savedHotkey = HotkeySettings.Load();
+        _hotkeyBinding = savedHotkey ?? HotkeyBinding.Default;
+        TranscriptionEnabled.IsOn = HotkeySettings.LoadEnabled();
+        if (TranscriptionEnabled.IsOn && !TryRegisterHotkey(_hotkeyBinding.Value, out var error))
         {
+            TranscriptionEnabled.IsOn = false;
             ShowError("快捷键不可用", error!.Message);
         }
+        _transcriptionHotkeyLoaded = true;
 
         UpdateHotkeyPreview();
         try
@@ -306,8 +312,10 @@ public sealed partial class MainWindow : Window
         foreach (var control in new Control[] { ProviderPicker, DoubaoModelPicker, CloudApiKey, QwenApiKey, QwenModelPicker, SelfHostedUrl, SelfHostedModelPicker }) control.IsEnabled = cloudIdle;
         ModelPicker.IsEnabled = idle && !_cloudOptions.Enabled && ModelPicker.Items.Count > 0;
         UpdateModelDownloadControls();
-        TranscriptionShortcutButton.IsEnabled = !_modelChanging && !_dictationActive && !_togglePending
+        var transcriptionHotkeyIdle = !_modelChanging && !_dictationActive && !_togglePending
             && _readingCancellation is null && _translationCancellation is null;
+        TranscriptionShortcutButton.IsEnabled = transcriptionHotkeyIdle;
+        TranscriptionEnabled.IsEnabled = transcriptionHotkeyIdle;
         TrimTrailingPeriodToggle.IsEnabled = !_modelChanging;
         UpdateTranslationControls();
         UpdateDailyControls();
@@ -772,14 +780,14 @@ public sealed partial class MainWindow : Window
 
     private void ApplyHotkey(HotkeyBinding? binding)
     {
-        if (ReadingEnabled.IsOn && binding == _readingHotkeyBinding)
+        if (TranscriptionEnabled.IsOn && ReadingEnabled.IsOn && binding == _readingHotkeyBinding)
             throw new ArgumentException("此组合已用于朗读，请选择其他转录快捷键。");
-        if (TranslationEnabled.IsOn && binding == _translationHotkeyBinding)
+        if (TranscriptionEnabled.IsOn && TranslationEnabled.IsOn && binding == _translationHotkeyBinding)
             throw new ArgumentException("此组合已用于翻译，请选择其他转录快捷键。");
         GlobalHotkey? replacement = null;
         try
         {
-            if (binding is { } selected)
+            if (TranscriptionEnabled.IsOn && binding is { } selected)
             {
                 replacement = new GlobalHotkey(_window, selected);
                 replacement.Pressed += OnHotkeyPressed;
@@ -799,7 +807,7 @@ public sealed partial class MainWindow : Window
 
     private void RestoreHotkey()
     {
-        if (_hotkey is not null || _hotkeyBinding is not { } binding) return;
+        if (!TranscriptionEnabled.IsOn || _hotkey is not null || _hotkeyBinding is not { } binding) return;
         if (!TryRegisterHotkey(binding, out var error))
         {
             ShowError("快捷键不可用", error!.Message);
@@ -829,6 +837,61 @@ public sealed partial class MainWindow : Window
         if (TranscriptionShortcutButton is not null)
             TranscriptionShortcutButton.Content = _hotkeyBinding?.DisplayText ?? "未设置";
 
+    }
+
+    private void TranscriptionToggle_Changed(object sender, RoutedEventArgs eventArgs)
+    {
+        if (!_transcriptionHotkeyLoaded || _updatingTranscriptionToggle) return;
+        var enabled = TranscriptionEnabled.IsOn;
+        try
+        {
+            SetTranscriptionHotkeyEnabled(enabled);
+        }
+        catch (Exception error)
+        {
+            _updatingTranscriptionToggle = true;
+            try { TranscriptionEnabled.IsOn = _hotkey is not null; }
+            finally { _updatingTranscriptionToggle = false; }
+            ShowError("无法更改语音输入快捷键", error.Message);
+        }
+        UpdateHotkeyPreview();
+    }
+
+    private void SetTranscriptionHotkeyEnabled(bool enabled)
+    {
+        if (enabled)
+        {
+            var binding = _hotkeyBinding ?? HotkeyBinding.Default;
+            if (ReadingEnabled.IsOn && binding == _readingHotkeyBinding)
+                throw new ArgumentException("此组合已用于朗读，请选择其他语音输入快捷键。");
+            if (TranslationEnabled.IsOn && binding == _translationHotkeyBinding)
+                throw new ArgumentException("此组合已用于翻译，请选择其他语音输入快捷键。");
+            if (_hotkey is null && !TryRegisterHotkey(binding, out var registrationError))
+                throw registrationError!;
+            try
+            {
+                HotkeySettings.SaveEnabled(true);
+            }
+            catch
+            {
+                _hotkey?.Dispose();
+                _hotkey = null;
+                throw;
+            }
+            return;
+        }
+
+        _hotkey?.Dispose();
+        _hotkey = null;
+        try
+        {
+            HotkeySettings.SaveEnabled(false);
+        }
+        catch
+        {
+            if (_hotkeyBinding is { } binding) TryRegisterHotkey(binding, out _);
+            throw;
+        }
     }
 
     private static uint CurrentModifiers()

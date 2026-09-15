@@ -30,6 +30,23 @@ internal static class HotkeySettings
         }
     }
 
+    internal static bool LoadEnabled()
+    {
+        try
+        {
+            var path = GetPath();
+            if (!File.Exists(path)) return true;
+
+            if (JsonNode.Parse(File.ReadAllText(path)) is not JsonObject root) return true;
+            if (root["transcriptionEnabled"] is JsonNode enabled) return enabled.GetValue<bool>();
+            return !root.TryGetPropertyValue("hotkey", out var stored) || stored is not null;
+        }
+        catch (Exception error) when (error is IOException or JsonException or InvalidOperationException or FormatException)
+        {
+            return true;
+        }
+    }
+
     internal static void Save(HotkeyBinding? binding)
     {
         if (binding is { } selected && !selected.IsValid)
@@ -49,6 +66,17 @@ internal static class HotkeySettings
                 ["virtualKey"] = JsonValue.Create(value.VirtualKey),
             }
             : null;
+        File.WriteAllText(path, root.ToJsonString(new JsonSerializerOptions { WriteIndented = true }) + Environment.NewLine);
+    }
+
+    internal static void SaveEnabled(bool enabled)
+    {
+        var path = GetPath();
+        if (!File.Exists(path)) throw new FileNotFoundException("Dictation settings are not ready yet.", path);
+
+        var root = JsonNode.Parse(File.ReadAllText(path)) as JsonObject
+            ?? throw new InvalidDataException("Dictation settings must be a JSON object.");
+        root["transcriptionEnabled"] = enabled;
         File.WriteAllText(path, root.ToJsonString(new JsonSerializerOptions { WriteIndented = true }) + Environment.NewLine);
     }
 

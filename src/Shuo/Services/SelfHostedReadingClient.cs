@@ -40,7 +40,7 @@ internal static class SelfHostedReadingClient
         var request = CreateStartRequest(text, speed, speechModel, speechPrompt, speechVoice);
         await socket.SendAsync(request.AsMemory(), WebSocketMessageType.Text, true, token);
         await foreach (var audio in ReadEventsAsync(socket, translated, token, speechModel,
-            requirePrompt: true, speechVoice: speechVoice)) yield return audio;
+            requirePrompt: speechPrompt.Length > 0, speechVoice: speechVoice)) yield return audio;
     }
 
     internal static byte[] CreateStartRequest(string text, double speed, string speechModel, string speechPrompt,
@@ -49,8 +49,9 @@ internal static class SelfHostedReadingClient
         if (!SelfHostedSpeechModels.IsSupported(speechModel)) throw new ArgumentException("不支持此自托管语音合成模型。");
         if (!SelfHostedSpeechVoices.IsSupported(speechVoice)) throw new ArgumentException("不支持此自托管朗读音色。");
         speechPrompt = SelfHostedSpeechModels.ValidatePrompt(speechPrompt);
+        string? instruction = speechPrompt.Length == 0 ? null : speechPrompt;
         return JsonSerializer.SerializeToUtf8Bytes(new { type = "start", protocol = 2, text, speed,
-            speech_model = speechModel, speech_instruct = speechPrompt, speech_voice = speechVoice });
+            speech_model = speechModel, speech_instruct = instruction, speech_voice = speechVoice });
     }
 
     internal static async IAsyncEnumerable<byte[]> ReadEventsAsync(WebSocket socket, Action<string> translated,

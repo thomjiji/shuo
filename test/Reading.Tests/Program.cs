@@ -64,7 +64,8 @@ Check(ReadingVoices.All.Any(voice => voice.Id == new ReadingOptions().Speaker), 
 Check(ReadingVoices.All.Any(voice => voice.Name == "温柔妈妈 2.0" && voice.Id == "zh_female_wenroumama_uranus_bigtts"), "saved voice ID maps to its display name");
 Check(ReadingVoices.All.Select(voice => voice.Id).Distinct(StringComparer.Ordinal).Count() == ReadingVoices.All.Length, "voice picker IDs are unique");
 await Fails<ArgumentException>(() => { new ReadingOptions(HotkeyModifiers: 0).Validate(); return Task.CompletedTask; }, "invalid reading shortcut rejected");
-await Fails<ArgumentException>(() => { new ReadingOptions(SelfHostedSpeechPrompt: " ").Validate(); return Task.CompletedTask; }, "empty speech prompt rejected");
+new ReadingOptions(SelfHostedSpeechPrompt: " ").Validate();
+Check(SelfHostedSpeechModels.NormalizePrompt("") == "", "empty speech prompt remains explicitly disabled");
 await Fails<ArgumentException>(() => { new ReadingOptions(SelfHostedSpeechPrompt: new string('字', 301)).Validate(); return Task.CompletedTask; }, "oversized speech prompt rejected");
 await Fails<ArgumentException>(() => { new ReadingOptions(SelfHostedSpeechVoice: "unsupported").Validate(); return Task.CompletedTask; }, "unsupported self-hosted voice rejected");
 byte[] CopyMetadata(string value)

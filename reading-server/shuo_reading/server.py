@@ -32,10 +32,11 @@ def validate_start(config):
     speech_voice = VOICE
     if protocol >= 2:
         speech_instruct = config.get("speech_instruct", DEFAULT_SPEECH_INSTRUCTION)
-        if (not isinstance(speech_instruct, str) or not speech_instruct.strip()
-                or len(speech_instruct.encode("utf-8")) > MAX_SPEECH_INSTRUCTION_BYTES):
-            raise ValueError("朗读提示词为空或过长，请在 Shuo 设置中修改。")
-        speech_instruct = speech_instruct.strip()
+        if speech_instruct is not None:
+            if (not isinstance(speech_instruct, str) or not speech_instruct.strip()
+                    or len(speech_instruct.encode("utf-8")) > MAX_SPEECH_INSTRUCTION_BYTES):
+                raise ValueError("朗读提示词无效或过长，请在 Shuo 设置中修改。")
+            speech_instruct = speech_instruct.strip()
         speech_voice = config.get("speech_voice", VOICE)
         if not isinstance(speech_voice, str) or speech_voice not in VOICES:
             raise ValueError("不支持所选朗读音色，请更新 Shuo 或 Mac 服务。")

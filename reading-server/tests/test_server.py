@@ -107,6 +107,21 @@ class ProtocolTests(unittest.TestCase):
                 self.assertEqual(ws.receive_json(), dict(type="done"))
         self.assertEqual(reader.speech_requests, [(SPEECH, DEFAULT_SPEECH_INSTRUCTION, VOICE)])
 
+    def test_protocol_two_accepts_explicitly_disabled_instruction(self):
+        for selected in (SPEECH, SPEECH_LARGE):
+            with self.subTest(selected=selected):
+                reader = Reader()
+                with TestClient(create_app(reader)) as client:
+                    with client.websocket_connect("/v1/speech") as ws:
+                        ws.send_json({**START, "protocol": 2, "speech_model": selected,
+                                      "speech_instruct": None})
+                        self.assertFalse(ws.receive_json()["speech_instruct"])
+                        ws.receive_json()
+                        ws.receive_bytes()
+                        ws.send_json(dict(type="ack"))
+                        self.assertEqual(ws.receive_json(), dict(type="done"))
+                self.assertEqual(reader.speech_requests, [(selected, None, VOICE)])
+
     def test_translation_only_in_both_languages(self):
         for target, expected in (("zh", "会议是明天。"), ("en", "The meeting is tomorrow.")):
             reader = Reader()

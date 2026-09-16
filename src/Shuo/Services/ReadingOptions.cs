@@ -21,14 +21,14 @@ internal static class SelfHostedSpeechModels
 
     internal static string NormalizePrompt(string? prompt)
     {
-        var value = prompt?.Trim() ?? "";
-        return value.Length == 0 || value == LegacyDefaultPrompt ? DefaultPrompt : value;
+        if (prompt is null) return DefaultPrompt;
+        var value = prompt.Trim();
+        return value == LegacyDefaultPrompt ? DefaultPrompt : value;
     }
 
     internal static string ValidatePrompt(string prompt)
     {
         var value = prompt?.Trim() ?? "";
-        if (value.Length == 0) throw new ArgumentException("请填写朗读提示词。");
         if (value.Length > MaxPromptLength || Encoding.UTF8.GetByteCount(value) > MaxPromptBytes)
             throw new ArgumentException($"朗读提示词不能超过 {MaxPromptLength} 个字符。");
         return value;

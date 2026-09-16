@@ -356,7 +356,7 @@
                                                     <ColumnDefinition Width="2*" />
                                                 </Grid.ColumnDefinitions>
                                                 <TextBlock Grid.Column="0" Text="朗读提示词" VerticalAlignment="Top" Margin="0,8,0,0" TextWrapping="Wrap" />
-                                                <TextBox Grid.Column="2" x:Name="SelfHostedSpeechPromptInput" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="96" MaxLength="300" PlaceholderText="描述希望模型采用的朗读方式" automation:AutomationProperties.Name="自托管语音合成朗读提示词" />
+                                                <TextBox Grid.Column="2" x:Name="SelfHostedSpeechPromptInput" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="96" MaxLength="300" PlaceholderText="留空则不向模型发送朗读提示词" automation:AutomationProperties.Name="自托管语音合成朗读提示词；留空表示不使用提示词" />
                                             </Grid>
                                             <Button x:Name="MacTestButton" HorizontalAlignment="Right" Content="测试连接与可用能力" Click="MacTest_Click" />
                                         </StackPanel>

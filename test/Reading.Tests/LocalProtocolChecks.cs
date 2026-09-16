@@ -48,6 +48,10 @@ internal static class LocalProtocolChecks
                     $"custom prompt and {voice} reach the {model} speech request");
             }
         }
+        using (var request = JsonDocument.Parse(SelfHostedReadingClient.CreateStartRequest(
+            "你好。", 1, SelfHostedSpeechModels.Default, " ", SelfHostedSpeechVoices.Default)))
+            Check(request.RootElement.GetProperty("speech_instruct").ValueKind == JsonValueKind.Null,
+                "empty prompt explicitly disables the model instruction");
         using (var currentHealth = JsonDocument.Parse(JsonSerializer.Serialize(new { protocol = 1, ready = true,
             capabilities = new { speech = new { ready = true } }, sample_rate = 24000, format = "pcm_s16le",
             voice = "Serena", voices = SelfHostedSpeechVoices.All, speech_instruct = true,

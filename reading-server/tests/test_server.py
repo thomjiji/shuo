@@ -2,6 +2,7 @@ import threading
 import time
 import unittest
 from fastapi.testclient import TestClient
+from shuo_reading.engine import DEFAULT_SPEECH_INSTRUCTION, SPEECH, SPEECH_LARGE, VOICE, VOICE_ALTERNATIVE
 from shuo_reading.server import create_app
 
 START = dict(type="start", protocol=1, text="会議は明日です。", speed=1.0)
@@ -14,7 +15,7 @@ class Reader:
         self.started = threading.Event()
         self.closed = threading.Event()
         self.chunks = 0
-        self.speech_models = []
+        self.speech_requests = []
 
     def load(self):
         self.capabilities = {name: dict(ready=True, state="ready") for name in ("translation", "speech")}
@@ -32,13 +33,13 @@ class Reader:
         finally:
             self.closed.set()
 
-    def original_events(self, text, speed, stopped, speech_model):
-        self.speech_models.append(speech_model)
+    def original_events(self, text, speed, stopped, speech_model, speech_instruct=None, speech_voice=VOICE):
+        self.speech_requests.append((speech_model, speech_instruct, speech_voice))
         yield "text", text
         yield "audio", b"\x01\x00" * 120
 
-    def events(self, text, speed, stopped, speech_model):
-        self.speech_models.append(speech_model)
+    def events(self, text, speed, stopped, speech_model, speech_instruct=None, speech_voice=VOICE):
+        self.speech_requests.append((speech_model, speech_instruct, speech_voice))
         try:
             self.started.set()
             if self.block:
@@ -67,23 +68,44 @@ class ProtocolTests(unittest.TestCase):
                 self.assertEqual(ws.receive_json(), dict(type="done"))
             self.wait_idle(client)
 
-    def test_selected_speech_model_is_confirmed_and_reaches_reader(self):
-        selected = "mlx-community/Qwen3-TTS-12Hz-1.7B-CustomVoice-8bit"
+    def test_selected_speech_model_voice_and_custom_instruction_reach_reader(self):
+        for selected in (SPEECH, SPEECH_LARGE):
+            for selected_voice in (VOICE, VOICE_ALTERNATIVE):
+                with self.subTest(selected=selected, selected_voice=selected_voice):
+                    reader = Reader()
+                    with TestClient(create_app(reader)) as client:
+                        health = client.get("/health").json()
+                        self.assertEqual(health["protocol"], 1)
+                        self.assertTrue(health["speech_instruct"])
+                        self.assertIn(selected, health["speech_models"])
+                        self.assertIn(selected_voice, health["voices"])
+                        with client.websocket_connect("/v1/speech") as ws:
+                            ws.send_json({**START, "protocol": 2, "speech_model": selected,
+                                          "speech_instruct": "请清晰地朗读。", "speech_voice": selected_voice})
+                            ready = ws.receive_json()
+                            self.assertEqual(ready["speech_model"], selected)
+                            self.assertEqual(ready["speech_voice"], selected_voice)
+                            self.assertEqual(ready["voice"], selected_voice)
+                            self.assertTrue(ready["speech_instruct"])
+                            self.assertEqual(ready["protocol"], 2)
+                            ws.receive_json()
+                            ws.receive_bytes()
+                            ws.send_json(dict(type="ack"))
+                            self.assertEqual(ws.receive_json(), dict(type="done"))
+                    self.assertEqual(reader.speech_requests,
+                                     [(selected, "请清晰地朗读。", selected_voice)])
+
+    def test_protocol_two_defaults_missing_instruction_for_older_clients(self):
         reader = Reader()
         with TestClient(create_app(reader)) as client:
-            health = client.get("/health").json()
-            self.assertEqual(health["protocol"], 1)
-            self.assertIn(selected, health["speech_models"])
             with client.websocket_connect("/v1/speech") as ws:
-                ws.send_json({**START, "protocol": 2, "speech_model": selected})
-                ready = ws.receive_json()
-                self.assertEqual(ready["speech_model"], selected)
-                self.assertEqual(ready["protocol"], 2)
+                ws.send_json({**START, "protocol": 2, "speech_model": SPEECH})
+                self.assertTrue(ws.receive_json()["speech_instruct"])
                 ws.receive_json()
                 ws.receive_bytes()
                 ws.send_json(dict(type="ack"))
                 self.assertEqual(ws.receive_json(), dict(type="done"))
-        self.assertEqual(reader.speech_models, [selected])
+        self.assertEqual(reader.speech_requests, [(SPEECH, DEFAULT_SPEECH_INSTRUCTION, VOICE)])
 
     def test_translation_only_in_both_languages(self):
         for target, expected in (("zh", "会议是明天。"), ("en", "The meeting is tomorrow.")):
@@ -139,7 +161,7 @@ class ProtocolTests(unittest.TestCase):
                     ws.send_json(dict(type="ack"))
                 self.assertEqual(ws.receive_json(), dict(type="done"))
             self.wait_idle(client)
-        self.assertEqual(reader.speech_models, ["mlx-community/Qwen3-TTS-12Hz-0.6B-CustomVoice-8bit"])
+        self.assertEqual(reader.speech_requests, [(SPEECH, None, VOICE)])
         self.assertTrue(reader.closed.is_set())
 
     def test_busy_and_disconnect_release_slot(self):
@@ -169,7 +191,9 @@ class ProtocolTests(unittest.TestCase):
 
     def test_invalid_request_does_not_run_model(self):
         for changes in (dict(protocol=3), dict(text=""), dict(text="字" * 301), dict(speed=2), dict(speed=True),
-                        dict(protocol=2, speech_model="unsupported")):
+                        dict(protocol=2, speech_model="unsupported"), dict(protocol=2, speech_instruct=" "),
+                        dict(protocol=2, speech_instruct="字" * 401), dict(speech_instruct="不支持"),
+                        dict(protocol=2, speech_voice="unsupported"), dict(speech_voice=VOICE_ALTERNATIVE)):
             reader = Reader()
             with TestClient(create_app(reader)) as client:
                 with client.websocket_connect("/v1/reading") as ws:

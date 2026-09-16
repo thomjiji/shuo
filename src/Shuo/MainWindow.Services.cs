@@ -2,7 +2,9 @@ using System.Net.Http;
 using System.Text.Json;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Media;
 using Shuo.Services;
+using Windows.UI;
 
 namespace Shuo;
 
@@ -30,7 +32,19 @@ public sealed partial class MainWindow
         return hosts;
     }
 
-    private void SeparateMacHosts_Toggled(object sender, RoutedEventArgs args) => UpdateServiceControls();
+    private void SeparateMacHosts_Toggled(object sender, RoutedEventArgs args)
+    {
+        if (_servicesLoaded) ResetMacServiceStatusIcons();
+        UpdateServiceControls();
+    }
+    private void MacServiceAddress_Changed(object sender, TextChangedEventArgs args)
+    {
+        if (_servicesLoaded) ResetMacServiceStatusIcons();
+    }
+    private void MacServiceSelection_Changed(object sender, SelectionChangedEventArgs args)
+    {
+        if (_servicesLoaded) ResetMacServiceStatusIcons();
+    }
     private void ReadingCredential_Changed(object sender, RoutedEventArgs args) => UpdateServiceControls();
 
     private void UpdateServiceControls()
@@ -39,7 +53,7 @@ public sealed partial class MainWindow
         var idle = !_savingServices && !_testingServices && !_installingUpdate && !_dictationActive
             && !_togglePending && !_modelChanging && _readingCancellation is null && _translationCancellation is null && _pendingPastes == 0;
         foreach (var field in new Control[] { SharedMacHost, SeparateMacHosts, SelfHostedUrl, TranslationHost, ReadingLocalHost,
-            SelfHostedSpeechModelPicker, CaptionSelfHostedModelPicker, MacTestButton, CloudApiKey, DoubaoModelPicker,
+            SelfHostedSpeechModelPicker, SelfHostedSpeechPromptInput, CaptionSelfHostedModelPicker, MacTestButton, CloudApiKey, DoubaoModelPicker,
             QwenApiKey, QwenModelPicker, SelfHostedModelPicker, TranslationWorkspace, TranslationApiKey,
             ReadingUseExistingKey, ReadingApiKey, ServicesSaveButton }) field.IsEnabled = idle;
         MacHostOverrides.Visibility = SeparateMacHosts.IsOn ? Visibility.Visible : Visibility.Collapsed;
@@ -57,7 +71,8 @@ public sealed partial class MainWindow
             var hosts = EditedMacAddresses();
             var cloud = ReadCloudOptions() with { SelfHostedUrl = hosts.Recognition };
             var reading = ReadingSettings.Load() with { SelfHostedHost = hosts.Reading, UseExistingKey = ReadingUseExistingKey.IsOn,
-                SelfHostedSpeechModel = SelectedSelfHostedSpeechModel() };
+                SelfHostedSpeechModel = SelectedSelfHostedSpeechModel(),
+                SelfHostedSpeechPrompt = SelfHostedSpeechModels.ValidatePrompt(SelfHostedSpeechPromptInput.Text) };
             var captions = TranslationSettings.Load() with { Host = hosts.Captions, WorkspaceId = TranslationWorkspace.Text.Trim(),
                 SelfHostedAsrModel = SelectedCaptionAsrModel() };
             CloudSettings.Save(cloud);
@@ -67,6 +82,7 @@ public sealed partial class MainWindow
             SelfHostedUrl.Text = SelfHostedAddress.ToDisplay(hosts.Recognition);
             TranslationHost.Text = hosts.Captions;
             ReadingLocalHost.Text = hosts.Reading;
+            ResetMacServiceStatusIcons();
             ServicesStatus.Text = "服务设置已保存。";
             if (_daemonReady)
             {
@@ -91,40 +107,82 @@ public sealed partial class MainWindow
     {
         if (_testingServices || _savingServices) return;
         _testingServices = true;
+        ResetMacServiceStatusIcons();
+        MacTestButton.Content = "正在测试...";
         UpdateServiceControls();
-        MacServiceStatus.Text = "正在检查语音识别、文字翻译和语音合成...";
         try
         {
             var hosts = EditedMacAddresses();
             var inputModel = ReadCloudOptions().SelfHostedModel;
             var captionModel = SelectedCaptionAsrModel();
             var speechModel = SelectedSelfHostedSpeechModel();
-            var checks = new[]
-            {
-                (Name: $"语音输入识别（{inputModel}）", Host: hosts.Recognition, Capability: "asr", Model: inputModel),
-                (Name: $"实时字幕识别（{captionModel}）", Host: hosts.Captions, Capability: "asr", Model: captionModel),
-                (Name: $"实时字幕翻译（{SelfHostedTranslationModels.Default}）", Host: hosts.Captions, Capability: "translation-model", Model: SelfHostedTranslationModels.Default),
-                (Name: $"译读翻译（{SelfHostedTranslationModels.Default}）", Host: hosts.Reading, Capability: "translation-model", Model: SelfHostedTranslationModels.Default),
-                (Name: $"语音合成（{speechModel}）", Host: hosts.Reading, Capability: "speech-model", Model: speechModel),
-            };
-            var results = await Task.WhenAll(checks.Select(async check =>
-            {
-                try
-                {
-                    if (check.Capability == "asr") await TestRecognitionHealthAsync(check.Host, check.Model, _shutdown.Token);
-                    else if (check.Capability == "speech-model")
-                        await LocalServiceHealth.TestSpeechModelAsync(check.Host, check.Model, _shutdown.Token);
-                    else if (check.Capability == "translation-model")
-                        await LocalServiceHealth.TestTranslationModelAsync(check.Host, _shutdown.Token);
-                    else await LocalServiceHealth.TestAsync(check.Host, _shutdown.Token, check.Capability);
-                    return $"{check.Name}：ok";
-                }
-                catch (Exception error) { return $"{check.Name}：fail，{error.Message}"; }
-            }));
-            if (!_closed) MacServiceStatus.Text = string.Join(Environment.NewLine, results);
+            var inputTask = CheckMacServiceAsync($"语音输入识别可用：{inputModel}",
+                () => TestRecognitionHealthAsync(hosts.Recognition, inputModel, _shutdown.Token));
+            var captionTask = CheckMacServiceAsync($"实时字幕识别可用：{captionModel}",
+                () => TestRecognitionHealthAsync(hosts.Captions, captionModel, _shutdown.Token));
+            var captionTranslationTask = CheckMacServiceAsync("实时字幕翻译可用。",
+                () => LocalServiceHealth.TestTranslationModelAsync(hosts.Captions, _shutdown.Token));
+            var readingTranslationTask = CheckMacServiceAsync("译读翻译可用。",
+                () => LocalServiceHealth.TestTranslationModelAsync(hosts.Reading, _shutdown.Token));
+            var speechVoice = SelectedSelfHostedSpeechVoice();
+            var speechTask = CheckMacServiceAsync($"语音合成、音色与自定义提示词可用：{speechModel} / {speechVoice}",
+                () => LocalServiceHealth.TestSpeechModelAsync(hosts.Reading, speechModel, _shutdown.Token,
+                    requirePrompt: true, speechVoice: speechVoice));
+            await Task.WhenAll(inputTask, captionTask, captionTranslationTask, readingTranslationTask, speechTask);
+            if (_closed) return;
+            var input = await inputTask;
+            var caption = await captionTask;
+            var captionTranslation = await captionTranslationTask;
+            var readingTranslation = await readingTranslationTask;
+            var speech = await speechTask;
+            SetMacServiceStatus(MacInputStatusIcon, input);
+            SetMacServiceStatus(MacCaptionStatusIcon, caption);
+            var translation = new MacServiceCheck(captionTranslation.Passed && readingTranslation.Passed,
+                $"{captionTranslation.Detail}{Environment.NewLine}{readingTranslation.Detail}");
+            SetMacServiceStatus(MacTranslationStatusIcon, translation);
+            SetMacServiceStatus(MacSpeechStatusIcon, speech);
+            var failures = new[] { input, caption, translation, speech }.Where(result => !result.Passed).Select(result => result.Detail).ToArray();
+            if (failures.Length > 0) ShowError("部分自托管能力不可用", string.Join(Environment.NewLine, failures));
         }
-        catch (Exception error) { if (!_closed) MacServiceStatus.Text = "连接测试失败：" + error.Message; }
-        finally { _testingServices = false; if (!_closed) UpdateServiceControls(); }
+        catch (Exception error) { if (!_closed) ShowError("连接测试失败", error.Message); }
+        finally
+        {
+            _testingServices = false;
+            if (!_closed)
+            {
+                MacTestButton.Content = "测试连接与可用能力";
+                UpdateServiceControls();
+            }
+        }
+    }
+
+    private static async Task<MacServiceCheck> CheckMacServiceAsync(string success, Func<Task> check)
+    {
+        try
+        {
+            await check();
+            return new(true, success);
+        }
+        catch (Exception error) { return new(false, error.Message); }
+    }
+
+    private void ResetMacServiceStatusIcons()
+    {
+        if (MacInputStatusIcon is null) return;
+        foreach (var icon in new[] { MacInputStatusIcon, MacCaptionStatusIcon, MacTranslationStatusIcon, MacSpeechStatusIcon })
+        {
+            icon.Visibility = Visibility.Collapsed;
+            ToolTipService.SetToolTip(icon, null);
+        }
+    }
+
+    private static void SetMacServiceStatus(FontIcon icon, MacServiceCheck result)
+    {
+        icon.Glyph = result.Passed ? "\uE73E" : "\uE783";
+        icon.Foreground = new SolidColorBrush(result.Passed
+            ? Color.FromArgb(255, 76, 175, 80) : Color.FromArgb(255, 232, 17, 35));
+        icon.Visibility = Visibility.Visible;
+        ToolTipService.SetToolTip(icon, result.Detail);
     }
 
     private string SelectedCaptionAsrModel() => CaptionSelfHostedModelPicker.SelectedIndex == 1
@@ -146,4 +204,6 @@ public sealed partial class MainWindow
             : root.TryGetProperty("model", out var selected) && selected.GetString() == model;
         if (!available) throw new IOException($"Mac 语音识别服务不支持所选模型：{model}。");
     }
+
+    private sealed record MacServiceCheck(bool Passed, string Detail);
 }

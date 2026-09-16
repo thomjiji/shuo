@@ -19,7 +19,7 @@ class Model:
     def translation_events(self, source, target, stopped):
         yield "text", "translation"
 
-    def speech_events(self, text, speed, language, stopped, model_id):
+    def speech_events(self, text, speed, language, stopped, model_id, instruction=None, voice="Serena"):
         yield "audio", b"\x01\x00"
 
 

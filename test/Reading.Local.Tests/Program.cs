@@ -6,10 +6,11 @@ using Shuo.Services;
 if (args.Length == 0) throw new ArgumentException("Pass the Mac host, optionally followed by --play.");
 var endpoint = SelfHostedReadingClient.Endpoint(args[0]);
 var model = args.Contains("--large") ? SelfHostedSpeechModels.Large : SelfHostedSpeechModels.Default;
+var voice = args.Contains("--vivian") ? SelfHostedSpeechVoices.Alternative : SelfHostedSpeechVoices.Default;
 var original = args.Contains("--original");
 if (original) endpoint = new UriBuilder(endpoint) { Path = "/v1/speech" }.Uri;
 using var timeout = new CancellationTokenSource(TimeSpan.FromMinutes(3));
-await SelfHostedReadingClient.TestAsync(args[0], model, timeout.Token);
+await SelfHostedReadingClient.TestAsync(args[0], model, voice, timeout.Token);
 using var http = new HttpClient(new HttpClientHandler { UseProxy = false });
 var health = new UriBuilder(endpoint) { Scheme = "http", Path = "/health" }.Uri;
 async Task WaitIdle()
@@ -34,7 +35,8 @@ foreach (var (source, speed) in new[]
     var bytes = 0L;
     using var playback = args.Contains("--play") ? new ReadingPlayback() : null;
     var paused = false;
-    await foreach (var chunk in SelfHostedReadingClient.ReadAsync(source, endpoint, speed, model, part => translated.Append(part), timeout.Token))
+    await foreach (var chunk in SelfHostedReadingClient.ReadAsync(source, endpoint, speed, model,
+        SelfHostedSpeechModels.DefaultPrompt, voice, part => translated.Append(part), timeout.Token))
     {
         firstAudio ??= watch.Elapsed.TotalSeconds;
         bytes += chunk.Length;
@@ -60,7 +62,7 @@ foreach (var (source, speed) in new[]
 using (var cancelled = new CancellationTokenSource())
 {
     await using (var stream = SelfHostedReadingClient.ReadAsync("Please save the report before closing the window.", endpoint, 1,
-        model, _ => { }, cancelled.Token).GetAsyncEnumerator())
+        model, SelfHostedSpeechModels.DefaultPrompt, voice, _ => { }, cancelled.Token).GetAsyncEnumerator())
     {
         if (!await stream.MoveNextAsync()) throw new Exception("Expected an audio chunk");
         await Task.Delay(600, timeout.Token);

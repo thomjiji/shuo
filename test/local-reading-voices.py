@@ -18,7 +18,7 @@ args = parser.parse_args()
 args.output.mkdir(parents=True, exist_ok=True)
 model = load_model("mlx-community/Qwen3-TTS-12Hz-0.6B-CustomVoice-8bit")
 text = "请在重新启动计算机前保存你的工作。更新大约需要五分钟，你的文件不会被删除。"
-for voice in ("Serena", "Uncle_Fu"):
+for voice in ("Serena", "Vivian"):
     mx.random.seed(42)
     chunks = []
     for result in model.generate(text=text, voice=voice, lang_code="Chinese",

@@ -12,19 +12,23 @@ internal static class SelfHostedReadingClient
 {
     internal static Uri Endpoint(string host) => LocalServiceEndpoint.Create(host, 18766, "/v1/reading");
 
-    internal static async Task TestAsync(string host, string speechModel, CancellationToken token)
+    internal static async Task TestAsync(string host, string speechModel, string speechVoice, CancellationToken token)
     {
         await LocalServiceHealth.TestAsync(host, token, "translation", "speech");
-        await LocalServiceHealth.TestSpeechModelAsync(host, speechModel, token);
+        await LocalServiceHealth.TestSpeechModelAsync(host, speechModel, token,
+            requirePrompt: true, speechVoice: speechVoice);
     }
 
     internal static async IAsyncEnumerable<byte[]> ReadAsync(string text, Uri endpoint, double speed,
-        string speechModel, Action<string> translated, [EnumeratorCancellation] CancellationToken token)
+        string speechModel, string speechPrompt, string speechVoice, Action<string> translated,
+        [EnumeratorCancellation] CancellationToken token)
     {
         if (string.IsNullOrWhiteSpace(text) || Encoding.UTF8.GetByteCount(text) > ReadingText.LocalRequestBytes)
             throw new ArgumentException("本段文字为空或过长。");
         if (speed is not (0.85 or 1.0 or 1.15 or 1.3)) throw new ArgumentException("无效的播放速度。");
         if (!SelfHostedSpeechModels.IsSupported(speechModel)) throw new ArgumentException("不支持此自托管语音合成模型。");
+        if (!SelfHostedSpeechVoices.IsSupported(speechVoice)) throw new ArgumentException("不支持此自托管朗读音色。");
+        speechPrompt = SelfHostedSpeechModels.ValidatePrompt(speechPrompt);
         using var socket = new ClientWebSocket();
         socket.Options.Proxy = null;
         socket.Options.KeepAliveInterval = TimeSpan.FromSeconds(20);
@@ -33,15 +37,25 @@ internal static class SelfHostedReadingClient
             connecting.CancelAfter(TimeSpan.FromSeconds(10));
             await socket.ConnectAsync(endpoint, connecting.Token);
         }
-        var request = speechModel == SelfHostedSpeechModels.Default
-            ? JsonSerializer.SerializeToUtf8Bytes(new { type = "start", protocol = 1, text, speed })
-            : JsonSerializer.SerializeToUtf8Bytes(new { type = "start", protocol = 2, text, speed, speech_model = speechModel });
+        var request = CreateStartRequest(text, speed, speechModel, speechPrompt, speechVoice);
         await socket.SendAsync(request.AsMemory(), WebSocketMessageType.Text, true, token);
-        await foreach (var audio in ReadEventsAsync(socket, translated, token, speechModel)) yield return audio;
+        await foreach (var audio in ReadEventsAsync(socket, translated, token, speechModel,
+            requirePrompt: true, speechVoice: speechVoice)) yield return audio;
+    }
+
+    internal static byte[] CreateStartRequest(string text, double speed, string speechModel, string speechPrompt,
+        string speechVoice)
+    {
+        if (!SelfHostedSpeechModels.IsSupported(speechModel)) throw new ArgumentException("不支持此自托管语音合成模型。");
+        if (!SelfHostedSpeechVoices.IsSupported(speechVoice)) throw new ArgumentException("不支持此自托管朗读音色。");
+        speechPrompt = SelfHostedSpeechModels.ValidatePrompt(speechPrompt);
+        return JsonSerializer.SerializeToUtf8Bytes(new { type = "start", protocol = 2, text, speed,
+            speech_model = speechModel, speech_instruct = speechPrompt, speech_voice = speechVoice });
     }
 
     internal static async IAsyncEnumerable<byte[]> ReadEventsAsync(WebSocket socket, Action<string> translated,
-        [EnumeratorCancellation] CancellationToken token, string speechModel = SelfHostedSpeechModels.Default)
+        [EnumeratorCancellation] CancellationToken token, string speechModel = SelfHostedSpeechModels.Default,
+        bool requirePrompt = false, string speechVoice = SelfHostedSpeechVoices.Default)
     {
         var buffer = new byte[16384];
         var ready = false;
@@ -84,7 +98,7 @@ internal static class SelfHostedReadingClient
             {
                 case "ready":
                     if (ready) throw new IOException("Mac 重复发送译读就绪消息。");
-                    ValidateFormat(root, speechModel);
+                    ValidateFormat(root, speechModel, requirePrompt, speechVoice);
                     ready = true;
                     break;
                 case "text" when ready:
@@ -98,8 +112,8 @@ internal static class SelfHostedReadingClient
                     yield break;
                 case "error":
                     var error = root.GetProperty("message").GetString() ?? "Mac 译读失败。";
-                    if (speechModel != SelfHostedSpeechModels.Default && error.Contains("协议不兼容", StringComparison.Ordinal))
-                        throw new IOException("Mac 服务不支持所选语音合成模型，请更新服务或改用 0.6B。");
+                    if (error.Contains("协议不兼容", StringComparison.Ordinal))
+                        throw new IOException("Mac 服务不支持所选语音合成模型、音色或自定义朗读提示词，请更新服务。");
                     throw new IOException(error);
                 default:
                     throw new IOException("Mac 译读协议不兼容，请更新服务。");
@@ -107,15 +121,21 @@ internal static class SelfHostedReadingClient
         }
     }
 
-    private static void ValidateFormat(JsonElement root, string speechModel)
+    private static void ValidateFormat(JsonElement root, string speechModel, bool requirePrompt, string speechVoice)
     {
+        if (!SelfHostedSpeechVoices.IsSupported(speechVoice)) throw new IOException("设置中的自托管朗读音色不受支持。");
         var protocol = root.GetProperty("protocol").GetInt32();
         if (protocol is not (1 or 2) || root.GetProperty("sample_rate").GetInt32() != 24000
-            || root.GetProperty("format").GetString() != "pcm_s16le" || root.GetProperty("voice").GetString() != "Serena")
+            || root.GetProperty("format").GetString() != "pcm_s16le" || root.GetProperty("voice").GetString() != speechVoice)
             throw new IOException("Mac 译读协议或音色不兼容，请更新服务。");
-        if (speechModel != SelfHostedSpeechModels.Default
+        if ((speechModel != SelfHostedSpeechModels.Default || requirePrompt || speechVoice != SelfHostedSpeechVoices.Default)
             && (protocol < 2 || !root.TryGetProperty("speech_model", out var selected)
-                || selected.GetString() != speechModel))
-            throw new IOException("Mac 服务不支持所选语音合成模型，请更新服务或改用 0.6B。");
+                || selected.GetString() != speechModel
+                || speechVoice != SelfHostedSpeechVoices.Default
+                    && (!root.TryGetProperty("speech_voice", out var selectedVoice)
+                        || selectedVoice.GetString() != speechVoice)
+                || requirePrompt && (!root.TryGetProperty("speech_instruct", out var prompt)
+                    || prompt.ValueKind != JsonValueKind.True)))
+            throw new IOException("Mac 服务不支持所选语音合成模型、音色或自定义朗读提示词，请更新服务。");
     }
 }

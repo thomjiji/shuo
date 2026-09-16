@@ -30,6 +30,11 @@ public sealed partial class MainWindow
         {
             new("自托管 Mac", SelfHostedTranslationModels.Default),
         };
+        ReadingFixedVoice.ItemsSource = new ServiceModelOption[]
+        {
+            new("Serena（温暖柔和女声）", SelfHostedSpeechVoices.Default),
+            new("Vivian（明亮年轻女声）", SelfHostedSpeechVoices.Alternative),
+        };
         ReadingTranslationServicePicker.SelectedIndex = 0;
         _overlay.TranslationCloseRequested += CloseReading;
         _overlay.ReadingPauseRequested += ToggleReadingPause;
@@ -54,6 +59,8 @@ public sealed partial class MainWindow
             ReadingSpeed.Value = options.SpeechRate;
             ReadingLocalHost.Text = options.SelfHostedHost;
             SelfHostedSpeechModelPicker.SelectedIndex = options.SelfHostedSpeechModel == SelfHostedSpeechModels.Large ? 1 : 0;
+            SelfHostedSpeechPromptInput.Text = options.SelfHostedSpeechPrompt;
+            ReadingFixedVoice.SelectedIndex = options.SelfHostedSpeechVoice == SelfHostedSpeechVoices.Alternative ? 1 : 0;
             UpdateReadingSpeechServices();
             ReadingLocalSpeed.SelectedIndex = Math.Max(0, Array.IndexOf(LocalReadingSpeeds, options.LocalPlaybackSpeed));
             ReadingTranslationBackend.SelectedIndex = options.UseSelfHostedTranslation ? 1 : 0;
@@ -73,14 +80,19 @@ public sealed partial class MainWindow
         _readingHotkeyBinding.Modifiers, _readingHotkeyBinding.VirtualKey, ReadingMode.SelectedIndex == 1,
         ReadingTranslationBackend.SelectedIndex == 1,
         ReadingSettings.Load().SelfHostedHost, LocalReadingSpeeds[Math.Max(0, ReadingLocalSpeed.SelectedIndex)],
-        ReadingOriginalBackend.SelectedIndex == 1, ReadingSettings.Load().SelfHostedSpeechModel);
+        ReadingOriginalBackend.SelectedIndex == 1, ReadingSettings.Load().SelfHostedSpeechModel,
+        ReadingSettings.Load().SelfHostedSpeechPrompt, SelectedSelfHostedSpeechVoice());
 
     private string SelectedSelfHostedSpeechModel() =>
         (SelfHostedSpeechModelPicker.SelectedItem as ServiceModelOption)?.Model ?? SelfHostedSpeechModels.Default;
 
+    private string SelectedSelfHostedSpeechVoice() =>
+        (ReadingFixedVoice.SelectedItem as ServiceModelOption)?.Model ?? SelfHostedSpeechVoices.Default;
+
     private void SelfHostedSpeechModelPicker_SelectionChanged(object sender, Microsoft.UI.Xaml.Controls.SelectionChangedEventArgs args)
     {
         UpdateReadingSpeechServices();
+        if (_servicesLoaded) ResetMacServiceStatusIcons();
     }
 
     private void UpdateReadingSpeechServices()
@@ -120,6 +132,7 @@ public sealed partial class MainWindow
                 UseSelfHostedTranslation = ReadingTranslationBackend.SelectedIndex == 1,
                 UseSelfHostedOriginal = ReadingOriginalBackend.SelectedIndex == 1,
                 LocalPlaybackSpeed = LocalReadingSpeeds[Math.Max(0, ReadingLocalSpeed.SelectedIndex)],
+                SelfHostedSpeechVoice = SelectedSelfHostedSpeechVoice(),
             };
             ReadingSettings.Save(saved, ReadingSettings.LoadApiKey());
             ReadingStatus.Text = "已保存";
@@ -260,6 +273,7 @@ public sealed partial class MainWindow
         ReadingEnabled.IsEnabled = !active;
         ReadingShortcutButton.IsEnabled = !active;
         ReadingSpeaker.IsEnabled = !active && doubao;
+        ReadingFixedVoice.IsEnabled = !active && local;
         ReadingSpeed.IsEnabled = !active && doubao;
         ReadingSaveButton.IsEnabled = !active;
     }
@@ -378,7 +392,8 @@ public sealed partial class MainWindow
                         ? new TranslatedSpeechClient(client).ReadAsync(chunk, endpoint!, options, key, onText, token)
                         : local
                         ? SelfHostedReadingClient.ReadAsync(chunk, endpoint!, options.LocalPlaybackSpeed,
-                            options.SelfHostedSpeechModel, onText, token)
+                            options.SelfHostedSpeechModel, options.SelfHostedSpeechPrompt,
+                            options.SelfHostedSpeechVoice, onText, token)
                         : service.SynthesizeAsync(chunk, options, key, token);
                     await foreach (var audio in audioStream)
                     {

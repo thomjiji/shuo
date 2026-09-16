@@ -10,7 +10,11 @@ internal static class ReadingSettings
         var path = HotkeySettings.GetPath();
         var root = File.Exists(path) ? JsonNode.Parse(File.ReadAllText(path)) : null;
         var options = root?["reading"]?.Deserialize<ReadingOptions>() ?? new();
-        return options with { SelfHostedHost = ServiceSettings.ReadingHost(root) };
+        var prompt = SelfHostedSpeechModels.NormalizePrompt(options.SelfHostedSpeechPrompt);
+        var voice = SelfHostedSpeechVoices.IsSupported(options.SelfHostedSpeechVoice)
+            ? options.SelfHostedSpeechVoice : SelfHostedSpeechVoices.Default;
+        return options with { SelfHostedHost = ServiceSettings.ReadingHost(root), SelfHostedSpeechPrompt = prompt,
+            SelfHostedSpeechVoice = voice };
     }
 
     internal static string LoadApiKey() => ServiceSettings.ReadSecret(ServiceSettings.DoubaoSpeech);

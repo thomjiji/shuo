@@ -8,7 +8,7 @@ import logging
 from threading import Event
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
-from .engine import MAX_PASSAGE_BYTES, SAMPLE_RATE, SPEEDS, SPEECH, SPEECH_MODELS, TRANSLATOR, VOICE, Reader
+from .engine import DEFAULT_SPEECH_INSTRUCTION, MAX_PASSAGE_BYTES, MAX_SPEECH_INSTRUCTION_BYTES, SAMPLE_RATE, SPEEDS, SPEECH, SPEECH_MODELS, TRANSLATOR, VOICE, VOICES, Reader
 
 logger = logging.getLogger("shuo_reading")
 
@@ -28,7 +28,20 @@ def validate_start(config):
         raise ValueError("此协议只支持默认的 0.6B 语音合成模型，请更新 Mac 服务。")
     if speech_model not in SPEECH_MODELS:
         raise ValueError("不支持所选语音合成模型，请更新 Shuo 或 Mac 服务。")
-    return text, speed, speech_model, protocol
+    speech_instruct = None
+    speech_voice = VOICE
+    if protocol >= 2:
+        speech_instruct = config.get("speech_instruct", DEFAULT_SPEECH_INSTRUCTION)
+        if (not isinstance(speech_instruct, str) or not speech_instruct.strip()
+                or len(speech_instruct.encode("utf-8")) > MAX_SPEECH_INSTRUCTION_BYTES):
+            raise ValueError("朗读提示词为空或过长，请在 Shuo 设置中修改。")
+        speech_instruct = speech_instruct.strip()
+        speech_voice = config.get("speech_voice", VOICE)
+        if not isinstance(speech_voice, str) or speech_voice not in VOICES:
+            raise ValueError("不支持所选朗读音色，请更新 Shuo 或 Mac 服务。")
+    elif "speech_instruct" in config or "speech_voice" in config:
+        raise ValueError("此协议不支持自定义朗读提示词或音色，请更新 Shuo 或 Mac 服务。")
+    return text, speed, speech_model, protocol, speech_instruct, speech_voice
 
 
 def create_app(reader):
@@ -54,6 +67,8 @@ def create_app(reader):
                     capabilities=capabilities, voice=VOICE, sample_rate=SAMPLE_RATE,
                     format="pcm_s16le", busy=busy.locked(), speeds=SPEEDS,
                     translation_model=TRANSLATOR,
+                    speech_instruct=True,
+                    voices=VOICES,
                     speech_models=SPEECH_MODELS,
                     speech_model=getattr(getattr(reader, "speech", None), "model_id", None))
 
@@ -94,7 +109,7 @@ def create_app(reader):
             await busy.acquire()
             acquired = True
             config = await asyncio.wait_for(ws.receive_json(), 10)
-            text, speed, speech_model, protocol = validate_start(config)
+            text, speed, speech_model, protocol, speech_instruct, speech_voice = validate_start(config)
             translating = ws.url.path == "/v1/translation"
             target = config.get("target", "zh")
             if translating and target not in ("zh", "en"):
@@ -104,14 +119,15 @@ def create_app(reader):
             watcher = asyncio.create_task(controls())
             await ws.send_json(dict(type="ready", protocol=1) if translating else
                                dict(type="ready", protocol=protocol, sample_rate=SAMPLE_RATE,
-                                    format="pcm_s16le", voice=VOICE, **({"speech_model": speech_model}
-                                    if protocol >= 2 else {})))
+                                    format="pcm_s16le", voice=speech_voice, **({"speech_model": speech_model,
+                                    "speech_instruct": speech_instruct is not None,
+                                    "speech_voice": speech_voice} if protocol >= 2 else {})))
             if translating:
                 iterator = reader.translation_events(text, target, stopped)
             elif ws.url.path == "/v1/speech":
-                iterator = reader.original_events(text, speed, stopped, speech_model)
+                iterator = reader.original_events(text, speed, stopped, speech_model, speech_instruct, speech_voice)
             else:
-                iterator = reader.events(text, speed, stopped, speech_model)
+                iterator = reader.events(text, speed, stopped, speech_model, speech_instruct, speech_voice)
             while True:
                 pending = loop.run_in_executor(pool, next, iterator, None)
                 event = await asyncio.shield(pending)

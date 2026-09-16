@@ -25,16 +25,40 @@ internal static class LocalProtocolChecks
         }
         var old = JsonSerializer.Deserialize<ReadingOptions>("{}")!;
         Check(!old.UseSelfHostedTranslation && old.LocalPlaybackSpeed == 1
-            && old.SelfHostedSpeechModel == SelfHostedSpeechModels.Default,
-            "old settings preserve cloud backend, natural local speed, and the 0.6B speech model");
+            && old.SelfHostedSpeechModel == SelfHostedSpeechModels.Default
+            && old.SelfHostedSpeechPrompt == SelfHostedSpeechModels.DefaultPrompt
+            && old.SelfHostedSpeechVoice == SelfHostedSpeechVoices.Default,
+            "old settings preserve cloud backend, natural local speed, the 0.6B speech model, default prompt, and Serena");
         var settings = old with { UseSelfHostedTranslation = true, SelfHostedHost = "100.64.1.2", LocalPlaybackSpeed = 1.3,
-            SelfHostedSpeechModel = SelfHostedSpeechModels.Large };
+            SelfHostedSpeechModel = SelfHostedSpeechModels.Large, SelfHostedSpeechPrompt = "请清晰而自然地朗读。",
+            SelfHostedSpeechVoice = SelfHostedSpeechVoices.Alternative };
         Check(JsonSerializer.Deserialize<ReadingOptions>(JsonSerializer.Serialize(settings)) == settings,
-            "local backend host, speed, and speech model survive settings roundtrip");
+            "local backend host, speed, speech model, prompt, and voice survive settings roundtrip");
+        foreach (var model in SelfHostedSpeechModels.All)
+        {
+            foreach (var voice in SelfHostedSpeechVoices.All)
+            {
+                using var request = JsonDocument.Parse(SelfHostedReadingClient.CreateStartRequest(
+                    "你好。", 1, model, settings.SelfHostedSpeechPrompt, voice));
+                var root = request.RootElement;
+                Check(root.GetProperty("protocol").GetInt32() == 2
+                    && root.GetProperty("speech_model").GetString() == model
+                    && root.GetProperty("speech_instruct").GetString() == settings.SelfHostedSpeechPrompt
+                    && root.GetProperty("speech_voice").GetString() == voice,
+                    $"custom prompt and {voice} reach the {model} speech request");
+            }
+        }
         using (var currentHealth = JsonDocument.Parse(JsonSerializer.Serialize(new { protocol = 1, ready = true,
             capabilities = new { speech = new { ready = true } }, sample_rate = 24000, format = "pcm_s16le",
-            voice = "Serena", speech_models = SelfHostedSpeechModels.All })))
-            LocalServiceHealth.ValidateSpeechModel(currentHealth.RootElement, SelfHostedSpeechModels.Large);
+            voice = "Serena", voices = SelfHostedSpeechVoices.All, speech_instruct = true,
+            speech_models = SelfHostedSpeechModels.All })))
+        {
+            foreach (var model in SelfHostedSpeechModels.All)
+                foreach (var voice in SelfHostedSpeechVoices.All)
+                    LocalServiceHealth.ValidateSpeechModel(currentHealth.RootElement, model,
+                        requirePrompt: true, speechVoice: voice);
+            Check(true, "current Mac health confirms custom prompts and both voices for both speech models");
+        }
         using (var legacyHealth = JsonDocument.Parse("""{"protocol":1,"ready":true,"sample_rate":24000,"format":"pcm_s16le","voice":"Serena"}"""))
         {
             LocalServiceHealth.ValidateSpeechModel(legacyHealth.RootElement, SelfHostedSpeechModels.Default);
@@ -69,6 +93,22 @@ internal static class LocalProtocolChecks
                 throw new Exception("Legacy ready accepted the large model");
             }
             catch (IOException) { Check(true, "large speech model requires explicit protocol confirmation"); }
+        }
+        foreach (var model in SelfHostedSpeechModels.All)
+        {
+            foreach (var voice in SelfHostedSpeechVoices.All)
+            {
+                using var socket = new FakeSocket();
+                socket.Text(JsonSerializer.Serialize(new { type = "ready", protocol = 2, sample_rate = 24000,
+                    format = "pcm_s16le", voice, speech_model = model, speech_instruct = true,
+                    speech_voice = voice }));
+                socket.Text("{\"type\":\"text\",\"text\":\"你好。\"}");
+                socket.Add(WebSocketMessageType.Binary, [1, 2], true);
+                socket.Text("{\"type\":\"done\"}");
+                await foreach (var _ in SelfHostedReadingClient.ReadEventsAsync(socket, _ => { }, default,
+                    model, requirePrompt: true, speechVoice: voice)) { }
+                Check(true, $"protocol confirms custom prompt and {voice} support for {model}");
+            }
         }
         foreach (var scenario in new[] { "truncated", "odd", "missing-text", "wrong-format", "busy" })
         {

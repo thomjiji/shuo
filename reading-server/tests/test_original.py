@@ -2,7 +2,7 @@ import unittest
 from threading import Event
 from types import SimpleNamespace
 import numpy as np
-from shuo_reading.engine import Reader, SAMPLE_RATE, SPEECH, SPEECH_INSTRUCTIONS, SPEECH_LARGE, SpeechSynthesizer
+from shuo_reading.engine import Reader, SAMPLE_RATE, SPEECH, SPEECH_LARGE, VOICE, VOICE_ALTERNATIVE, SpeechSynthesizer
 
 
 class OriginalTests(unittest.TestCase):
@@ -26,19 +26,23 @@ class OriginalTests(unittest.TestCase):
         self.assertNotIn("instruct", calls[0])
         self.assertEqual(sum(len(data) for kind, data in events if kind == "audio"), 15360)
 
-    def test_large_model_uses_fixed_chinese_reading_instruction(self):
-        calls = []
+    def test_custom_instruction_and_voice_reach_both_speech_models(self):
+        for model_id in (SPEECH, SPEECH_LARGE):
+            for voice in (VOICE, VOICE_ALTERNATIVE):
+                with self.subTest(model_id=model_id, voice=voice):
+                    calls = []
 
-        def generate(**options):
-            calls.append(options)
-            yield SimpleNamespace(sample_rate=SAMPLE_RATE, audio=np.zeros(7680, dtype=np.float32))
+                    def generate(**options):
+                        calls.append(options)
+                        yield SimpleNamespace(sample_rate=SAMPLE_RATE, audio=np.zeros(7680, dtype=np.float32))
 
-        reader = Reader()
-        reader.speech.model = SimpleNamespace(generate=generate)
-        reader.speech.model_id = SPEECH_LARGE
-        list(reader.original_events("这是结论。", 1, Event(), SPEECH_LARGE))
-        self.assertEqual(calls[0]["instruct"], SPEECH_INSTRUCTIONS[SPEECH_LARGE])
-        self.assertEqual(calls[0]["text"], "这是结论。")
+                    reader = Reader()
+                    reader.speech.model = SimpleNamespace(generate=generate)
+                    reader.speech.model_id = model_id
+                    list(reader.original_events("这是结论。", 1, Event(), model_id, "自然而稳定地朗读。", voice))
+                    self.assertEqual(calls[0]["instruct"], "自然而稳定地朗读。")
+                    self.assertEqual(calls[0]["voice"], voice)
+                    self.assertEqual(calls[0]["text"], "这是结论。")
         self.assertEqual(SPEECH, "mlx-community/Qwen3-TTS-12Hz-0.6B-CustomVoice-8bit")
 
     def test_switch_keeps_only_the_selected_model_reference(self):

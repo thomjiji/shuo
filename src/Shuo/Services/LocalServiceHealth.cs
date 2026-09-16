@@ -16,7 +16,8 @@ internal static class LocalServiceHealth
         Validate(body.RootElement, capabilities);
     }
 
-    internal static async Task TestSpeechModelAsync(string host, string speechModel, CancellationToken token)
+    internal static async Task TestSpeechModelAsync(string host, string speechModel, CancellationToken token,
+        bool requirePrompt = false, string speechVoice = SelfHostedSpeechVoices.Default)
     {
         var endpoint = LocalServiceEndpoint.Create(host, 18766, "/health");
         var health = new UriBuilder(endpoint) { Scheme = endpoint.Scheme == "wss" ? "https" : "http" }.Uri;
@@ -24,7 +25,7 @@ internal static class LocalServiceHealth
         using var response = await http.GetAsync(health, token);
         response.EnsureSuccessStatusCode();
         using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync(token));
-        ValidateSpeechModel(body.RootElement, speechModel);
+        ValidateSpeechModel(body.RootElement, speechModel, requirePrompt, speechVoice);
     }
 
     internal static async Task TestTranslationModelAsync(string host, CancellationToken token)
@@ -50,18 +51,29 @@ internal static class LocalServiceHealth
             if (!ready) throw new IOException(name == "translation" ? "Mac 文字翻译模型尚未准备好。" : "Mac 语音合成模型尚未准备好。");
         }
         if (capabilities.Contains("speech") && (root.GetProperty("sample_rate").GetInt32() != 24000
-            || root.GetProperty("format").GetString() != "pcm_s16le" || root.GetProperty("voice").GetString() != "Serena"))
+            || root.GetProperty("format").GetString() != "pcm_s16le"
+            || root.GetProperty("voice").GetString() != SelfHostedSpeechVoices.Default))
             throw new IOException("Mac 语音格式或音色不兼容，请更新服务。");
     }
 
-    internal static void ValidateSpeechModel(JsonElement root, string speechModel)
+    internal static void ValidateSpeechModel(JsonElement root, string speechModel, bool requirePrompt = false,
+        string speechVoice = SelfHostedSpeechVoices.Default)
     {
         if (!SelfHostedSpeechModels.IsSupported(speechModel)) throw new IOException("设置中的语音合成模型不受支持。");
+        if (!SelfHostedSpeechVoices.IsSupported(speechVoice)) throw new IOException("设置中的自托管朗读音色不受支持。");
         Validate(root, "speech");
-        if (speechModel == SelfHostedSpeechModels.Default && root.GetProperty("protocol").GetInt32() == 1) return;
+        if (speechModel == SelfHostedSpeechModels.Default && speechVoice == SelfHostedSpeechVoices.Default && !requirePrompt
+            && root.GetProperty("protocol").GetInt32() == 1) return;
         if (!root.TryGetProperty("speech_models", out var models) || models.ValueKind != JsonValueKind.Array
             || !models.EnumerateArray().Any(model => model.GetString() == speechModel))
             throw new IOException("Mac 服务不支持所选语音合成模型，请更新服务或改用 0.6B。");
+        if (requirePrompt && (!root.TryGetProperty("speech_instruct", out var prompt)
+            || prompt.ValueKind != JsonValueKind.True))
+            throw new IOException("Mac 服务不支持自定义朗读提示词，请更新服务。");
+        if (speechVoice != SelfHostedSpeechVoices.Default
+            && (!root.TryGetProperty("voices", out var voices) || voices.ValueKind != JsonValueKind.Array
+                || !voices.EnumerateArray().Any(voice => voice.GetString() == speechVoice)))
+            throw new IOException("Mac 服务不支持所选朗读音色，请更新服务或改用 Serena。");
     }
 
     internal static void ValidateTranslationModel(JsonElement root)

@@ -253,7 +253,7 @@
                                                     <ColumnDefinition Width="2*" />
                                                 </Grid.ColumnDefinitions>
                                                 <TextBlock Text="Mac 主机名或 IP" VerticalAlignment="Center" TextWrapping="Wrap" />
-                                                <TextBox Grid.Column="1" x:Name="SharedMacHost" PlaceholderText="100.x.x.x" />
+                                                <TextBox Grid.Column="1" x:Name="SharedMacHost" PlaceholderText="100.x.x.x" TextChanged="MacServiceAddress_Changed" />
                                             </Grid>
                                             <Grid ColumnSpacing="24">
                                                 <Grid.ColumnDefinitions>
@@ -270,7 +270,7 @@
                                                         <ColumnDefinition Width="2*" />
                                                     </Grid.ColumnDefinitions>
                                                     <TextBlock Text="语音输入使用的 Mac" VerticalAlignment="Center" TextWrapping="Wrap" />
-                                                    <TextBox Grid.Column="1" x:Name="SelfHostedUrl" />
+                                                    <TextBox Grid.Column="1" x:Name="SelfHostedUrl" TextChanged="MacServiceAddress_Changed" />
                                                 </Grid>
                                                 <Grid ColumnSpacing="24">
                                                     <Grid.ColumnDefinitions>
@@ -278,7 +278,7 @@
                                                         <ColumnDefinition Width="2*" />
                                                     </Grid.ColumnDefinitions>
                                                     <TextBlock Text="实时字幕使用的 Mac" VerticalAlignment="Center" TextWrapping="Wrap" />
-                                                    <TextBox Grid.Column="1" x:Name="TranslationHost" />
+                                                    <TextBox Grid.Column="1" x:Name="TranslationHost" TextChanged="MacServiceAddress_Changed" />
                                                 </Grid>
                                                 <Grid ColumnSpacing="24">
                                                     <Grid.ColumnDefinitions>
@@ -286,51 +286,59 @@
                                                         <ColumnDefinition Width="2*" />
                                                     </Grid.ColumnDefinitions>
                                                     <TextBlock Text="文字朗读使用的 Mac" VerticalAlignment="Center" TextWrapping="Wrap" />
-                                                    <TextBox Grid.Column="1" x:Name="ReadingLocalHost" />
+                                                    <TextBox Grid.Column="1" x:Name="ReadingLocalHost" TextChanged="MacServiceAddress_Changed" />
                                                 </Grid>
                                             </StackPanel>
-                                            <Grid ColumnSpacing="24">
+                                            <Grid ColumnSpacing="12">
                                                 <Grid.ColumnDefinitions>
                                                     <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="20" />
                                                     <ColumnDefinition Width="2*" />
                                                 </Grid.ColumnDefinitions>
-                                                <TextBlock Text="语音识别模型" VerticalAlignment="Center" TextWrapping="Wrap" />
-                                                <ComboBox Grid.Column="1" x:Name="SelfHostedModelPicker" SelectedIndex="0" HorizontalAlignment="Stretch">
+                                                <TextBlock Grid.Column="0" Text="语音识别模型" VerticalAlignment="Center" TextWrapping="Wrap" />
+                                                <FontIcon x:Name="MacInputStatusIcon" Grid.Column="1" Glyph="&#xE73E;" FontSize="16" Foreground="#4CAF50" Visibility="Collapsed" VerticalAlignment="Center" />
+                                                <ComboBox Grid.Column="2" x:Name="SelfHostedModelPicker" SelectedIndex="0" HorizontalAlignment="Stretch" SelectionChanged="MacServiceSelection_Changed">
                                                     <ComboBoxItem Content="Qwen3-ASR 1.7B" />
                                                     <ComboBoxItem Content="Qwen3-ASR 0.6B" />
                                                 </ComboBox>
                                             </Grid>
-                                            <Grid ColumnSpacing="24">
+                                            <Grid ColumnSpacing="12">
                                                 <Grid.ColumnDefinitions>
                                                     <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="20" />
                                                     <ColumnDefinition Width="2*" />
                                                 </Grid.ColumnDefinitions>
-                                                <TextBlock Text="实时字幕识别模型" VerticalAlignment="Center" TextWrapping="Wrap" />
-                                                <ComboBox Grid.Column="1" x:Name="CaptionSelfHostedModelPicker" SelectedIndex="0" HorizontalAlignment="Stretch">
+                                                <TextBlock Grid.Column="0" Text="实时字幕识别模型" VerticalAlignment="Center" TextWrapping="Wrap" />
+                                                <FontIcon x:Name="MacCaptionStatusIcon" Grid.Column="1" Glyph="&#xE73E;" FontSize="16" Foreground="#4CAF50" Visibility="Collapsed" VerticalAlignment="Center" />
+                                                <ComboBox Grid.Column="2" x:Name="CaptionSelfHostedModelPicker" SelectedIndex="0" HorizontalAlignment="Stretch" SelectionChanged="MacServiceSelection_Changed">
                                                     <ComboBoxItem Content="Qwen3-ASR 1.7B" />
                                                     <ComboBoxItem Content="Qwen3-ASR 0.6B" />
                                                 </ComboBox>
                                             </Grid>
-                                            <Grid ColumnSpacing="24">
+                                            <Grid ColumnSpacing="12">
                                                 <Grid.ColumnDefinitions>
                                                     <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="20" />
                                                     <ColumnDefinition Width="2*" />
                                                 </Grid.ColumnDefinitions>
-                                                <TextBlock Text="翻译模型（字幕与译读共用）" VerticalAlignment="Center" TextWrapping="Wrap" />
-                                                <Border Grid.Column="1" MinHeight="48" Padding="12,6" CornerRadius="4" BorderThickness="1" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" ToolTipService.ToolTip="mlx-community/Qwen3-8B-4bit">
+                                                <TextBlock Grid.Column="0" Text="翻译模型（字幕与译读共用）" VerticalAlignment="Center" TextWrapping="Wrap" />
+                                                <FontIcon x:Name="MacTranslationStatusIcon" Grid.Column="1" Glyph="&#xE73E;" FontSize="16" Foreground="#4CAF50" Visibility="Collapsed" VerticalAlignment="Center" />
+                                                <Border Grid.Column="2" MinHeight="48" Padding="12,6" CornerRadius="4" BorderThickness="1" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" ToolTipService.ToolTip="mlx-community/Qwen3-8B-4bit">
                                                     <StackPanel VerticalAlignment="Center">
                                                         <TextBlock Text="Qwen3 8B" LineHeight="18" />
                                                         <TextBlock Text="mlx-community/Qwen3-8B-4bit" FontSize="12" LineHeight="14" TextTrimming="CharacterEllipsis" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                                                     </StackPanel>
                                                 </Border>
                                             </Grid>
-                                            <Grid ColumnSpacing="24">
+                                            <Grid ColumnSpacing="12">
                                                 <Grid.ColumnDefinitions>
                                                     <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="20" />
                                                     <ColumnDefinition Width="2*" />
                                                 </Grid.ColumnDefinitions>
-                                                <TextBlock Text="语音合成模型" VerticalAlignment="Center" TextWrapping="Wrap" />
-                                                <ComboBox Grid.Column="1" x:Name="SelfHostedSpeechModelPicker" SelectedIndex="0" Height="48" Padding="12,4" HorizontalAlignment="Stretch" VerticalContentAlignment="Center" SelectionChanged="SelfHostedSpeechModelPicker_SelectionChanged" automation:AutomationProperties.Name="语音合成模型">
+                                                <TextBlock Grid.Column="0" Text="语音合成模型" VerticalAlignment="Center" TextWrapping="Wrap" />
+                                                <FontIcon x:Name="MacSpeechStatusIcon" Grid.Column="1" Glyph="&#xE73E;" FontSize="16" Foreground="#4CAF50" Visibility="Collapsed" VerticalAlignment="Center" />
+                                                <ComboBox Grid.Column="2" x:Name="SelfHostedSpeechModelPicker" SelectedIndex="0" Height="48" Padding="12,4" HorizontalAlignment="Stretch" VerticalContentAlignment="Center" SelectionChanged="SelfHostedSpeechModelPicker_SelectionChanged" automation:AutomationProperties.Name="语音合成模型">
                                                     <ComboBox.ItemTemplate>
                                                         <DataTemplate>
                                                             <StackPanel ToolTipService.ToolTip="{Binding Model}">
@@ -341,8 +349,16 @@
                                                     </ComboBox.ItemTemplate>
                                                 </ComboBox>
                                             </Grid>
+                                            <Grid ColumnSpacing="12">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="20" />
+                                                    <ColumnDefinition Width="2*" />
+                                                </Grid.ColumnDefinitions>
+                                                <TextBlock Grid.Column="0" Text="朗读提示词" VerticalAlignment="Top" Margin="0,8,0,0" TextWrapping="Wrap" />
+                                                <TextBox Grid.Column="2" x:Name="SelfHostedSpeechPromptInput" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="96" MaxLength="300" PlaceholderText="描述希望模型采用的朗读方式" automation:AutomationProperties.Name="自托管语音合成朗读提示词" />
+                                            </Grid>
                                             <Button x:Name="MacTestButton" HorizontalAlignment="Right" Content="测试连接与可用能力" Click="MacTest_Click" />
-                                            <TextBlock x:Name="MacServiceStatus" TextWrapping="Wrap" />
                                         </StackPanel>
                                     </Expander>
                                     <Expander x:Name="DoubaoServiceExpander" Header="火山引擎 / 豆包" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
@@ -553,9 +569,7 @@
                                                     <TextBlock Text="音色" VerticalAlignment="Center" TextWrapping="Wrap" />
                                                     <Grid Grid.Column="1">
                                                         <ComboBox x:Name="ReadingSpeaker" Height="40" HorizontalAlignment="Stretch" DisplayMemberPath="Name" MaxDropDownHeight="320" />
-                                                        <ComboBox x:Name="ReadingFixedVoice" Height="40" SelectedIndex="0" Visibility="Collapsed" HorizontalAlignment="Stretch" automation:AutomationProperties.Name="音色">
-                                                            <ComboBoxItem Content="Serena" />
-                                                        </ComboBox>
+                                                        <ComboBox x:Name="ReadingFixedVoice" Height="40" SelectedIndex="0" Visibility="Collapsed" HorizontalAlignment="Stretch" DisplayMemberPath="Name" SelectionChanged="ReadingLocalSettings_Changed" automation:AutomationProperties.Name="音色" />
                                                     </Grid>
                                                 </Grid>
                                             </Grid>

@@ -54,7 +54,8 @@ _ReSharper*/
 Generated\ Files/
 *_wpftmp.csproj
 
-# Python ASR service
+# Python services
 .venv/
 __pycache__/
 *.egg-info/
+/reading-server/build/

@@ -34,12 +34,16 @@ parser.add_argument("--tts", default="mlx-community/Qwen3-TTS-12Hz-1.7B-CustomVo
 parser.add_argument("--voice", default="Serena")
 parser.add_argument("--chunk-bytes", type=int, nargs="+",
                     help="Compare speech request budgets in UTF-8 bytes; 0 sends the whole sample at once")
+parser.add_argument("--chunks-only", action="store_true",
+                    help="Skip the translation benchmark and compare speech budgets only")
 args = parser.parse_args()
 args.output.mkdir(parents=True, exist_ok=True)
 llm_id = "mlx-community/Qwen3-8B-4bit"
 tts_id = args.tts
-print("Loading translation model", flush=True)
-llm, tokenizer = load(llm_id)
+llm = tokenizer = None
+if not args.chunks_only:
+    print("Loading translation model", flush=True)
+    llm, tokenizer = load(llm_id)
 print("Loading speech model", flush=True)
 tts = load_model(tts_id)
 print("Models loaded", flush=True)
@@ -115,6 +119,8 @@ def synthesize(text, voice):
 
 rows = []
 for round_index in range(2):
+    if args.chunks_only:
+        break
     for name, source in samples.items():
         prompt = tokenizer.apply_chat_template(
             [{"role": "user", "content": "将以下原文完整忠实地翻译成简体中文，保留数字和否定。只输出译文，不解释、不总结。\n\n" + source}],
@@ -157,9 +163,10 @@ if args.chunk_bytes:
         first_audio = None
         sample_rate = 24000
         for passage in passages:
-            pcm, sample_rate, _, _ = synthesize(passage, args.voice)
+            pcm, sample_rate, passage_first_audio, _ = synthesize(passage, args.voice)
+            # Playback can start with the first decoded chunk of the first passage.
             if first_audio is None:
-                first_audio = time.perf_counter() - started
+                first_audio = passage_first_audio
             audio.append(pcm)
         speech_seconds = time.perf_counter() - started
         combined = np.concatenate(audio)

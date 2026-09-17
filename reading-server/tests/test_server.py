@@ -68,8 +68,22 @@ class ProtocolTests(unittest.TestCase):
                 self.assertEqual(ws.receive_json(), dict(type="done"))
             self.wait_idle(client)
 
+    def test_multi_paragraph_passage_is_served_as_one_request(self):
+        passage = "\n\n".join(f"第{index}段的正文，用来确认多段选文只请求一次。" for index in range(1, 41))
+        self.assertGreater(len(passage.encode("utf-8")), 900)
+        reader = Reader()
+        with TestClient(create_app(reader)) as client:
+            with client.websocket_connect("/v1/speech") as ws:
+                ws.send_json({**START, "text": passage})
+                ws.receive_json()
+                self.assertEqual(ws.receive_json(), dict(type="text", text=passage))
+                ws.receive_bytes()
+                ws.send_json(dict(type="ack"))
+                self.assertEqual(ws.receive_json(), dict(type="done"))
+            self.wait_idle(client)
+        self.assertEqual(reader.speech_requests, [(SPEECH_SMALL, None, VOICE)])
     def test_selected_speech_model_voice_and_custom_instruction_reach_reader(self):
-        for selected in (SPEECH, SPEECH_LARGE):
+        for selected in (SPEECH_LARGE, SPEECH_SMALL):
             for selected_voice in (VOICE, VOICE_ALTERNATIVE):
                 with self.subTest(selected=selected, selected_voice=selected_voice):
                     reader = Reader()
@@ -205,7 +219,7 @@ class ProtocolTests(unittest.TestCase):
                 self.wait_idle(client)
 
     def test_invalid_request_does_not_run_model(self):
-        for changes in (dict(protocol=3), dict(text=""), dict(text="字" * 301), dict(speed=2), dict(speed=True),
+        for changes in (dict(protocol=3), dict(text=""), dict(text="字" * 1001), dict(speed=2), dict(speed=True),
                         dict(protocol=2, speech_model="unsupported"), dict(protocol=2, speech_instruct=" "),
                         dict(protocol=2, speech_instruct="字" * 401), dict(speech_instruct="不支持"),
                         dict(protocol=2, speech_voice="unsupported"), dict(speech_voice=VOICE_ALTERNATIVE)):

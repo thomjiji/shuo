@@ -12,8 +12,10 @@ internal static class LocalTranslationTests
     internal static async Task RunAsync()
     {
         var source = string.Concat(Enumerable.Repeat("你好😀 hello。", 200));
-        var passages = ReadingText.Split(source, ReadingText.LocalRequestBytes);
-        Check(string.Concat(passages) == source && passages.All(p => Encoding.UTF8.GetByteCount(p) <= 900), "Split long Unicode segments without losing text");
+        var passages = ReadingText.Split(source, ReadingText.CaptionRequestBytes);
+        Check(string.Concat(passages) == source
+            && passages.All(p => Encoding.UTF8.GetByteCount(p) <= ReadingText.CaptionRequestBytes),
+            "Split long Unicode segments without losing text");
         Check(SelfHostedTextTranslator.Endpoint("100.119.85.74").AbsoluteUri == "ws://100.119.85.74:18766/v1/translation", "Local endpoint");
         foreach (var stopEarly in new[] { false, true }) await WireAsync(stopEarly);
         Console.WriteLine("Passed local translation, committed segments, repeated speech, Unicode bounds, and tail delivery tests.");

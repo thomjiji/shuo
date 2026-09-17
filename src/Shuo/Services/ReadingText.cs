@@ -4,7 +4,11 @@ namespace Shuo.Services;
 
 internal static class ReadingText
 {
-    internal const int LocalRequestBytes = 900;
+    // One self-hosted request; the service enforces the same budget. Large enough that a
+    // multi-paragraph passage is spoken as one utterance instead of a hard split.
+    internal const int LocalRequestBytes = 3000;
+    // Live captions translate committed speech incrementally, so they keep a smaller budget.
+    internal const int CaptionRequestBytes = 900;
     internal const int MaximumLength = 30000;
     // Application request budget; not a verified service maximum.
     internal const int MaximumRequestBytes = 1800;

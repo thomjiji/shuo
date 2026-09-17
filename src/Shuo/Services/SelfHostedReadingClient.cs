@@ -88,7 +88,7 @@ internal static class SelfHostedReadingClient
                 if (!ready || message.Length == 0 || (message.Length & 1) != 0)
                     throw new IOException("Mac 译读音频格式无效。");
                 audioBytes += message.Length;
-                if (audioBytes > 24000 * 2 * 240) throw new IOException("本段音频过长，请缩短选文。");
+                if (audioBytes > 24000 * 2 * 600) throw new IOException("本段音频过长，请缩短选文。");
                 yield return message.ToArray();
                 await socket.SendAsync("{\"type\":\"ack\"}"u8.ToArray().AsMemory(), WebSocketMessageType.Text, true, token);
                 continue;
@@ -105,7 +105,7 @@ internal static class SelfHostedReadingClient
                 case "text" when ready:
                     var text = root.GetProperty("text").GetString() ?? "";
                     textLength += text.Length;
-                    if (textLength > 3000) throw new IOException("Mac 返回的译文过长。");
+                    if (textLength > ReadingText.LocalRequestBytes * 4) throw new IOException("Mac 返回的译文过长。");
                     translated(text);
                     break;
                 case "done" when ready:

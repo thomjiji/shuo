@@ -50,7 +50,7 @@ internal sealed class SelfHostedTranslationSession(TranslationOptions options, A
         {
             await foreach (var source in snapshots.Reader.ReadAllAsync(lifetime.Token))
             {
-                foreach (var passage in ReadingText.Split(source, ReadingText.LocalRequestBytes))
+                foreach (var passage in ReadingText.Split(source, ReadingText.CaptionRequestBytes))
                 {
                     var text = await translator.TranslateAsync(passage, options.TargetLanguage, lifetime.Token);
                     transcript(format is null ? text : await format(text, lifetime.Token));

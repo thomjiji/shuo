@@ -16,7 +16,11 @@ VOICE_ALTERNATIVE = "Vivian"
 VOICES = (VOICE, VOICE_ALTERNATIVE)
 SAMPLE_RATE = 24000
 SPEEDS = (0.85, 1.0, 1.15, 1.3)
-MAX_PASSAGE_BYTES = 900
+MAX_PASSAGE_BYTES = 3000
+FRAMES_PER_SECOND = 12.5
+SAMPLES_PER_FRAME = int(SAMPLE_RATE / FRAMES_PER_SECOND)
+# Runaway guard for one request; a slow reading still needs well under this.
+MAX_SPEECH_FRAMES = 8192
 
 
 class Tempo:
@@ -150,8 +154,11 @@ class SpeechSynthesizer:
         tempo = Tempo(speed)
         audio_bytes = 0
         samples_generated = 0
+        # The talker emits 12.5 frames per second. Seven frames per character covers a slow
+        # reading with headroom while still bounding a broken decoder.
+        max_tokens = max(1024, min(MAX_SPEECH_FRAMES, len(text) * 7))
         options = dict(text=text, voice=voice, lang_code=language, stream=True,
-                       streaming_interval=0.32, max_tokens=2048)
+                       streaming_interval=0.32, max_tokens=max_tokens)
         if instruction is not None:
             options["instruct"] = instruction
         stream = self.model.generate(**options)
@@ -164,7 +171,7 @@ class SpeechSynthesizer:
                 samples = np.asarray(result.audio)
                 samples_generated += samples.size
                 # A runaway decoder must not hold a reading session indefinitely.
-                if samples_generated >= 2048 * 1920 or not np.all(np.isfinite(samples)):
+                if samples_generated >= max_tokens * SAMPLES_PER_FRAME or not np.all(np.isfinite(samples)):
                     raise ValueError("语音生成未正常结束，请缩短选文。")
                 for output in tempo.push(samples):
                     pcm = (np.clip(output, -1, 1) * 32767).astype("<i2").tobytes()

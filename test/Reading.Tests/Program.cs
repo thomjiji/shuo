@@ -114,7 +114,9 @@ Check(!migrated.TranslateToChinese && JsonSerializer.Deserialize<ReadingOptions>
     "old settings keep original reading and Chinese mode persists");
 var english = string.Concat(Enumerable.Repeat("This is a complete sentence with context. ", 100));
 var passages = ReadingText.Split(english, ReadingText.LocalRequestBytes);
-Check(string.Concat(passages) == english && passages.All(p => Encoding.UTF8.GetByteCount(p) <= 900), "translated passages are bounded without losing source text");
+Check(string.Concat(passages) == english
+    && passages.All(p => Encoding.UTF8.GetByteCount(p) <= ReadingText.LocalRequestBytes),
+    "local passages are bounded without losing source text");
 var words = string.Join(" ", Enumerable.Repeat("selection", 120));
 Check(ReadingText.Split(words, 900)[0].EndsWith(' '), "oversized English sentences split between words");
 checks += await LocalProtocolChecks.Run();

@@ -2,7 +2,7 @@ import unittest
 from threading import Event
 from types import SimpleNamespace
 import numpy as np
-from shuo_reading.engine import Reader, SAMPLE_RATE, SPEECH, SPEECH_LARGE, VOICE, VOICE_ALTERNATIVE, SpeechSynthesizer
+from shuo_reading.engine import Reader, SAMPLE_RATE, SPEECH_LARGE, SPEECH_SMALL, VOICE, VOICE_ALTERNATIVE, SpeechSynthesizer
 
 
 class OriginalTests(unittest.TestCase):
@@ -16,7 +16,7 @@ class OriginalTests(unittest.TestCase):
         reader = Reader()
         # No translator is loaded: original reading must only use the speech model.
         reader.speech.model = SimpleNamespace(generate=generate)
-        reader.speech.model_id = SPEECH
+        reader.speech.model_id = SPEECH_LARGE
         source = "Hello. 会議は明日です。你好。"
         events = list(reader.original_events(source, 1, Event()))
         self.assertEqual(events[0], ("text", source))
@@ -27,7 +27,7 @@ class OriginalTests(unittest.TestCase):
         self.assertEqual(sum(len(data) for kind, data in events if kind == "audio"), 15360)
 
     def test_custom_instruction_and_voice_reach_both_speech_models(self):
-        for model_id in (SPEECH, SPEECH_LARGE):
+        for model_id in (SPEECH_SMALL, SPEECH_LARGE):
             for voice in (VOICE, VOICE_ALTERNATIVE):
                 with self.subTest(model_id=model_id, voice=voice):
                     calls = []
@@ -43,7 +43,7 @@ class OriginalTests(unittest.TestCase):
                     self.assertEqual(calls[0]["instruct"], "自然而稳定地朗读。")
                     self.assertEqual(calls[0]["voice"], voice)
                     self.assertEqual(calls[0]["text"], "这是结论。")
-        self.assertEqual(SPEECH, "mlx-community/Qwen3-TTS-12Hz-0.6B-CustomVoice-8bit")
+        self.assertEqual(SPEECH_SMALL, "mlx-community/Qwen3-TTS-12Hz-0.6B-CustomVoice-8bit")
 
     def test_switch_keeps_only_the_selected_model_reference(self):
         loaded = []
@@ -54,7 +54,7 @@ class OriginalTests(unittest.TestCase):
             return model
 
         speech = SpeechSynthesizer(load)
-        speech._select_model(SPEECH)
+        speech._select_model(SPEECH_SMALL)
         first = speech.model
         speech._select_model(SPEECH_LARGE)
         self.assertIsNot(speech.model, first)

@@ -60,7 +60,7 @@ internal static class CapabilityTests
         using (var selectable = JsonDocument.Parse(JsonSerializer.Serialize(new { protocol = 1, ready = true,
             capabilities = new { speech = new { ready = true } }, sample_rate = 24000, format = "pcm_s16le",
             voice = "Serena", speech_models = SelfHostedSpeechModels.All })))
-            LocalServiceHealth.ValidateSpeechModel(selectable.RootElement, SelfHostedSpeechModels.Large);
+            LocalServiceHealth.ValidateSpeechModel(selectable.RootElement, SelfHostedSpeechModels.Small);
         using (var translation = JsonDocument.Parse(JsonSerializer.Serialize(new { protocol = 1, ready = true,
             capabilities = new { translation = new { ready = true } },
             translation_model = SelfHostedTranslationModels.Default })))

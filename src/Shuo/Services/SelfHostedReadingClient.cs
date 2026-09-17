@@ -55,7 +55,7 @@ internal static class SelfHostedReadingClient
     }
 
     internal static async IAsyncEnumerable<byte[]> ReadEventsAsync(WebSocket socket, Action<string> translated,
-        [EnumeratorCancellation] CancellationToken token, string speechModel = SelfHostedSpeechModels.Default,
+        [EnumeratorCancellation] CancellationToken token, string speechModel = SelfHostedSpeechModels.Large,
         bool requirePrompt = false, string speechVoice = SelfHostedSpeechVoices.Default)
     {
         var buffer = new byte[16384];
@@ -129,7 +129,7 @@ internal static class SelfHostedReadingClient
         if (protocol is not (1 or 2) || root.GetProperty("sample_rate").GetInt32() != 24000
             || root.GetProperty("format").GetString() != "pcm_s16le" || root.GetProperty("voice").GetString() != speechVoice)
             throw new IOException("Mac 译读协议或音色不兼容，请更新服务。");
-        if ((speechModel != SelfHostedSpeechModels.Default || requirePrompt || speechVoice != SelfHostedSpeechVoices.Default)
+        if ((speechModel != SelfHostedSpeechModels.Small || requirePrompt || speechVoice != SelfHostedSpeechVoices.Default)
             && (protocol < 2 || !root.TryGetProperty("speech_model", out var selected)
                 || selected.GetString() != speechModel
                 || speechVoice != SelfHostedSpeechVoices.Default

@@ -8,7 +8,7 @@ import logging
 from threading import Event
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
-from .engine import DEFAULT_SPEECH_INSTRUCTION, MAX_PASSAGE_BYTES, MAX_SPEECH_INSTRUCTION_BYTES, SAMPLE_RATE, SPEEDS, SPEECH, SPEECH_MODELS, TRANSLATOR, VOICE, VOICES, Reader
+from .engine import DEFAULT_SPEECH_INSTRUCTION, MAX_PASSAGE_BYTES, MAX_SPEECH_INSTRUCTION_BYTES, SAMPLE_RATE, SPEEDS, SPEECH_LARGE, SPEECH_SMALL, SPEECH_MODELS, TRANSLATOR, VOICE, VOICES, Reader
 
 logger = logging.getLogger("shuo_reading")
 
@@ -23,9 +23,9 @@ def validate_start(config):
     if isinstance(speed, bool) or speed not in SPEEDS:
         raise ValueError("不支持此播放速度。")
     protocol = config["protocol"]
-    speech_model = config.get("speech_model", SPEECH)
-    if protocol == 1 and speech_model != SPEECH:
-        raise ValueError("此协议只支持默认的 0.6B 语音合成模型，请更新 Mac 服务。")
+    speech_model = config.get("speech_model", SPEECH_SMALL if protocol == 1 else SPEECH_LARGE)
+    if protocol == 1 and speech_model != SPEECH_SMALL:
+        raise ValueError("此协议只支持 0.6B 语音合成模型，请更新 Mac 服务。")
     if speech_model not in SPEECH_MODELS:
         raise ValueError("不支持所选语音合成模型，请更新 Shuo 或 Mac 服务。")
     speech_instruct = None

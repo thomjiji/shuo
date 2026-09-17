@@ -2,7 +2,7 @@ import threading
 import time
 import unittest
 from fastapi.testclient import TestClient
-from shuo_reading.engine import DEFAULT_SPEECH_INSTRUCTION, SPEECH, SPEECH_LARGE, VOICE, VOICE_ALTERNATIVE
+from shuo_reading.engine import DEFAULT_SPEECH_INSTRUCTION, SPEECH_LARGE, SPEECH_SMALL, VOICE, VOICE_ALTERNATIVE
 from shuo_reading.server import create_app
 
 START = dict(type="start", protocol=1, text="会議は明日です。", speed=1.0)
@@ -99,16 +99,16 @@ class ProtocolTests(unittest.TestCase):
         reader = Reader()
         with TestClient(create_app(reader)) as client:
             with client.websocket_connect("/v1/speech") as ws:
-                ws.send_json({**START, "protocol": 2, "speech_model": SPEECH})
+                ws.send_json({**START, "protocol": 2, "speech_model": SPEECH_LARGE})
                 self.assertTrue(ws.receive_json()["speech_instruct"])
                 ws.receive_json()
                 ws.receive_bytes()
                 ws.send_json(dict(type="ack"))
                 self.assertEqual(ws.receive_json(), dict(type="done"))
-        self.assertEqual(reader.speech_requests, [(SPEECH, DEFAULT_SPEECH_INSTRUCTION, VOICE)])
+        self.assertEqual(reader.speech_requests, [(SPEECH_LARGE, DEFAULT_SPEECH_INSTRUCTION, VOICE)])
 
     def test_protocol_two_accepts_explicitly_disabled_instruction(self):
-        for selected in (SPEECH, SPEECH_LARGE):
+        for selected in (SPEECH_LARGE, SPEECH_SMALL):
             with self.subTest(selected=selected):
                 reader = Reader()
                 with TestClient(create_app(reader)) as client:
@@ -176,7 +176,7 @@ class ProtocolTests(unittest.TestCase):
                     ws.send_json(dict(type="ack"))
                 self.assertEqual(ws.receive_json(), dict(type="done"))
             self.wait_idle(client)
-        self.assertEqual(reader.speech_requests, [(SPEECH, None, VOICE)])
+        self.assertEqual(reader.speech_requests, [(SPEECH_SMALL, None, VOICE)])
         self.assertTrue(reader.closed.is_set())
 
     def test_busy_and_disconnect_release_slot(self):

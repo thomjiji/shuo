@@ -62,7 +62,7 @@ internal static class LocalServiceHealth
         if (!SelfHostedSpeechModels.IsSupported(speechModel)) throw new IOException("设置中的语音合成模型不受支持。");
         if (!SelfHostedSpeechVoices.IsSupported(speechVoice)) throw new IOException("设置中的自托管朗读音色不受支持。");
         Validate(root, "speech");
-        if (speechModel == SelfHostedSpeechModels.Default && speechVoice == SelfHostedSpeechVoices.Default && !requirePrompt
+        if (speechModel == SelfHostedSpeechModels.Small && speechVoice == SelfHostedSpeechVoices.Default && !requirePrompt
             && root.GetProperty("protocol").GetInt32() == 1) return;
         if (!root.TryGetProperty("speech_models", out var models) || models.ValueKind != JsonValueKind.Array
             || !models.EnumerateArray().Any(model => model.GetString() == speechModel))

@@ -53,11 +53,11 @@ await Fails<JsonException>(() => Parse("data: not-json\n\n"), "invalid event rej
 
 var migrated = JsonSerializer.Deserialize<ReadingOptions>("{\"Enabled\":true}")!;
 Check(migrated.Hotkey == new HotkeyBinding(3, 0x20), "missing shortcut uses Ctrl Alt Space");
-Check(migrated.SelfHostedSpeechModel == SelfHostedSpeechModels.Default, "old reading settings keep the 0.6B speech model");
-Check(migrated.SelfHostedSpeechPrompt == SelfHostedSpeechModels.DefaultPrompt, "old reading settings use the default speech prompt");
+Check(migrated.SelfHostedSpeechModel == SelfHostedSpeechModels.Large, "old reading settings use the 1.7B speech model");
+Check(migrated.SelfHostedSpeechPrompt == "", "old reading settings send no speech prompt");
 Check(migrated.SelfHostedSpeechVoice == SelfHostedSpeechVoices.Default, "old reading settings use Serena");
-Check(SelfHostedSpeechModels.NormalizePrompt(SelfHostedSpeechModels.LegacyDefaultPrompt) == SelfHostedSpeechModels.DefaultPrompt,
-    "previous default prompt migrates to restrained pacing guidance");
+Check(SelfHostedSpeechModels.RetiredDefaultPrompts.All(prompt => SelfHostedSpeechModels.NormalizePrompt(prompt) == ""),
+    "previously built-in prompts clear to none");
 var custom = new ReadingOptions(HotkeyModifiers: 6, HotkeyVirtualKey: 0x79);
 Check(JsonSerializer.Deserialize<ReadingOptions>(JsonSerializer.Serialize(custom))!.Hotkey == custom.Hotkey, "custom reading shortcut survives settings roundtrip");
 Check(ReadingVoices.All.Any(voice => voice.Id == new ReadingOptions().Speaker), "default voice appears in picker");
@@ -65,7 +65,8 @@ Check(ReadingVoices.All.Any(voice => voice.Name == "温柔妈妈 2.0" && voice.I
 Check(ReadingVoices.All.Select(voice => voice.Id).Distinct(StringComparer.Ordinal).Count() == ReadingVoices.All.Length, "voice picker IDs are unique");
 await Fails<ArgumentException>(() => { new ReadingOptions(HotkeyModifiers: 0).Validate(); return Task.CompletedTask; }, "invalid reading shortcut rejected");
 new ReadingOptions(SelfHostedSpeechPrompt: " ").Validate();
-Check(SelfHostedSpeechModels.NormalizePrompt("") == "", "empty speech prompt remains explicitly disabled");
+Check(SelfHostedSpeechModels.NormalizePrompt("") == "", "empty speech prompt stays empty");
+Check(SelfHostedSpeechModels.NormalizePrompt(" 朗读。 ") == "朗读。", "custom speech prompts are kept and trimmed");
 await Fails<ArgumentException>(() => { new ReadingOptions(SelfHostedSpeechPrompt: new string('字', 301)).Validate(); return Task.CompletedTask; }, "oversized speech prompt rejected");
 await Fails<ArgumentException>(() => { new ReadingOptions(SelfHostedSpeechVoice: "unsupported").Validate(); return Task.CompletedTask; }, "unsupported self-hosted voice rejected");
 byte[] CopyMetadata(string value)

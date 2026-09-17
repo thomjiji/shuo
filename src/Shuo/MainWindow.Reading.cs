@@ -23,8 +23,8 @@ public sealed partial class MainWindow
     {
         SelfHostedSpeechModelPicker.ItemsSource = new ServiceModelOption[]
         {
-            new("Qwen3-TTS 0.6B CustomVoice（默认）", SelfHostedSpeechModels.Default),
-            new("Qwen3-TTS 1.7B CustomVoice", SelfHostedSpeechModels.Large),
+            new("Qwen3-TTS 1.7B CustomVoice（默认）", SelfHostedSpeechModels.Large),
+            new("Qwen3-TTS 0.6B CustomVoice", SelfHostedSpeechModels.Small),
         };
         ReadingTranslationServicePicker.ItemsSource = new ServiceModelOption[]
         {
@@ -58,7 +58,7 @@ public sealed partial class MainWindow
             ReadingSpeaker.SelectedItem = selectedVoice;
             ReadingSpeed.Value = options.SpeechRate;
             ReadingLocalHost.Text = options.SelfHostedHost;
-            SelfHostedSpeechModelPicker.SelectedIndex = options.SelfHostedSpeechModel == SelfHostedSpeechModels.Large ? 1 : 0;
+            SelfHostedSpeechModelPicker.SelectedIndex = options.SelfHostedSpeechModel == SelfHostedSpeechModels.Small ? 1 : 0;
             SelfHostedSpeechPromptInput.Text = options.SelfHostedSpeechPrompt;
             ReadingFixedVoice.SelectedIndex = options.SelfHostedSpeechVoice == SelfHostedSpeechVoices.Alternative ? 1 : 0;
             UpdateReadingSpeechServices();
@@ -84,7 +84,7 @@ public sealed partial class MainWindow
         ReadingSettings.Load().SelfHostedSpeechPrompt, SelectedSelfHostedSpeechVoice());
 
     private string SelectedSelfHostedSpeechModel() =>
-        (SelfHostedSpeechModelPicker.SelectedItem as ServiceModelOption)?.Model ?? SelfHostedSpeechModels.Default;
+        (SelfHostedSpeechModelPicker.SelectedItem as ServiceModelOption)?.Model ?? SelfHostedSpeechModels.Large;
 
     private string SelectedSelfHostedSpeechVoice() =>
         (ReadingFixedVoice.SelectedItem as ServiceModelOption)?.Model ?? SelfHostedSpeechVoices.Default;

@@ -6,9 +6,9 @@ from threading import Event
 
 logger = logging.getLogger("shuo_reading")
 TRANSLATOR = "mlx-community/Qwen3-8B-4bit"
-SPEECH = "mlx-community/Qwen3-TTS-12Hz-0.6B-CustomVoice-8bit"
 SPEECH_LARGE = "mlx-community/Qwen3-TTS-12Hz-1.7B-CustomVoice-8bit"
-SPEECH_MODELS = (SPEECH, SPEECH_LARGE)
+SPEECH_SMALL = "mlx-community/Qwen3-TTS-12Hz-0.6B-CustomVoice-8bit"
+SPEECH_MODELS = (SPEECH_LARGE, SPEECH_SMALL)
 DEFAULT_SPEECH_INSTRUCTION = "请用平实、专业、克制、清晰的中文文章朗读方式。句间停顿应简短自然，只在段落边界或语义确有需要时稍作停顿；不要为了制造情绪、悬念或起承转合刻意延长停顿，不要戏剧化表演。准确读出否定、数字与结论，不要逐字播报。"
 MAX_SPEECH_INSTRUCTION_BYTES = 1200
 VOICE = "Serena"
@@ -107,8 +107,8 @@ class SpeechSynthesizer:
             tempo = Tempo(speed)
             tempo.push(np.zeros(SAMPLE_RATE, dtype=np.float32))
             tempo.push(None)
-        self._select_model(SPEECH)
-        for _ in self.speech_events("你好。", 1.0, "Chinese", Event(), SPEECH):
+        self._select_model(SPEECH_LARGE)
+        for _ in self.speech_events("你好。", 1.0, "Chinese", Event(), SPEECH_LARGE):
             pass
 
     def unload(self):
@@ -140,7 +140,7 @@ class SpeechSynthesizer:
             self._release_model()
             raise ValueError("所选语音合成模型加载失败，请确认模型可下载且与当前服务兼容。") from None
 
-    def speech_events(self, text, speed, language, stopped, model_id=SPEECH, instruction=None, voice=VOICE):
+    def speech_events(self, text, speed, language, stopped, model_id=SPEECH_LARGE, instruction=None, voice=VOICE):
         import numpy as np
         if stopped.is_set():
             return
@@ -216,16 +216,16 @@ class Reader:
     def translation_events(self, source, target, stopped):
         yield from self.translator.translation_events(source, target, stopped)
 
-    def speech_events(self, text, speed, language, stopped, model_id=SPEECH, instruction=None, voice=VOICE):
+    def speech_events(self, text, speed, language, stopped, model_id=SPEECH_LARGE, instruction=None, voice=VOICE):
         yield from self.speech.speech_events(text, speed, language, stopped, model_id, instruction, voice)
 
-    def events(self, source, speed, stopped, model_id=SPEECH, instruction=None, voice=VOICE):
+    def events(self, source, speed, stopped, model_id=SPEECH_LARGE, instruction=None, voice=VOICE):
         translated = ""
         for kind, text in self.translation_events(source, "zh", stopped):
             translated += text
             yield kind, text
         yield from self.speech_events(translated, speed, "Chinese", stopped, model_id, instruction, voice)
 
-    def original_events(self, source, speed, stopped, model_id=SPEECH, instruction=None, voice=VOICE):
+    def original_events(self, source, speed, stopped, model_id=SPEECH_LARGE, instruction=None, voice=VOICE):
         yield "text", source
         yield from self.speech_events(source, speed, "auto", stopped, model_id, instruction, voice)

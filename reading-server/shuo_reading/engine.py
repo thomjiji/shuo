@@ -231,7 +231,7 @@ class Reader:
         for kind, text in self.translation_events(source, "zh", stopped):
             translated += text
             yield kind, text
-        yield from self.speech_events(translated, speed, "Chinese", stopped, model_id, instruction, voice)
+        yield from self.speech_events(translated, speed, "auto", stopped, model_id, instruction, voice)
 
     def original_events(self, source, speed, stopped, model_id=SPEECH_LARGE, instruction=None, voice=VOICE):
         yield "text", source

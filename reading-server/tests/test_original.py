@@ -26,6 +26,21 @@ class OriginalTests(unittest.TestCase):
         self.assertNotIn("instruct", calls[0])
         self.assertEqual(sum(len(data) for kind, data in events if kind == "audio"), 15360)
 
+    def test_translated_reading_uses_auto_language(self):
+        calls = []
+
+        def generate(**options):
+            calls.append(options)
+            yield SimpleNamespace(sample_rate=SAMPLE_RATE, audio=np.zeros(7680, dtype=np.float32))
+
+        reader = Reader()
+        reader.translation_events = lambda source, target, stopped: iter([("text", "中文 Qwen3.8-Omni-Flash")])
+        reader.speech.model = SimpleNamespace(generate=generate)
+        reader.speech.model_id = SPEECH_LARGE
+        list(reader.events("source", 1, Event()))
+        self.assertEqual(calls[0]["text"], "中文 Qwen3.8-Omni-Flash")
+        self.assertEqual(calls[0]["lang_code"], "auto")
+
     def test_custom_instruction_and_voice_reach_both_speech_models(self):
         for model_id in (SPEECH_SMALL, SPEECH_LARGE):
             for voice in (VOICE, VOICE_ALTERNATIVE):
